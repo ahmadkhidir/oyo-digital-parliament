@@ -64,10 +64,10 @@ A new capability belongs under `src/capabilities/`, one directory per capability
 
 ## Checks
 
-- `npm run -w @odp/inference typecheck` — strict TypeScript across `src`, `test` and the harness.
-- `npm run -w @odp/inference test` — Vitest; must pass with no network access, every provider response stubbed or recorded.
-- `npm run -w @odp/inference eval -- --capability moderation_routing` — runs the stored labelled set for one capability, writes a `ModelEvaluation`, prints the failing cases, and exits non-zero when the bar is missed. Run it for each of the four capabilities before a version is promoted.
-- `npm run -w @odp/inference lint` — includes the import-boundary rule that keeps provider SDKs inside `src/adapters/`.
+- `pnpm --filter @odp/inference typecheck` — strict TypeScript across `src`, `test` and the harness.
+- `pnpm --filter @odp/inference test` — Vitest; must pass with no network access, every provider response stubbed or recorded.
+- `pnpm --filter @odp/inference eval -- --capability moderation_routing` — runs the stored labelled set for one capability, writes a `ModelEvaluation`, prints the failing cases, and exits non-zero when the bar is missed. Run it for each of the four capabilities before a version is promoted.
+- `pnpm --filter @odp/inference lint` — includes the import-boundary rule that keeps provider SDKs inside `src/adapters/`.
 - Manual before enabling inference in an environment: inspect sample payloads for name, telephone number, member identifier and address text, and confirm the provider, processing region and agreement against `NFR-045`.
 - Manual after any payload-shape change: re-inspect a sample payload and confirm `removedFields` still reports every removed identifier.
 

@@ -362,6 +362,7 @@ The canonical commands are created and verified in Phase 0. Until then, only the
 | Root | `pnpm test:a11y` | axe accessibility checks across declared screens |
 | Root | `pnpm test:load` | k6 load profiles against the NFR budgets |
 | Root | `pnpm db:generate` | Generate a migration from the schema |
+| Root | `pnpm db:check` | Verify the migration journal and schema drift |
 | Root | `pnpm db:migrate` | Apply migrations to the target database |
 | Root | `pnpm db:seed` | Apply deterministic seeds |
 | Root | `pnpm eval` | Run the inference evaluation harness |

@@ -61,19 +61,19 @@ Placement rules:
 
 ## Checks
 
-Run from `packages/db` with `DATABASE_URL` pointing at a disposable PostgreSQL 16 instance:
+Run from the repository root with `DATABASE_URL` pointing at a disposable PostgreSQL 16 instance:
 
-- Typecheck: `npx tsc --noEmit`
-- Tests, including repository, migration round-trip, full-text search, idempotency and seed idempotency suites: `npx vitest run`
-- Migration collisions and journal drift: `npx drizzle-kit check`
-- Apply migrations to the disposable database: `npx drizzle-kit migrate`
-- After a schema edit: `npx drizzle-kit generate`, then review the generated SQL and add the matching down path under `drizzle/down/`
-- Seed idempotency: run the seed entry twice against the same disposable database through the test harness; the second run must change no row
-- Lint and format: run the root command named in root `AGENTS.md`; this package adds no second style toolchain
+- Typecheck: `pnpm --filter @odp/db typecheck`
+- Tests, including repository, migration round-trip, full-text search, idempotency and seed idempotency suites: `pnpm --filter @odp/db test`
+- Migration collisions and journal drift: `pnpm --filter @odp/db db:check`
+- Apply migrations to the disposable database: `pnpm --filter @odp/db db:migrate`
+- After a schema edit: `pnpm --filter @odp/db db:generate`, then review the generated SQL and add the matching down path under `drizzle/down/`
+- Seed idempotency: run `pnpm --filter @odp/db db:seed` twice against the same disposable database through the test harness; the second run must change no row
+- Lint and format: `pnpm --filter @odp/db lint`; this package adds no second style toolchain
 
 ## Definition of Done
 
-- `npx tsc --noEmit` and `npx vitest run` pass from `packages/db` against a freshly created disposable PostgreSQL 16 database.
+- `pnpm --filter @odp/db typecheck` and `pnpm --filter @odp/db test` pass against a freshly created disposable PostgreSQL 16 database.
 - Every schema change corresponds to a merged `schema.md` change and ships with a generated migration, a tested down path and the matching entry under `drizzle/down/`. A shape the specification does not contain is reported as `doc-gap`, not migrated.
 - Idempotency replay, single-live-decision, reservation contention and audit-append tests pass for every write path the change touches.
 - No direct identifier appears in a search document, audit row, cache payload, analytics event or log line introduced by the change.
