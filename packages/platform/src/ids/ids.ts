@@ -1,25 +1,21 @@
 /**
  * The identifier factory (`C-001`).
  *
- * An identifier is three lower-case letters naming the entity type, an underscore, then a
- * ULID-ordered upper-case body: `sub_01J9Z6K4Q3W8R2T5Y7B1C0D9EF`. The body is time-prefixed, so
- * identifiers sort in creation order without a sequence table; it carries no meaning a caller may
+ * An identifier is three lower-case letters naming the entity type or identifier kind, an underscore,
+ * then a ULID-ordered upper-case body: `sub_01J9Z6K4Q3W8R2T5Y7B1C0D9EF`. The body is time-prefixed,
+ * so identifiers sort in creation order without a sequence table; it carries no meaning a caller may
  * parse, and it is never derived from a person, a counter, a telephone number or a record field.
+ *
+ * `CONTRACTS.md` records one prefix per kind and this module mints exactly that record: a Comment is
+ * `cmt` and a Commitment `com`, a Reservation `rsv` and a ResidenceReview `rvd`, a ReportCard `rcd`, a
+ * SessionQuestion `sqt` and a queued write `qwr`. {@link ENTITY_PREFIXES} holds the stored record
+ * entities and {@link TOKEN_PREFIXES} the kinds that are not record entities — an emitted analytics
+ * event and a page cursor; {@link CONTRACT_PREFIXES} is the two together, and the tests assert every
+ * prefix in it.
  *
  * Randomness and time are injectable so a test can mint a reproducible identifier, and this module
  * is one of the two places in the package allowed to read the clock or a random source
  * (`packages/platform/AGENTS.md` Discipline).
- *
- * Two decisions are recorded here because `CONTRACTS.md` contradicts its own identifier pattern:
- *
- * - `C-001` fixes `^[a-z]{3}_[0-9A-Z]{4,26}$`, while `C-063` prints `sq_…` for a SessionQuestion and
- *   `C-001` itself prints `qw_…` for a queued write. This factory mints `sqt` and `qwr`, because a
- *   two-letter prefix cannot satisfy the pattern every caller validates against.
- * - `C-043` prints `cmt_…` for a Commitment and `C-019` prints `cmt_…` for a Comment. This factory
- *   keeps `cmt` for Comment and mints `com` for Commitment, because a prefix that names two entity
- *   types cannot be read as "the prefix names the entity type".
- *
- * Both are reported as contract change requests; nothing here silently departs from the pattern.
  *
  * @module ids/ids
  */
@@ -84,6 +80,21 @@ export const ENTITY_PREFIXES = {
   correlationRequest: 'req',
 } as const satisfies Record<string, IdentifierPrefix>;
 
+/**
+ * Identifier kinds `C-001` records that are not stored record entities.
+ *
+ * An analytics event and a page cursor are still identifiers of the same form — minted once, opaque,
+ * ordered — but they name something the platform emits or hands out rather than a row in `schema.md`,
+ * so they are recorded separately and not offered as a `generate` kind.
+ */
+export const TOKEN_PREFIXES = {
+  analyticsEvent: 'evt',
+  pageCursor: 'cur',
+} as const;
+
+/** Every prefix `C-001` records, entity kinds and non-entity kinds together. */
+export const CONTRACT_PREFIXES = { ...ENTITY_PREFIXES, ...TOKEN_PREFIXES } as const;
+
 /** One entity kind the factory can name. */
 export type EntityKind = keyof typeof ENTITY_PREFIXES;
 
@@ -92,7 +103,8 @@ export interface IdFactory {
   /**
    * Mint one identifier for a prefix in the `C-001` form.
    *
-   * @param prefix - Three lower-case letters. An unknown prefix is a programming defect and throws.
+   * @param prefix - Three lower-case letters, one of the values in {@link CONTRACT_PREFIXES}. An
+   *   unknown prefix is a programming defect and throws.
    */
   next(prefix: string): string;
   /** Mint one identifier for a known entity kind, without spelling its prefix. */
