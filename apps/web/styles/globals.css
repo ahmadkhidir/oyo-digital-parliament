@@ -1,0 +1,10 @@
+/*
+ * The stylesheet entry (`apps/web/AGENTS.md` Structure: "styles/ — stylesheet entry and the token
+ * bridge to packages/ui"). Tailwind resolves every design value against the custom properties the
+ * generated theme defines, so no screen or component carries a literal colour, spacing or type
+ * value (`packages/ui/AGENTS.md`, one source for design values).
+ */
+@import 'tailwindcss';
+@import '@odp/ui/styles/theme.css';
+@import '@odp/ui/styles/fonts.css';
+@config '@odp/ui/tailwind.preset';
