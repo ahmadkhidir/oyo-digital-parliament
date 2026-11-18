@@ -1,22 +1,19 @@
 /**
  * The local development environment contract.
  *
- * One module owns every variable the local stack and the workspace read in development: its shape,
- * its secret classification and the disposable placeholder that `scripts/dev/env.mjs render` writes
- * into `.env.example`. `scripts/dev/services.mjs` refuses to start Docker until a real `.env` passes
- * this contract, and `scripts/dev/env.mjs check` is the same validation from the command line.
+ * The application variables are not declared here: `packages/platform/src/config/schema.ts` owns
+ * them, and this module imports that schema so the local stack, the app and the worker validate one
+ * list (`packages/platform/AGENTS.md` Structure; `NFR-024`). What this file adds is the local-only
+ * plumbing the Compose stack reads (the PostgreSQL role, database and published ports) and the
+ * disposable placeholder each variable carries in `.env.example`.
+ *
+ * `scripts/dev/services.mjs` refuses to start Docker until a real `.env` passes this contract, and
+ * `scripts/dev/env.mjs check` is the same validation from the command line.
  *
  * The values below are local placeholders only. The Development environment holds synthetic data and
  * "resets freely" (`architecture.md` Environments, `nfr.md` Data lifecycle); a real credential never
  * enters this repository (`NFR-024`). Staging and production values come from the managed secret
  * store, and a missing secret fails boot instead of falling back to a default.
- *
- * The file is the single definition. `docker-compose.yml` interpolates the PostgreSQL, Redis and
- * object-storage variables from the same `.env`, and both the web app and the worker are configured
- * from it through `@odp/platform`. When that package lands its configuration schema
- * (`packages/platform/src/config/schema.ts`, F0-10) the schema becomes the single source of truth for
- * the application and supersedes this contract; until then this is the one place a local variable is
- * declared.
  *
  * Nothing here logs, echoes or reports a value; a problem message names the variable and the reason.
  *
@@ -25,6 +22,12 @@
 
 import { readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
+
+import {
+  GROUP_HEADINGS,
+  parseVariable,
+  VARIABLES as APP_VARIABLES,
+} from '../../packages/platform/src/config/schema.ts';
 
 /** The Compose project name. `reset` passes it to every Docker call, so it can only reach this stack. */
 export const COMPOSE_PROJECT_NAME = 'odp-local';
@@ -50,146 +53,147 @@ const DEFAULT_PORTS = new Map([
 /** A PostgreSQL role or database name: lower case, digits and underscores, not starting with a digit. */
 const DB_IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 
-/** S3 bucket naming rule: 3-63 characters, lower-case, digits, dots and hyphens, alphanumeric ends. */
-const BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+/**
+ * The disposable placeholder for each application variable, in the order a developer reads them.
+ *
+ * A variable with a declared default uses that default. A secret is a local placeholder, never a
+ * real credential. Adding a variable to the schema without an entry here fails this module's own
+ * check at load, so `.env.example` cannot silently omit it.
+ */
+const LOCAL_EXAMPLES = {
+  DATABASE_URL: 'postgresql://odp_local:odp_local_dev_password@127.0.0.1:5433/odp_local',
+  REDIS_URL: 'redis://127.0.0.1:6380',
+  S3_ENDPOINT: 'http://127.0.0.1:9100',
+  S3_REGION: 'us-east-1',
+  S3_BUCKET: 'odp-local',
+  S3_ACCESS_KEY_ID: 'odp-local-access-key',
+  S3_SECRET_ACCESS_KEY: 'odp-local-secret-key',
+  S3_FORCE_PATH_STYLE: 'true',
+  SMS_PROVIDER: 'none',
+  SMS_API_URL: 'https://sms-gateway.example.test/send',
+  SMS_API_KEY: 'local-sms-placeholder',
+  SMS_SENDER_ID: 'ODP',
+  MODEL_PROVIDER: 'none',
+  MODEL_API_URL: 'https://model-gateway.example.test/v1',
+  MODEL_API_KEY: 'local-model-placeholder',
+  MODEL_REGION: 'ng',
+  MODEL_VERSION_SIMILAR_SUBMISSION: 'odp-local-sim-1',
+  MODEL_VERSION_WARD_CANDIDATE: 'odp-local-ward-1',
+  MODEL_VERSION_MODERATION_ROUTING: 'odp-local-route-1',
+  MODEL_VERSION_BUDGET_LINE_EXTRACTION: 'odp-local-budget-1',
+};
+
+/** The application variables, keyed by name, for the entries this module orders. */
+const APP_BY_NAME = new Map(APP_VARIABLES.map((variable) => [variable.name, variable]));
 
 /**
- * The variables, in the order `.env.example` renders them.
+ * Turn one schema declaration into a local contract entry.
  *
- * `secret` marks a value a log or an error must never echo. `check` selects the validator and its
- * options. `example` is the disposable placeholder written to `.env.example` and, through it, to the
- * `.env` that `services.mjs up` creates on first run.
+ * @param {string} name - The variable name.
+ * @returns {{ name: string, group: string, description: string, secret: boolean, example: string, spec: object }}
  */
+function appEntry(name) {
+  const spec = APP_BY_NAME.get(name);
+  if (spec === undefined) throw new Error(`environment contract names an unknown variable ${name}`);
+  const example = LOCAL_EXAMPLES[name] ?? spec.default;
+  if (example === undefined) {
+    throw new Error(`environment contract needs a local placeholder for ${name}`);
+  }
+  return {
+    name,
+    group: spec.group,
+    description: spec.description,
+    secret: spec.secret,
+    example,
+    spec,
+  };
+}
+
+/**
+ * A local-only entry: a variable Docker Compose reads rather than the application.
+ *
+ * @param {{ name: string, group: string, description: string, secret: boolean, example: string, spec: object }} input
+ */
+function localEntry(input) {
+  return { ...input };
+}
+
+/** Every application variable in one group, in schema order. */
+function appGroup(group) {
+  return APP_VARIABLES.filter((variable) => variable.group === group).map((variable) =>
+    appEntry(variable.name),
+  );
+}
+
+/** A port the local stack publishes. */
+const portSpec = { kind: 'integer', min: 1, max: 65535, required: true };
+
+/** The variables, in the order `.env.example` renders them. */
 export const VARIABLES = [
-  {
-    name: 'DATABASE_URL',
-    group: 'postgres',
-    description:
-      'Connection string for the Primary Database; used by the app, the worker and drizzle-kit.',
-    secret: true,
-    example: 'postgresql://odp_local:odp_local_dev_password@127.0.0.1:5433/odp_local',
-    check: { kind: 'url', protocols: ['postgres:', 'postgresql:'], requiresPath: true },
-  },
-  {
+  appEntry('DATABASE_URL'),
+  localEntry({
     name: 'POSTGRES_USER',
     group: 'postgres',
     description: 'Role the local PostgreSQL container creates and DATABASE_URL connects as.',
     secret: false,
     example: 'odp_local',
-    check: { kind: 'identifier' },
-  },
-  {
+    spec: { kind: 'identifier', required: true },
+  }),
+  localEntry({
     name: 'POSTGRES_PASSWORD',
     group: 'postgres',
     description:
       'Password for that role. A local placeholder only; a real secret never lives here.',
     secret: true,
     example: 'odp_local_dev_password',
-    check: { kind: 'text' },
-  },
-  {
+    spec: { kind: 'text' },
+  }),
+  localEntry({
     name: 'POSTGRES_DB',
     group: 'postgres',
     description: 'Database the container creates on first start.',
     secret: false,
     example: 'odp_local',
-    check: { kind: 'identifier' },
-  },
-  {
+    spec: { kind: 'identifier', required: true },
+  }),
+  localEntry({
     name: 'POSTGRES_PORT',
     group: 'postgres',
     description:
       'Host port the container publishes; DATABASE_URL must use it. Off the standard 5432 so a PostgreSQL already installed here keeps its port.',
     secret: false,
     example: '5433',
-    check: { kind: 'port' },
-  },
-  {
-    name: 'REDIS_URL',
-    group: 'redis',
-    description:
-      'Read cache, session store and rate-limit counters. No password: the host port is bound to this machine only.',
-    secret: false,
-    example: 'redis://127.0.0.1:6380',
-    check: { kind: 'url', protocols: ['redis:'], requiresPath: false },
-  },
-  {
+    spec: portSpec,
+  }),
+
+  appEntry('REDIS_URL'),
+  localEntry({
     name: 'REDIS_PORT',
     group: 'redis',
     description:
       'Host port the container publishes; REDIS_URL must use it. Off the standard 6379 so a Redis already installed here keeps its port.',
     secret: false,
     example: '6380',
-    check: { kind: 'port' },
-  },
-  {
-    name: 'S3_ENDPOINT',
-    group: 'storage',
-    description:
-      'S3-compatible endpoint for the object store (exports, report cards, handover snapshot, evaluation artefacts).',
-    secret: false,
-    example: 'http://127.0.0.1:9100',
-    check: { kind: 'url', protocols: ['http:', 'https:'], requiresPath: false },
-  },
-  {
-    name: 'S3_REGION',
-    group: 'storage',
-    description: 'Region the client signs requests with. The local store accepts any value.',
-    secret: false,
-    example: 'us-east-1',
-    check: { kind: 'text' },
-  },
-  {
-    name: 'S3_BUCKET',
-    group: 'storage',
-    description:
-      'Private bucket. Nothing in it is publicly readable; reads go through a signed URL.',
-    secret: false,
-    example: 'odp-local',
-    check: { kind: 'bucket' },
-  },
-  {
-    name: 'S3_ACCESS_KEY_ID',
-    group: 'storage',
-    description: 'Access key for the local store. A local placeholder only.',
-    secret: true,
-    example: 'odp-local-access-key',
-    check: { kind: 'text' },
-  },
-  {
-    name: 'S3_SECRET_ACCESS_KEY',
-    group: 'storage',
-    description: 'Secret key for the local store. A local placeholder only.',
-    secret: true,
-    example: 'odp-local-secret-key',
-    check: { kind: 'text' },
-  },
-  {
-    name: 'S3_FORCE_PATH_STYLE',
-    group: 'storage',
-    description:
-      '"true", because the local endpoint is an address rather than a per-bucket hostname.',
-    secret: false,
-    example: 'true',
-    check: { kind: 'boolean' },
-  },
-  {
+    spec: portSpec,
+  }),
+
+  ...appGroup('cache'),
+
+  ...appGroup('storage'),
+  localEntry({
     name: 'S3_PORT',
     group: 'storage',
     description:
       'Host port the object store publishes; S3_ENDPOINT must use it. Off the common 9000 so another local store keeps its port.',
     secret: false,
     example: '9100',
-    check: { kind: 'port' },
-  },
-];
+    spec: portSpec,
+  }),
 
-/** Human headings for the rendered example file. */
-const GROUP_HEADINGS = new Map([
-  ['postgres', 'Primary Database - PostgreSQL 16 (architecture.md: Data Stores)'],
-  ['redis', 'Read cache, sessions and rate-limit counters - Redis 7'],
-  ['storage', 'Object storage - S3-compatible, private bucket'],
-]);
+  ...appGroup('sms'),
+  ...appGroup('model'),
+  ...appGroup('flags'),
+];
 
 /**
  * Whether a hostname names this machine. A connection string aimed elsewhere is deliberately not
@@ -213,63 +217,31 @@ function effectivePort(url) {
 }
 
 /**
- * Validators, one per `check.kind`. Each returns `null` when the value is acceptable, or the reason
- * it is not. A reason is appended to the variable name and never quotes the value, so a secret
- * cannot leak through a failure message.
+ * Validators for the local-only declarations. Application variables go through the schema's own
+ * `parseVariable`, so there is one implementation of every rule that matters.
  *
- * @type {Record<string, (value: string, spec: Record<string, unknown>) => string | null>}
+ * @type {Record<string, (value: string) => string | null>}
  */
-const CHECKERS = {
-  url(value, spec) {
-    if (value !== value.trim()) return 'must not start or end with whitespace';
-    if (/\s/.test(value)) return 'must not contain whitespace';
-    let url;
-    try {
-      url = new URL(value);
-    } catch {
-      return 'is not a valid URL';
-    }
-    const protocols = /** @type {string[]} */ (spec.protocols);
-    if (!protocols.includes(url.protocol)) {
-      return `must use the ${protocols.join(' or ')} scheme`;
-    }
-    if (url.hostname === '') return 'must name a host';
-    if (spec.requiresPath === true) {
-      const path = url.pathname.replace(/^\//, '');
-      if (path === '') return 'must name a database in its path';
-    }
-    return null;
-  },
-
-  port(value) {
-    if (!/^[0-9]+$/.test(value)) return 'must be a whole number between 1 and 65535';
-    const port = Number(value);
-    if (port < 1 || port > 65535) return 'must be between 1 and 65535';
-    return null;
-  },
-
-  boolean(value) {
-    return value === 'true' || value === 'false' ? null : 'must be "true" or "false"';
-  },
-
+const LOCAL_CHECKERS = {
   identifier(value) {
     return DB_IDENTIFIER.test(value)
       ? null
       : 'must be lower case letters, digits or underscores, and not start with a digit';
   },
-
-  bucket(value) {
-    if (!BUCKET_NAME.test(value)) {
-      return 'must be 3-63 lower-case letters, digits, dots or hyphens, starting and ending alphanumeric';
-    }
-    if (value.includes('..')) return 'must not contain two adjacent dots';
-    return null;
-  },
-
-  text(value) {
-    return value.trim() === '' ? 'must not be empty' : null;
-  },
 };
+
+/**
+ * Validate one raw value against its declaration.
+ *
+ * @param {{ kind: string }} spec - The schema declaration, or a local-only stand-in.
+ * @param {string} raw - The candidate value.
+ * @returns {string | null} The reason it is refused, or null when it is acceptable.
+ */
+function problemFor(spec, raw) {
+  if (spec.kind === 'identifier') return LOCAL_CHECKERS.identifier(raw);
+  const parsed = parseVariable(spec, raw);
+  return parsed.ok ? null : parsed.problem;
+}
 
 /**
  * Compare a connection URL's port with the host port the stack publishes.
@@ -285,7 +257,7 @@ function comparePort(problems, variable, url, portVariable, values) {
   const urlPort = effectivePort(url);
   if (urlPort !== values[portVariable]) {
     problems.push(
-      `${variable} reaches port ${urlPort} but ${portVariable} is ${values[portVariable]}; they must describe the same local service`,
+      `${variable} reaches a port that is not ${portVariable}; they must describe the same local service`,
     );
   }
 }
@@ -294,7 +266,7 @@ function comparePort(problems, variable, url, portVariable, values) {
  * The cross-field checks that catch an environment edited in two places and drifted.
  *
  * They run only when every variable passed its own check, and only against a loopback host: a URL
- * that points at another host is not this stack's business.
+ * that points at another host is not this stack's business. No message quotes a value.
  *
  * @param {Record<string, string>} values - The validated environment.
  * @returns {string[]} Problem messages, each naming a variable and no value.
@@ -309,16 +281,12 @@ function crossCheck(values) {
 
     const databaseName = decodeURIComponent(database.pathname.replace(/^\//, ''));
     if (databaseName !== values.POSTGRES_DB) {
-      problems.push(
-        `DATABASE_URL names database "${databaseName}" but POSTGRES_DB is "${values.POSTGRES_DB}"; they must match`,
-      );
+      problems.push('DATABASE_URL must name the database POSTGRES_DB declares');
     }
 
     const role = decodeURIComponent(database.username);
     if (role !== values.POSTGRES_USER) {
-      problems.push(
-        `DATABASE_URL connects as "${role}" but POSTGRES_USER is "${values.POSTGRES_USER}"; they must match`,
-      );
+      problems.push('DATABASE_URL must connect as POSTGRES_USER declares');
     }
 
     // Compared, never printed: the message states only that the two disagree.
@@ -371,10 +339,13 @@ export function validateEnvironment({ env = process.env, fileValues = {} } = {})
   for (const variable of VARIABLES) {
     const raw = merged[variable.name];
     if (typeof raw !== 'string' || raw.trim() === '') {
-      problems.push(`${variable.name} is not set`);
+      const required =
+        variable.spec.required === true ||
+        (typeof variable.spec.requiredWhen === 'function' && variable.spec.requiredWhen(merged));
+      if (required) problems.push(`${variable.name} is not set`);
       continue;
     }
-    const problem = CHECKERS[variable.check.kind](raw, variable.check);
+    const problem = problemFor(variable.spec, raw);
     if (problem !== null) {
       problems.push(`${variable.name} ${problem}`);
       continue;
@@ -443,7 +414,7 @@ export function loadEnvironment({ filePath, env = process.env }) {
  *
  * The example carries shape and disposable defaults only: every value is a local placeholder, and
  * the header says so. It is generated so the committed file cannot drift from the variables the
- * scripts validate.
+ * schema validates.
  *
  * @returns {string} The full example file, ending in a newline.
  */
@@ -451,7 +422,8 @@ export function renderExample() {
   const lines = [
     '# Oyo Digital Parliament - local development environment.',
     '#',
-    '# Rendered from `infra/local/environment.mjs`. Change the contract there and run',
+    '# Rendered from `infra/local/environment.mjs`, whose application variables come from',
+    '# `packages/platform/src/config/schema.ts`. Change the schema or the contract there and run',
     '# `node scripts/dev/env.mjs render`, then `node scripts/dev/env.mjs check` to prove it.',
     '#',
     '# Copy this file to `.env` (or let `node scripts/dev/services.mjs up` do it) to run the local',
@@ -469,7 +441,7 @@ export function renderExample() {
   let currentGroup = null;
   for (const variable of VARIABLES) {
     if (variable.group !== currentGroup) {
-      lines.push('', `# ${GROUP_HEADINGS.get(variable.group) ?? variable.group}`);
+      lines.push('', `# ${GROUP_HEADINGS[variable.group] ?? variable.group}`);
       currentGroup = variable.group;
     }
     lines.push(`# ${variable.description}`);
