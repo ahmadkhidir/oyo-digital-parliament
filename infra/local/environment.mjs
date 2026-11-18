@@ -177,6 +177,9 @@ export const VARIABLES = [
     spec: portSpec,
   }),
 
+  ...appGroup('session'),
+  ...appGroup('limits'),
+
   ...appGroup('cache'),
 
   ...appGroup('storage'),
