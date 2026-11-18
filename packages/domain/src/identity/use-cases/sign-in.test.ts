@@ -41,7 +41,16 @@ describe('requestSignInCode (C-005)', () => {
       accountChoiceRequired: true,
     });
     expect(JSON.stringify(result)).not.toContain('Seun A.');
-    expect(fakes.analytics).toEqual([{ name: 'sign_in_started', properties: { attempt: 1 } }]);
+    expect(fakes.analytics).toEqual([
+      {
+        name: 'sign_in_started',
+        properties: { attempt: 1 },
+        // `C-089`: a shared number has no single subject before the resident chooses, so the challenge
+        // this attempt minted is the event's subject.
+        subject: { kind: 'anonymous', anonymousId: 'sic_0001' },
+        locale: 'en-NG',
+      },
+    ]);
   });
 
   it('sends a visitor without an account to registration', async () => {

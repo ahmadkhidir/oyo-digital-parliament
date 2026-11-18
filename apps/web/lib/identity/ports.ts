@@ -27,10 +27,21 @@ import {
   createStaffUserRepository,
   type DatabaseHandle,
 } from '@odp/db';
-import type { IdentityAnalyticsEvent, IdentityAnalyticsPort, IdentityPorts } from '@odp/domain';
-import { buildAnalyticsEvent } from '@odp/domain';
+import type {
+  AnalyticsLocale,
+  IdentityAnalyticsEvent,
+  IdentityAnalyticsPort,
+  IdentityPorts,
+} from '@odp/domain';
 import { createPlatform, type Platform } from '@odp/platform';
 import { createJsonLogger, type Logger } from '../logging';
+import {
+  createTelemetryBuffer,
+  createTelemetryDispatcher,
+  type TelemetryBuffer,
+  type TelemetryReporter,
+  type TelemetrySink,
+} from '../telemetry';
 
 /**
  * A port whose methods all refuse: the effect belongs to a task that has not landed.
@@ -57,49 +68,141 @@ const logger: Logger = createJsonLogger({ service: 'web' });
  */
 const APP_VERSION = '2026.11.0';
 
+/** A member's record identifier, whose opaque body is the analytics identity's body too (`C-001`). */
+const MEMBER_ID_PATTERN = /^mbr_([0-9A-Z]{4,26})$/;
+
+/**
+ * The analytics identity of one member (`C-089`, `C-001`).
+ *
+ * `C-089` types `user_id` as a `usr_` identifier, while the record names the member with `mbr_`; the
+ * identifier table gives the analytics user its own prefix and no mapping between the two is stored
+ * anywhere. Both identifiers carry the same opaque ULID body, so the mapping here is the prefix and
+ * nothing else: it is stable for the life of the member, it reveals no field the account does not
+ * already hold, and a deletion request replaces it with a non-reversible token
+ * (`analytics.replaceUserToken`). A value that is not a member identifier is passed through
+ * unchanged, so the envelope refuses it as `PATTERN_MISMATCH` and reports it — the adapter never
+ * invents an identity. Reported as a contract gap: the durable answer is an analytics user
+ * identifier minted once at registration and stored, which is a schema and data change.
+ */
+function analyticsUserId(memberId: string): string {
+  const match = MEMBER_ID_PATTERN.exec(memberId);
+  return match === null ? memberId : `usr_${match[1]}`;
+}
+
+/** One of the two locales the catalogue ships, or `null` for anything else (`C-089`). */
+function asLocale(value: unknown): AnalyticsLocale | null {
+  return value === 'en-NG' || value === 'yo-NG' ? value : null;
+}
+
+/**
+ * The locale one event is filed under.
+ *
+ * `C-089` puts a `locale` on every event, including the ones whose taxonomy declares no `locale`
+ * property. The use case's own reading comes first, then the payload's `locale` property where the
+ * taxonomy declares one, then the deployment's default.
+ */
+function envelopeLocale(event: IdentityAnalyticsEvent, fallback: AnalyticsLocale): AnalyticsLocale {
+  const payload: Readonly<Record<string, unknown>> = event.properties;
+  return asLocale(event.locale) ?? asLocale(payload['locale']) ?? fallback;
+}
+
+/**
+ * Reports a dispatch the analytics path could not complete.
+ *
+ * `C-089` makes analytics a low-criticality path: nothing here fails the write that produced the
+ * event, so every failure ends as one structured line. The line carries the event's lifecycle and
+ * field paths only — never a property value, an identifier or a payload.
+ */
+const analyticsReporter: TelemetryReporter = {
+  report(failure) {
+    switch (failure.kind) {
+      case 'REJECTED':
+        logger.warn('analytics_event_rejected', {
+          code: failure.code,
+          cause: failure.cause,
+          fields: failure.fields,
+        });
+        return;
+      case 'QUEUE_FULL':
+        logger.warn('analytics_buffer_full', { droppedEventId: failure.droppedEventId });
+        return;
+      case 'NOT_STORED':
+        logger.warn('analytics_store_unavailable', { cause: failure.cause });
+        return;
+    }
+  },
+};
+
+/**
+ * The sink this deployable has for a validated envelope.
+ *
+ * `C-077`'s `analytics.emit` boundary is not provisioned in this deployment, so a validated event has
+ * nowhere durable to land yet. The sink refuses, and the dispatcher buffers the event and reports it
+ * — `C-089`'s own degradation rule, which keeps a lost event from failing the registration, the
+ * consent or the data request behind it, and keeps a drop visible instead of silent. Pointing this
+ * function at the boundary client is the whole wiring change.
+ */
+function createBoundarySink(): TelemetrySink {
+  return {
+    async emit(): Promise<{ readonly storedAt: string }> {
+      throw new Error('ANALYTICS_STORE_UNAVAILABLE');
+    },
+  };
+}
+
+/** What one identity analytics adapter needs: the transport plus the envelope's own sources. */
+export interface IdentityAnalyticsOptions {
+  /** Where a validated envelope goes. */
+  readonly sink: TelemetrySink;
+  readonly clock: { now(): Date };
+  readonly identifiers: { next(prefix: string): string };
+  readonly appVersion?: string;
+  /** The locale an event with no locale of its own is filed under. */
+  readonly defaultLocale?: AnalyticsLocale;
+  /** Shared across emissions, so a buffered event survives to the next one. */
+  readonly buffer?: TelemetryBuffer;
+  readonly reporter?: TelemetryReporter;
+}
+
 /**
  * The identity analytics adapter (`C-089`, `C-077`).
  *
- * It builds and validates the envelope through the domain's own builder — that is where the
- * taxonomy's property checks and the no-personal-data refusal live — and then reports what it
- * could not send. The analytics store behind the `C-077` boundary is not in this deployment yet,
- * so a validated envelope is refused here rather than written where the record cannot read it
- * back; `C-089` makes a lost event the emitter's to report, never a reason to fail the write that
- * produced it.
- *
- * A refusal logged here carries the event name and the field paths only, never a property value.
+ * The domain hands over the event name, its taxonomy-checked properties and the subject it belongs to;
+ * this layer supplies what only the deployable knows — the clock, the event and session identifiers,
+ * the release, the locale — and validates the envelope through the domain's own builder before
+ * dispatch, so a payload the receiving side would reject never leaves. A refusal or an unreachable
+ * store is reported, never thrown into the write, and nothing here logs a payload.
  */
-function createIdentityAnalytics(platform: Platform): IdentityAnalyticsPort {
+export function createIdentityAnalytics(
+  options: IdentityAnalyticsOptions,
+): IdentityAnalyticsPort {
+  const buffer = options.buffer ?? createTelemetryBuffer();
+  const appVersion = options.appVersion ?? APP_VERSION;
+  const defaultLocale = options.defaultLocale ?? 'en-NG';
+  const reporter = options.reporter ?? analyticsReporter;
+
   return {
     async emit(event: IdentityAnalyticsEvent): Promise<void> {
-      const built = buildAnalyticsEvent({
-        name: event.name,
-        properties: event.properties,
-        eventId: platform.ids.next('evt'),
-        occurredAt: platform.clock
-          .now()
-          .toISOString()
-          .replace(/\.\d{3}Z$/, 'Z'),
-        // `C-089` requires exactly one of `user_id` and `anonymous_id`, and the identity use cases
-        // emit without actor context. Until the port carries the subject, no transport can
-        // envelope these events; the refusal is logged and the write stands. Reported to the
-        // coordinator as a contract gap rather than worked around with a fabricated identifier.
-        sessionId: platform.ids.next('ses'),
-        userId: null,
-        anonymousId: null,
-        appVersion: APP_VERSION,
-        locale: 'en-NG',
+      const dispatcher = createTelemetryDispatcher({
+        context: {
+          // `C-089` requires a `session_id` on every event, and the only session value the identity
+          // bundle holds is the member cookie's token, which must never leave the transport. The
+          // event therefore carries an opaque identifier minted for it: funnels join on `user_id` and
+          // `anonymous_id`, which are stable, and no credential is copied into analytics.
+          sessionId: options.identifiers.next('ses'),
+          userId:
+            event.subject.kind === 'member' ? analyticsUserId(event.subject.memberId) : null,
+          anonymousId: event.subject.kind === 'anonymous' ? event.subject.anonymousId : null,
+          locale: envelopeLocale(event, defaultLocale),
+        },
+        sink: options.sink,
+        clock: options.clock,
+        identifiers: options.identifiers,
+        appVersion,
+        buffer,
+        reporter,
       });
-      if (!built.ok) {
-        logger.warn('analytics_event_refused', {
-          eventName: event.name,
-          cause: built.cause,
-          fields: built.fields,
-        });
-        throw new Error('ANALYTICS_EVENT_REFUSED');
-      }
-      logger.warn('analytics_store_unavailable', { eventName: event.name });
-      throw new Error('ANALYTICS_STORE_UNAVAILABLE');
+      await dispatcher.emit(event.name, event.properties);
     },
   };
 }
@@ -143,7 +246,11 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       rateLimits: platform.sessions.rateLimits,
       objectStore: platform.storage,
       audit: createAuditEventRepository(database.db),
-      analytics: createIdentityAnalytics(platform),
+      analytics: createIdentityAnalytics({
+        sink: createBoundarySink(),
+        clock: platform.clock,
+        identifiers: platform.ids,
+      }),
       clock: platform.clock,
       identifiers: platform.ids,
       // The remaining ports are type-complete but unwired: this slice's contracts never reach

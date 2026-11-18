@@ -44,7 +44,13 @@ describe('registerResident (C-002)', () => {
     expect(fakes.members).toHaveLength(0);
     expect(fakes.audit).toEqual([]);
     expect(fakes.analytics).toEqual([
-      { name: 'registration_started', properties: { locale: 'en-NG' } },
+      {
+        name: 'registration_started',
+        properties: { locale: 'en-NG' },
+        // `C-089`: no account exists yet, so the pending registration is the event's subject.
+        subject: { kind: 'anonymous', anonymousId: 'prg_0001' },
+        locale: 'en-NG',
+      },
     ]);
   });
 

@@ -46,6 +46,13 @@ export interface PortsDouble {
   readonly members: MemberRecord[];
   readonly sessions: Map<string, string>;
   readonly audit: AuditEventRecord[];
+  /**
+   * Every identity event the use cases emitted, in order.
+   *
+   * Each entry carries its `C-089` subject beside the taxonomy payload, so a flow test can assert who
+   * an event was attributed to — the pending registration before an account exists, the member after
+   * it — as well as which event fired.
+   */
   readonly events: IdentityAnalyticsEvent[];
   readonly codes: Map<string, { code: string; attempts: number; cooldownUntil?: string }>;
 }

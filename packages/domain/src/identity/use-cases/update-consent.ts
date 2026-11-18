@@ -184,6 +184,9 @@ export async function updateConsent(
     {
       name: 'consent_changed',
       properties: { purpose: purpose.value, granted: granted.value },
+      // `EVT-046`, `C-089`: the consent belongs to the signed-in member who changed it.
+      subject: { kind: 'member', memberId: member.id },
+      locale: member.locale,
     },
   ]);
 
