@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.3.0
+**Contract version:** 1.4.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -27,6 +27,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.1.0 | Adds `C-091` operational health probes. Reconciles the `C-001` identifier pattern with the identifiers this document prints. Aligns `C-077` with `C-089` and `C-090`: one event-name spelling, one audit result shape, and the correlation identifier carried beside the audit entity rather than on it. Defines the two result shapes `C-077` left open. Replaces the last abbreviated value in `C-011` with a timestamp. |
 | 1.2.0 | Settles the identifier prefix record under `C-001`. `C-063` prints `sqt_` for a SessionQuestion and `C-001` prints `qwr_` and `cur_`, so every printed identifier has a three-letter prefix. `C-019` keeps `cmt_` for the Comment and the `C-043` family prints `com_` for the Commitment; `C-057` prints `rvd_` so the ResidenceReview no longer shares `rsv_` with the Reservation; the `C-027` family prints `rcd_` for the ReportCard. Adds the complete prefix table to `C-001`, against which the platform identifier factory is asserted. |
 | 1.3.0 | Adds `C-092` staff authentication: the public sign-in challenge, second-factor verification, one-time enrolment, the staff session read and staff sign-out, with the lockout, timeout, idempotency and audit rules ADR-004 requires, and the staff cookie recorded in `C-001`. Enumerates `C-010`'s candidate `source` as `model`, `exact` or `alias` and gives `C-071`'s `matchType` the same three values. Defines `C-055`'s `candidateWards` scope and `C-056`'s `submissionsUnchanged`, and states that a re-description by a member whose ward is already recorded queues the description and keeps the ward. States that a confirmation records `fallback` as its source on the deterministic path and `model` when `C-080` produced the set. Corrects `C-068` so a new staff account is created unenrolled and only `C-092` sets enrolment, and adds the staff actions to `C-090`. |
+| 1.4.0 | Adds `C-093` operator credential and second-factor reset: one operator resets another staff user's password and factor, clears the lockout, ends that user's sessions and requires re-enrolment before any admin screen, with the reset audited and no credential returned. Bans self-reset without a second operator and makes a repeat idempotent. Adds `staff.credential_reset` and `staff.credential_reset_refused` to `C-090`, and records the reset as the session-ending event `C-092` names. |
 
 ## Contract Index
 
@@ -124,6 +125,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | C-090 | Audit event envelope | Internal only | Internal RPC | NFR-028, `schema.md` AuditEvent |
 | C-091 | Operational health probes | Monitor only | Route handler `GET /healthz`, `GET /readyz` | NFR-010, NFR-011, `operations.md` Incident & Escalation, `architecture.md` Logging & Monitoring |
 | C-092 | Staff authentication and staff session | Public (challenge), staff session (the rest) | Actions `beginStaffSignIn`, `verifyStaffSecondFactor`, `enrolStaffSecondFactor`, `signOutStaff`; route handler `GET /api/staff/session` | NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffCredential |
+| C-093 | Staff credential and second-factor reset | Staff session (operator, second factor satisfied) | Action `resetStaffCredential` on `/admin` | NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffCredential |
 
 ---
 
@@ -3405,7 +3407,7 @@ The secret is returned on this answer only. It is never returned again and never
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:20:00Z" }
 }
 ```
-Confirmation verifies one code against the secret issued at `begin`, writes `secondFactorEnrolledAt`, sets `StaffUser.secondFactorEnrolled` and answers with the ten recovery codes. The codes are shown once in this answer, held only as hashes, and are single-use. This is the only write this entry makes to a StaffUser, and `C-068` never sets the flag.
+Confirmation verifies one code against the secret issued at `begin`, writes `secondFactorEnrolledAt`, sets `StaffUser.secondFactorEnrolled` and answers with the ten recovery codes. The codes are shown once in this answer, held only as hashes, and are single-use. This is the only write this entry makes to a StaffUser, and `C-068` never sets the flag. `C-093` clears it when an operator resets a credential, after which the staff member enrols again through this entry before reaching any admin screen.
 
 **Request (session read):**
 ```json
@@ -3447,7 +3449,7 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 { "scope": "current" }
 ```
 
-**Response 204:** no body; the cookie is cleared with `Max-Age=0`. Sign-out ends the current staff session only. A role change, a deactivation, a credential reset by the operator and the absolute timeout each end every session for that staff user, and the session read then answers signed out.
+**Response 204:** no body; the cookie is cleared with `Max-Age=0`. Sign-out ends the current staff session only. A role change, a deactivation, a credential reset by the operator (`C-093`) and the absolute timeout each end every session for that staff user, and the session read then answers signed out.
 
 **Lockout and attempt accounting:**
 - Five failed authentications within fifteen minutes — a wrong password, a wrong code, an unknown recovery code or a spent recovery code — lock the credential for thirty minutes. The count clears on a successful verification and when a lock lapses.
@@ -4423,7 +4425,7 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
   "correlationId": "req_01J9Z6M2V4"
 }
 ```
-`actorId` references a Member or StaffUser; `actorRole` is one of `member`, `ward_organiser`, `response_staff`, `moderator`, `external_reviewer`, `legal_reviewer`, `operator`, `system`. `action` is a stable verb such as `member.registered`, `identity_state.changed`, `decision.published`, `decision.revised`, `staff.sign_in_started`, `staff.signed_in`, `staff.sign_in_refused`, `staff.second_factor_enrolled`, `staff.recovery_code_used`, `staff.signed_out`, `comment.removed`, `comment.restored`, `legal.takedown`, `member_data.read`, `member_data.read_refused`, `member_data.export`, `member_data.deleted`, `ward.resolved`, `residence.reviewed`, `data_request.completed`, `flag.changed`, `role.changed`, `handover.completed`.
+`actorId` references a Member or StaffUser; `actorRole` is one of `member`, `ward_organiser`, `response_staff`, `moderator`, `external_reviewer`, `legal_reviewer`, `operator`, `system`. `action` is a stable verb such as `member.registered`, `identity_state.changed`, `decision.published`, `decision.revised`, `staff.sign_in_started`, `staff.signed_in`, `staff.sign_in_refused`, `staff.second_factor_enrolled`, `staff.recovery_code_used`, `staff.signed_out`, `staff.credential_reset`, `staff.credential_reset_refused`, `comment.removed`, `comment.restored`, `legal.takedown`, `member_data.read`, `member_data.read_refused`, `member_data.export`, `member_data.deleted`, `ward.resolved`, `residence.reviewed`, `data_request.completed`, `flag.changed`, `role.changed`, `handover.completed`.
 
 `correlationId` is the request identifier from `C-001` in its `req_` form, not a property of the record: `schema.md` declares no such field on `AuditEvent`, and adding one here would be a schema change rather than a contract change. The append therefore carries it beside the entity, the log stores it with the row, and no read returns it as part of the event. `actorId` and `entityId` take the `C-001` identifier form, each with the prefix of the entity it names (`mbr_`, `stf_`, `dec_`, `sub_`, `cmt_` and so on).
 
@@ -4487,4 +4489,63 @@ Both take no query parameter, no request body, no cookie and no header. A reques
 **Monitoring use:** the external uptime monitor samples `/readyz` once a minute from outside the hosting environment, which is how `NFR-010` is measured, and the same check runs against the archive address after handover for `NFR-011`. The container orchestrator uses `/healthz` for liveness and `/readyz` before it routes traffic to an instance. An alert fires at eighty percent of the monthly error budget consumed, per `operations.md` Incident & Escalation.
 
 **Errors:** no `C-001` error envelope is used on either path. `/readyz` answers `503` with `{"status":"not_ready"}` and `/healthz` answers nothing when it cannot answer. A caller outside the monitor allowlist is refused at the reverse proxy before the request reaches the application; the deployment requirement is that both paths are reachable only from the monitor, and a test exercises that refusal. A `405` on a non-`GET` method is the only application-level refusal either path produces.
+
+---
+
+## Domain 9 — Staff Credential Recovery
+
+### C-093: Staff credential and second-factor reset
+
+**Status:** Frozen
+
+**Auth:** Staff session (operator, second factor satisfied)
+
+**Surface:** Server action `resetStaffCredential` on `/admin`
+
+**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
+
+**Authority:** Resets one other staff user's credential: replaces the password, clears the enrolled second factor and its recovery codes, clears the lockout, and ends that user's sessions so they must enrol again before returning to work. It changes no role, no external flag, no authorised ward and no active state, and it reactivates nobody. It reads no member record and returns no part of the credential: not the password it accepted, not the TOTP secret, not a recovery code. It appends one AuditEvent (`C-090`) before it answers, carrying the operator as actor, the target staff user as the entity, the time and the operator's reason. A refused reset appends `staff.credential_reset_refused` with its refusal cause as the reason, so no attempt is silently dropped.
+
+**Request:**
+```json
+{
+  "staffUserId": "stf_01J9ZL1M3N5P7Q9R1S3T5V7WXY",
+  "newPassword": "harbour-lantern-quiet-2026",
+  "reason": "Second-factor handset lost; identity confirmed in person against the staff record."
+}
+```
+`staffUserId` names the staff user being reset. `newPassword` is 12 to 128 characters and is hashed with Argon2id at cost 12 or above before it is stored; the operator hands it over in person and it is never echoed. `reason` is required, at most 500 characters, and is the audit reason: it must not reproduce the password, a code, the TOTP secret or member data.
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "staffUser": {
+      "id": "stf_01J9ZL1M3N5P7Q9R1S3T5V7WXY",
+      "fullName": "B. Adebayo",
+      "role": "external_reviewer",
+      "external": true,
+      "secondFactorEnrolled": false,
+      "active": true
+    },
+    "credential": {
+      "passwordChangedAt": "2026-11-18T10:00:00Z",
+      "secondFactorEnrolledAt": null,
+      "failedAttemptCount": 0,
+      "lockedUntil": null
+    },
+    "sessionsEnded": 2,
+    "nextStep": "re_enrol"
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T10:00:00Z" }
+}
+```
+The write replaces `passwordHash` and sets `passwordChangedAt`, clears `totpSecretEncrypted`, `secondFactorEnrolledAt`, `recoveryCodes`, `failedAttemptCount` and `lockedUntil`, and sets `StaffUser.secondFactorEnrolled` to false. The target's live sessions end: `sessionsEnded` reports how many, a session presented afterwards is refused, and the target reaches no `C-040` to `C-069` admin surface until a fresh `C-092` enrolment and verification succeed. Recovery codes are issued to the staff member on their own enrolment screen and never to the operator. An inactive account can be reset and stays inactive; reactivating it is `C-068`'s write.
+
+**Self-reset:** a reset may not target the caller's own account. The request is refused with `POLICY_VIOLATION` and `cause:"SELF_RESET_REQUIRES_SECOND_OPERATOR"`, and the second operator signs in and performs the reset; there is no self-service recovery path, which is the accepted cost recorded in ADR-004. Resetting the last other operator's credential is permitted, because the caller remains an active operator.
+
+**Idempotency:** a replay carrying the same `Idempotency-Key` answers the recorded result without a second write, a second session-ending sweep or a second audit event. A repeat under a new key against a credential already in this state applies the same end state, reports `sessionsEnded:0` because there is nothing left to end, and appends its own `staff.credential_reset` event; it is neither refused nor doubled.
+
+**Errors:** `VALIDATION_FAILED` with `fields` for `staffUserId` (`REQUIRED`, `PATTERN_MISMATCH`), `newPassword` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128, `ALREADY_SET` when it matches the password being replaced), `reason` (`REQUIRED`, `TOO_LONG` above 500), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` with `cause:"STAFF_SESSION_REQUIRED"` when there is no session or it has expired, and with `cause:"SECOND_FACTOR_REQUIRED"` when the operator's session has not satisfied its factor. `FORBIDDEN_ROLE` with `cause:"OPERATOR_REQUIRED"` for any other staff role, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls it. `POLICY_VIOLATION` with `cause:"SELF_RESET_REQUIRES_SECOND_OPERATOR"` for a self-targeted reset. `NOT_FOUND` when the staff user or their credential does not exist. `RATE_LIMITED` per operator account with `retryAfterSeconds`; the cap is operator configuration (`NFR-027`). `SERVICE_DEGRADED` with `cause:"CREDENTIAL_STORE_UNAVAILABLE"`; a failed write or a failed audit append leaves the credential, the lock and the sessions exactly as they were.
 
