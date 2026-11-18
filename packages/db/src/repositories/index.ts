@@ -9,14 +9,23 @@ export {
   readAuditEventsForEntity,
   type AuditEventRepository,
 } from './audit-event.repository.ts';
+export { createConsentRepository, type ConsentRepository } from './consent.repository.ts';
+export {
+  createDataRequestRepository,
+  type DataRequestRepository,
+  type DataRequestTransition,
+} from './data-request.repository.ts';
+export { createMemberRepository, type MemberRepository } from './member.repository.ts';
+export {
+  createPendingRegistrationRepository,
+  type PendingRegistrationRepository,
+} from './pending-registration.repository.ts';
+export { createStaffUserRepository, type StaffUserRepository } from './staff-user.repository.ts';
 export {
   createWardDescriptionReviewRepository,
   type WardDescriptionReviewRepository,
 } from './ward-description-review.repository.ts';
-export {
-  createWardRepository,
-  type WardRepository,
-} from './ward.repository.ts';
+export { createWardRepository, type WardRepository } from './ward.repository.ts';
 export {
   createWardResidenceReviewRepository,
   type WardResidenceReviewRepository,
