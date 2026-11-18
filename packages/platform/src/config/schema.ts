@@ -22,7 +22,16 @@
 
 /** The headings the rendered example file uses, in order. */
 export type ConfigGroup =
-  'postgres' | 'redis' | 'cache' | 'storage' | 'sms' | 'model' | 'flags' | 'worker';
+  | 'postgres'
+  | 'redis'
+  | 'session'
+  | 'limits'
+  | 'cache'
+  | 'storage'
+  | 'sms'
+  | 'model'
+  | 'flags'
+  | 'worker';
 
 /** The shape a value must have. */
 export type VariableKind = 'text' | 'url' | 'integer' | 'boolean' | 'enum' | 'bucket';
@@ -63,6 +72,39 @@ const smsEnabled = (values: Readonly<Record<string, string>>): boolean =>
 
 const modelEnabled = (values: Readonly<Record<string, string>>): boolean =>
   values.MODEL_PROVIDER === 'http';
+
+/**
+ * The limiter buckets the identity use cases name (`NFR-027`, `C-001`).
+ *
+ * The bucket is the unit an operator caps: one bucket may be consulted against a number, an address,
+ * a member or a staff user, and each subject is counted separately. A bucket with no cap is refused
+ * by the adapter rather than left unlimited, so this list is the whole surface.
+ */
+export const RATE_LIMIT_BUCKETS = [
+  'sign_in',
+  'sign_in_address',
+  'registration',
+  'registration_address',
+  'registration_resend',
+  'staff_sign_in',
+  'data_request',
+  'display_name_change',
+] as const;
+
+/** One limiter bucket. */
+export type RateLimitBucket = (typeof RATE_LIMIT_BUCKETS)[number];
+
+/** The environment variable that sets one bucket's cap. */
+export const RATE_LIMIT_BUCKET_VARIABLES: Readonly<Record<RateLimitBucket, string>> = {
+  sign_in: 'RATE_LIMIT_SIGN_IN_PER_NUMBER',
+  sign_in_address: 'RATE_LIMIT_SIGN_IN_PER_ADDRESS',
+  registration: 'RATE_LIMIT_REGISTRATION_PER_NUMBER',
+  registration_address: 'RATE_LIMIT_REGISTRATION_PER_ADDRESS',
+  registration_resend: 'RATE_LIMIT_REGISTRATION_RESEND_PER_NUMBER',
+  staff_sign_in: 'RATE_LIMIT_STAFF_SIGN_IN_PER_SUBJECT',
+  data_request: 'RATE_LIMIT_DATA_REQUEST_PER_MEMBER',
+  display_name_change: 'RATE_LIMIT_DISPLAY_NAME_CHANGE_PER_MEMBER',
+};
 
 /**
  * The model-backed capabilities, spelled as `C-078` and `analytics.md` spell them.
@@ -216,6 +258,149 @@ export const VARIABLES: readonly VariableSpec[] = [
     required: true,
     protocols: ['redis:', 'rediss:'],
     requiresPath: false,
+  },
+  {
+    name: 'SESSION_CODE_TTL_MINUTES',
+    group: 'session',
+    description:
+      'How long a one-time code works, in minutes. The code message states the same number, so the two cannot disagree.',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '10',
+    min: 5,
+    max: 60,
+  },
+  {
+    name: 'SESSION_MEMBER_IDLE_MINUTES',
+    group: 'session',
+    description:
+      'Member session idle timeout, in minutes. A session is opened at no more than this value and renewed on every request, up to the twelve-hour window C-003 prints (NFR-026).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '720',
+    min: 5,
+    max: 1440,
+  },
+  {
+    name: 'SESSION_STAFF_IDLE_MINUTES',
+    group: 'session',
+    description:
+      'Staff session idle timeout, in minutes. C-092 fixes thirty; the absolute window stays eight hours from the password step.',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '30',
+    min: 5,
+    max: 240,
+  },
+  {
+    name: 'RATE_LIMIT_WINDOW_MINUTES',
+    group: 'limits',
+    description:
+      'The fixed window every limiter counter uses, in minutes. A new window is a new counter; nothing slides (NFR-027).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '15',
+    min: 1,
+    max: 1440,
+  },
+  {
+    name: 'RATE_LIMIT_SIGN_IN_PER_NUMBER',
+    group: 'limits',
+    description:
+      'Sign-in code requests allowed from one telephone number per window, before RATE_LIMITED (C-005).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '5',
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'RATE_LIMIT_SIGN_IN_PER_ADDRESS',
+    group: 'limits',
+    description:
+      'Sign-in code requests allowed from one source address per window. The action boundary consults it alongside the number cap (C-005).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '20',
+    min: 1,
+    max: 500,
+  },
+  {
+    name: 'RATE_LIMIT_REGISTRATION_PER_NUMBER',
+    group: 'limits',
+    description:
+      'Registration attempts allowed from one telephone number per window (C-002, NFR-027).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '5',
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'RATE_LIMIT_REGISTRATION_PER_ADDRESS',
+    group: 'limits',
+    description:
+      'Registration attempts allowed from one source address per window. Consulted by the action boundary alongside the number cap (C-002).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '20',
+    min: 1,
+    max: 500,
+  },
+  {
+    name: 'RATE_LIMIT_REGISTRATION_RESEND_PER_NUMBER',
+    group: 'limits',
+    description:
+      'Code resends allowed for one pending registration per window (C-004). The one-minute resend timer is separate and fixed.',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '5',
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'RATE_LIMIT_STAFF_SIGN_IN_PER_SUBJECT',
+    group: 'limits',
+    description:
+      'Staff sign-in attempts allowed per subject per window, counted separately for a username and a source address (C-092). The five-failure lockout is fixed.',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '10',
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'RATE_LIMIT_DATA_REQUEST_PER_MEMBER',
+    group: 'limits',
+    description:
+      'Data-rights requests one member may open per window. A duplicate open export is refused separately (C-035).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '5',
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'RATE_LIMIT_DISPLAY_NAME_CHANGE_PER_MEMBER',
+    group: 'limits',
+    description: 'Display-name changes one member may make per window (C-033).',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '5',
+    min: 1,
+    max: 100,
   },
   {
     name: 'CACHE_TTL_PUBLIC_PAGE_SECONDS',
@@ -510,6 +695,9 @@ export const VARIABLE_NAMES: readonly string[] = VARIABLES.map((variable) => var
 export const GROUP_HEADINGS: Readonly<Record<ConfigGroup, string>> = {
   postgres: 'Primary Database - PostgreSQL 16 (architecture.md: Data Stores)',
   redis: 'Read cache, sessions and rate-limit counters - Redis 7',
+  session:
+    'Sessions and one-time codes - timeouts only, never a cap the specification fixes (NFR-026)',
+  limits: 'Rate limits - operator caps per bucket and subject (NFR-027, C-001)',
   cache: 'Cache lifetimes - one explicit expiry per key family (C-075, C-086)',
   storage: 'Object storage - S3-compatible, private bucket',
   sms: 'SMS gateway - notification boundary transport (C-076)',

@@ -23,9 +23,12 @@ import {
   MODEL_CAPABILITIES,
   modelVariableSuffix,
   parseVariable,
+  RATE_LIMIT_BUCKETS,
+  RATE_LIMIT_BUCKET_VARIABLES,
   VARIABLES,
   type FeatureFlagName,
   type ModelCapability,
+  type RateLimitBucket,
   type VariableSpec,
 } from './schema.ts';
 
@@ -91,6 +94,21 @@ export interface ModelConfig {
   readonly capabilities: Readonly<Record<ModelCapability, ModelCapabilityConfig>>;
 }
 
+/** The session and one-time-code timeouts the adapter enforces (`NFR-026`). */
+export interface SessionConfig {
+  readonly codeTtlSeconds: number;
+  /** The member session's sliding idle timeout, capped by the absolute window the domain supplies. */
+  readonly memberIdleSeconds: number;
+  /** The staff session's sliding idle timeout, renewed by each authorised request (`C-092`). */
+  readonly staffIdleSeconds: number;
+}
+
+/** The limiter's fixed window and one cap per bucket (`NFR-027`). */
+export interface RateLimitConfig {
+  readonly windowSeconds: number;
+  readonly caps: Readonly<Record<RateLimitBucket, number>>;
+}
+
 /** The worker's probe listener and shutdown settings (`C-091`). */
 export interface WorkerConfig {
   readonly host: string;
@@ -103,6 +121,8 @@ export interface PlatformConfig {
   readonly databaseUrl: string;
   readonly redisUrl: string;
   readonly worker: WorkerConfig;
+  readonly session: SessionConfig;
+  readonly rateLimit: RateLimitConfig;
   readonly cache: CacheTtlConfig;
   readonly storage: StorageConfig;
   readonly sms: SmsConfig;
@@ -236,12 +256,19 @@ function buildScalars(values: ParsedValues): {
   databaseUrl: string;
   redisUrl: string;
   worker: WorkerConfig;
+  session: SessionConfig;
+  rateLimit: RateLimitConfig;
   cache: CacheTtlConfig;
   storage: StorageConfig;
   sms: SmsConfig;
   model: ModelConfig;
   featureFlags: Record<FeatureFlagName, boolean>;
 } {
+  const caps = {} as Record<RateLimitBucket, number>;
+  for (const bucket of RATE_LIMIT_BUCKETS) {
+    caps[bucket] = numberValue(values, RATE_LIMIT_BUCKET_VARIABLES[bucket]);
+  }
+
   const capabilities = {} as Record<ModelCapability, ModelCapabilityConfig>;
   for (const capability of MODEL_CAPABILITIES) {
     const suffix = modelVariableSuffix(capability);
@@ -267,6 +294,15 @@ function buildScalars(values: ParsedValues): {
       host: stringValue(values, 'WORKER_HOST'),
       port: numberValue(values, 'WORKER_PORT'),
       shutdownGraceMs: numberValue(values, 'WORKER_SHUTDOWN_GRACE_MS'),
+    },
+    session: {
+      codeTtlSeconds: numberValue(values, 'SESSION_CODE_TTL_MINUTES') * 60,
+      memberIdleSeconds: numberValue(values, 'SESSION_MEMBER_IDLE_MINUTES') * 60,
+      staffIdleSeconds: numberValue(values, 'SESSION_STAFF_IDLE_MINUTES') * 60,
+    },
+    rateLimit: {
+      windowSeconds: numberValue(values, 'RATE_LIMIT_WINDOW_MINUTES') * 60,
+      caps,
     },
     cache: {
       publicPageSeconds: numberValue(values, 'CACHE_TTL_PUBLIC_PAGE_SECONDS'),
@@ -367,6 +403,9 @@ export function loadConfig(options: LoadConfigOptions = {}): PlatformConfig {
   };
 
   // Freeze the nested slices before the outer object so no adapter can mutate a shared setting.
+  Object.freeze(config.session);
+  Object.freeze(config.rateLimit.caps);
+  Object.freeze(config.rateLimit);
   Object.freeze(config.cache);
   Object.freeze(config.storage);
   Object.freeze(config.sms);
