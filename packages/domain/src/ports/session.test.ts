@@ -15,7 +15,7 @@ import {
   readSessionCookie,
 } from './session.ts';
 
-const TOKEN = '9Wq3m0Zk1yV8sR2tB6cN4fH7jL5pX0aD3eG1kM9uQ2w';
+const TOKEN = 'test-token-not-a-secret-0123456789abcdef012';
 
 describe('session cookies', () => {
   it('names the two namespaces apart', () => {
