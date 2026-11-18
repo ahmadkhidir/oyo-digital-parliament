@@ -1,0 +1,23 @@
+{
+  // Domain program: `src` (rules, use cases, ports) and `test` (flow and policy tests).
+  //
+  // `"types": []` is deliberate. This area must stay callable without Node, a browser or a server:
+  // time arrives through the clock port and effects through ports, so `process`, `fetch` and
+  // `node:*` globals are kept out of the program on purpose (see `packages/domain/AGENTS.md`,
+  // Discipline).
+  //
+  // Module resolution is `nodenext`, not `bundler`: the worker and the seeds import this package's
+  // source with no build step, so relative imports are checked for the explicit `.ts` extension
+  // Node 24 requires (`allowImportingTsExtensions`). Bundler resolution would accept `./x` and fail
+  // only at run time.
+  //
+  // `package.json` is an input so the program is provable before `src` exists (TS18003 otherwise).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "types": []
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "package.json"]
+}

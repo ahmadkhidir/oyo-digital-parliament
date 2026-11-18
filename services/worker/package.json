@@ -1,0 +1,25 @@
+{
+  "name": "@odp/worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scheduled obligations: the twenty-one-day overdue check, report cards, anomaly review, cache warm, backup verify and handover.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/main.ts",
+    "start": "node src/main.ts",
+    "lint": "tsc -p tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@odp/db": "workspace:*",
+    "@odp/domain": "workspace:*",
+    "@odp/inference": "workspace:*",
+    "@odp/platform": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

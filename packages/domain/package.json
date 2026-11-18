@@ -1,0 +1,19 @@
+{
+  "name": "@odp/domain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Business rules and use-case orchestration: framework-agnostic, effect-driven through ports.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "tsc -p tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
