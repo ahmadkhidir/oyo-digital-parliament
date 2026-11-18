@@ -95,7 +95,13 @@ describe('audit envelope', () => {
   });
 
   it('refuses an action that is not a stable dotted verb', () => {
-    for (const action of ['Removed a comment', 'published', 'decision.', '.published', 'Decision.Published']) {
+    for (const action of [
+      'Removed a comment',
+      'published',
+      'decision.',
+      '.published',
+      'Decision.Published',
+    ]) {
       const result = validateAuditEventInput(minimal({ action }));
       expect(result.ok, action).toBe(false);
       if (!result.ok) expect(result.fields['action'], action).toBe('PATTERN_MISMATCH');
@@ -153,7 +159,9 @@ describe('audit envelope', () => {
 
   it('admits a reason that cites identifiers', () => {
     const result = validateAuditEventInput(
-      minimal({ reason: 'Removed under rule DEFAMATION_NAMED_PERSON; appeal path stated in the notice.' }),
+      minimal({
+        reason: 'Removed under rule DEFAMATION_NAMED_PERSON; appeal path stated in the notice.',
+      }),
     );
     expect(result.ok).toBe(true);
   });

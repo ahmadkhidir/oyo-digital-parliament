@@ -104,7 +104,9 @@ function toEnvelopeTimestamp(date: Date): string {
  *
  * @param options - The request context, the sink, the clock, the id source and the release.
  */
-export function createTelemetryDispatcher(options: TelemetryDispatcherOptions): TelemetryDispatcher {
+export function createTelemetryDispatcher(
+  options: TelemetryDispatcherOptions,
+): TelemetryDispatcher {
   const buffer = options.buffer ?? createTelemetryBuffer();
   const report = (failure: TelemetryFailure): void => {
     try {
@@ -122,9 +124,17 @@ export function createTelemetryDispatcher(options: TelemetryDispatcherOptions): 
     } catch {
       const queued = buffer.enqueue(request);
       if (queued.dropped !== undefined) {
-        report({ kind: 'QUEUE_FULL', eventId: request.event_id, droppedEventId: queued.dropped.event_id });
+        report({
+          kind: 'QUEUE_FULL',
+          eventId: request.event_id,
+          droppedEventId: queued.dropped.event_id,
+        });
       }
-      report({ kind: 'NOT_STORED', eventId: request.event_id, cause: 'ANALYTICS_STORE_UNAVAILABLE' });
+      report({
+        kind: 'NOT_STORED',
+        eventId: request.event_id,
+        cause: 'ANALYTICS_STORE_UNAVAILABLE',
+      });
       return { status: 'queued', eventId: request.event_id };
     }
   };

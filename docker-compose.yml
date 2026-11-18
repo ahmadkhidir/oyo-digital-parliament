@@ -21,24 +21,20 @@ services:
   postgres:
     image: postgres:16.16-alpine
     environment:
-      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is not set; run node scripts/dev/services.mjs up}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set; run node scripts/dev/services.mjs up}"
-      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is not set; run node scripts/dev/services.mjs up}"
+      POSTGRES_USER: '${POSTGRES_USER:?POSTGRES_USER is not set; run node scripts/dev/services.mjs up}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set; run node scripts/dev/services.mjs up}'
+      POSTGRES_DB: '${POSTGRES_DB:?POSTGRES_DB is not set; run node scripts/dev/services.mjs up}'
       TZ: UTC
     ports:
       # Loopback only: a disposable local database is never reachable from the network.
-      - "127.0.0.1:${POSTGRES_PORT:?POSTGRES_PORT is not set; run node scripts/dev/services.mjs up}:5432"
+      - '127.0.0.1:${POSTGRES_PORT:?POSTGRES_PORT is not set; run node scripts/dev/services.mjs up}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       # A real connection attempt as the configured role and database, not just an open port.
       # `$$` defers expansion to the container's own environment so the credential is not interpolated
       # into this file or into `docker inspect` output at parse time.
-      test:
-        [
-          "CMD-SHELL",
-          'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"',
-        ]
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 12
@@ -52,18 +48,18 @@ services:
     command:
       - redis-server
       - --appendonly
-      - "yes"
+      - 'yes'
       - --save
-      - ""
+      - ''
       # The container's interface is reachable only through the loopback host mapping above.
       - --protected-mode
-      - "no"
+      - 'no'
     ports:
-      - "127.0.0.1:${REDIS_PORT:?REDIS_PORT is not set; run node scripts/dev/services.mjs up}:6379"
+      - '127.0.0.1:${REDIS_PORT:?REDIS_PORT is not set; run node scripts/dev/services.mjs up}:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 12
@@ -73,22 +69,19 @@ services:
     # VersityGW serves the S3 API over a POSIX directory: a private bucket, SigV4 authentication and
     # short-lived presigned reads, which is what `C-036` requires. No web console, no public bucket.
     image: versity/versitygw:v1.11.0
-    command: ["--port", ":7070", "posix", "/data"]
+    command: ['--port', ':7070', 'posix', '/data']
     environment:
-      ROOT_ACCESS_KEY: "${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is not set; run node scripts/dev/services.mjs up}"
-      ROOT_SECRET_KEY: "${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is not set; run node scripts/dev/services.mjs up}"
+      ROOT_ACCESS_KEY: '${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is not set; run node scripts/dev/services.mjs up}'
+      ROOT_SECRET_KEY: '${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is not set; run node scripts/dev/services.mjs up}'
     ports:
-      - "127.0.0.1:${S3_PORT:?S3_PORT is not set; run node scripts/dev/services.mjs up}:7070"
+      - '127.0.0.1:${S3_PORT:?S3_PORT is not set; run node scripts/dev/services.mjs up}:7070'
     volumes:
       - object-storage-data:/data
     healthcheck:
       # An anonymous request must be refused with 403: that is the healthy state, and it proves both
       # that the S3 handler is serving and that the bucket is not public. Any HTTP status counts.
       test:
-        [
-          "CMD-SHELL",
-          "wget -q -S -O /dev/null http://127.0.0.1:7070/ 2>&1 | grep -q 'HTTP/1.1'",
-        ]
+        ['CMD-SHELL', "wget -q -S -O /dev/null http://127.0.0.1:7070/ 2>&1 | grep -q 'HTTP/1.1'"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -100,18 +93,18 @@ services:
     # by its in-network name; the host endpoint in `.env` would be wrong from inside the network.
     # Creating the bucket twice is harmless: the script checks with `head-bucket` first.
     image: amazon/aws-cli:2.31.5
-    profiles: ["init"]
+    profiles: ['init']
     depends_on:
       object-storage:
         condition: service_healthy
     environment:
-      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is not set; run node scripts/dev/services.mjs up}"
-      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is not set; run node scripts/dev/services.mjs up}"
-      AWS_DEFAULT_REGION: "${S3_REGION:?S3_REGION is not set; run node scripts/dev/services.mjs up}"
-      AWS_EC2_METADATA_DISABLED: "true"
-      S3_BUCKET: "${S3_BUCKET:?S3_BUCKET is not set; run node scripts/dev/services.mjs up}"
-      S3_INTERNAL_ENDPOINT: "http://object-storage:7070"
-    entrypoint: ["/bin/sh", "-c"]
+      AWS_ACCESS_KEY_ID: '${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is not set; run node scripts/dev/services.mjs up}'
+      AWS_SECRET_ACCESS_KEY: '${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is not set; run node scripts/dev/services.mjs up}'
+      AWS_DEFAULT_REGION: '${S3_REGION:?S3_REGION is not set; run node scripts/dev/services.mjs up}'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      S3_BUCKET: '${S3_BUCKET:?S3_BUCKET is not set; run node scripts/dev/services.mjs up}'
+      S3_INTERNAL_ENDPOINT: 'http://object-storage:7070'
+    entrypoint: ['/bin/sh', '-c']
     command:
       - |
         set -eu

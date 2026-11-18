@@ -28,6 +28,7 @@ docs/
 # source and a hand-format would be overwritten on the next regeneration.
 packages/ui/src/styles/theme.css
 packages/ui/src/styles/fonts.css
+packages/ui/tailwind.preset.ts
 
 # Binary and generated assets.
 assets/**/*.svg

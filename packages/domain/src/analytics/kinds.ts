@@ -49,7 +49,10 @@ export function integerKind(
 }
 
 /** One of a closed set of values, spelled exactly as `schema.md` or `CONTRACTS.md` spells them. */
-export function enumKind(values: readonly string[]): { readonly type: 'enum'; readonly values: readonly string[] } {
+export function enumKind(values: readonly string[]): {
+  readonly type: 'enum';
+  readonly values: readonly string[];
+} {
   return { type: 'enum', values };
 }
 
@@ -62,7 +65,10 @@ export function tokenKind(maxLength = 60): { readonly type: 'token'; readonly ma
 }
 
 /** A record identifier in the `C-001` form: a three-letter prefix, an underscore, a Crockford id. */
-export function identifierKind(prefix: string): { readonly type: 'identifier'; readonly prefix: string } {
+export function identifierKind(prefix: string): {
+  readonly type: 'identifier';
+  readonly prefix: string;
+} {
   return { type: 'identifier', prefix };
 }
 

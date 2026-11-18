@@ -6,7 +6,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { buildAnalyticsEvent, parseAnalyticsEmitRequest, type AnalyticsEventInput } from './envelope.ts';
+import {
+  buildAnalyticsEvent,
+  parseAnalyticsEmitRequest,
+  type AnalyticsEventInput,
+} from './envelope.ts';
 
 /** A registered member's identity: pseudonymous, with no anonymous id alongside it. */
 const REGISTERED = { userId: 'usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA', anonymousId: null } as const;
@@ -144,7 +148,14 @@ describe('analytics envelope', () => {
 
   it('refuses a property the taxonomy does not declare for that event', () => {
     const result = parseAnalyticsEmitRequest(
-      screenViewed({ properties: { screen: 'home', device_class: 'mobile', signed_in: false, ward_id: 'wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM' } }),
+      screenViewed({
+        properties: {
+          screen: 'home',
+          device_class: 'mobile',
+          signed_in: false,
+          ward_id: 'wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM',
+        },
+      }),
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.fields['properties.ward_id']).toBe('UNKNOWN_FIELD');
@@ -194,11 +205,15 @@ describe('analytics envelope', () => {
   });
 
   it('refuses a malformed identifier, timestamp or version', () => {
-    const badId = parseAnalyticsEmitRequest(screenViewed({ event_id: '01J9ZQ1R3S5T7V9W1X3Y5Z7AB' }));
+    const badId = parseAnalyticsEmitRequest(
+      screenViewed({ event_id: '01J9ZQ1R3S5T7V9W1X3Y5Z7AB' }),
+    );
     expect(badId.ok).toBe(false);
     if (!badId.ok) expect(badId.fields['event_id']).toBe('PATTERN_MISMATCH');
 
-    const badTime = parseAnalyticsEmitRequest(screenViewed({ occurred_at: '2026-11-25T12:00:00+01:00' }));
+    const badTime = parseAnalyticsEmitRequest(
+      screenViewed({ occurred_at: '2026-11-25T12:00:00+01:00' }),
+    );
     expect(badTime.ok).toBe(false);
     if (!badTime.ok) expect(badTime.fields['occurred_at']).toBe('PATTERN_MISMATCH');
 
@@ -219,7 +234,8 @@ describe('analytics envelope', () => {
     };
     const withoutCorrelation = buildAnalyticsEvent(model);
     expect(withoutCorrelation.ok).toBe(false);
-    if (!withoutCorrelation.ok) expect(withoutCorrelation.fields['correlation_id']).toBe('REQUIRED');
+    if (!withoutCorrelation.ok)
+      expect(withoutCorrelation.fields['correlation_id']).toBe('REQUIRED');
 
     const withCorrelation = buildAnalyticsEvent({ ...model, correlationId: 'req_01J9Z6M2V4' });
     expect(withCorrelation.ok).toBe(true);
@@ -234,9 +250,17 @@ describe('analytics envelope', () => {
   });
 
   it('refuses a property key that names a person', () => {
-    for (const key of ['full_name', 'telephone_number', 'display_name', 'member_id', 'ward_description']) {
+    for (const key of [
+      'full_name',
+      'telephone_number',
+      'display_name',
+      'member_id',
+      'ward_description',
+    ]) {
       const result = parseAnalyticsEmitRequest(
-        screenViewed({ properties: { screen: 'home', device_class: 'mobile', signed_in: false, [key]: 'x' } }),
+        screenViewed({
+          properties: { screen: 'home', device_class: 'mobile', signed_in: false, [key]: 'x' },
+        }),
       );
       expect(result.ok, key).toBe(false);
       if (!result.ok) {
@@ -274,7 +298,9 @@ describe('analytics envelope', () => {
     if (!description.ok) expect(description.cause).toBe('PERSONAL_DATA_IN_EVENT');
 
     const excerpt = parseAnalyticsEmitRequest(
-      screenViewed({ properties: { screen: 'the road behind the school has flooded again every rainy season' } }),
+      screenViewed({
+        properties: { screen: 'the road behind the school has flooded again every rainy season' },
+      }),
     );
     expect(excerpt.ok).toBe(false);
     if (!excerpt.ok) {
@@ -285,7 +311,9 @@ describe('analytics envelope', () => {
 
   it('refuses a nested value as malformed rather than as personal data', () => {
     const result = parseAnalyticsEmitRequest(
-      screenViewed({ properties: { screen: 'home', device_class: 'mobile', signed_in: false, extra: { a: 1 } } }),
+      screenViewed({
+        properties: { screen: 'home', device_class: 'mobile', signed_in: false, extra: { a: 1 } },
+      }),
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {

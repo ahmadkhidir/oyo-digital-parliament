@@ -61,18 +61,14 @@ export interface AcceptedAuditEvent {
 
 /** The outcome of validating an audit submission. */
 export type AuditValidationResult =
-  | { readonly ok: true; readonly accepted: AcceptedAuditEvent }
-  | AuditRejection;
+  { readonly ok: true; readonly accepted: AcceptedAuditEvent } | AuditRejection;
 
 /**
  * Identifier and timestamp patterns.
  *
  * `actorId` and `entityId` accept the `C-001` form with any three-letter prefix, because an actor may
  * be a member or a staff user and an entity may be any of the record's aggregates. The body is
- * upper-case alphanumeric over a 4-to-26 length range rather than the canonical 26 Crockford
- * characters, because the frozen examples in `CONTRACTS.md` include both shorter ids and ids with an
- * `L`; rejecting a record the contract prints would be the worse error. See the change request note in
- * the analytics envelope for the same discrepancy.
+ * upper-case alphanumeric over a 4-to-26 length range, which is the reconciled `C-001` form.
  */
 const RECORD_IDENTIFIER_PATTERN = /^[a-z]{3}_[0-9A-Z]{4,26}$/;
 const AUDIT_ID_PATTERN = /^aud_[0-9A-Z]{4,26}$/;
@@ -131,7 +127,11 @@ function requiredString(
  */
 export function validateAuditEventInput(raw: unknown): AuditValidationResult {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return refuse('VALIDATION_FAILED', 'ENVELOPE_MALFORMED', 'The audit envelope is not an object.');
+    return refuse(
+      'VALIDATION_FAILED',
+      'ENVELOPE_MALFORMED',
+      'The audit envelope is not an object.',
+    );
   }
   const input = raw as Readonly<Record<string, unknown>>;
 
@@ -172,9 +172,12 @@ export function validateAuditEventInput(raw: unknown): AuditValidationResult {
     fields['actorRole'] = 'ENUM_MISMATCH';
   }
 
-  if (actorId !== null && !RECORD_IDENTIFIER_PATTERN.test(actorId)) fields['actorId'] = 'PATTERN_MISMATCH';
-  if (entityId !== null && !RECORD_IDENTIFIER_PATTERN.test(entityId)) fields['entityId'] = 'PATTERN_MISMATCH';
-  if (occurredAt !== null && !TIMESTAMP_PATTERN.test(occurredAt)) fields['occurredAt'] = 'PATTERN_MISMATCH';
+  if (actorId !== null && !RECORD_IDENTIFIER_PATTERN.test(actorId))
+    fields['actorId'] = 'PATTERN_MISMATCH';
+  if (entityId !== null && !RECORD_IDENTIFIER_PATTERN.test(entityId))
+    fields['entityId'] = 'PATTERN_MISMATCH';
+  if (occurredAt !== null && !TIMESTAMP_PATTERN.test(occurredAt))
+    fields['occurredAt'] = 'PATTERN_MISMATCH';
 
   if (action !== null) {
     if (action.length > AUDIT_ACTION_MAX_LENGTH) fields['action'] = 'TOO_LONG';
@@ -192,16 +195,25 @@ export function validateAuditEventInput(raw: unknown): AuditValidationResult {
   }
 
   const correlationId = input['correlationId'];
-  if (correlationId !== undefined && (typeof correlationId !== 'string' || !CORRELATION_ID_PATTERN.test(correlationId))) {
+  if (
+    correlationId !== undefined &&
+    (typeof correlationId !== 'string' || !CORRELATION_ID_PATTERN.test(correlationId))
+  ) {
     fields['correlationId'] = 'PATTERN_MISMATCH';
   }
 
   if (reason !== undefined && typeof reason !== 'string') fields['reason'] = 'OUT_OF_BAND';
-  else if (typeof reason === 'string' && reason.length > REASON_MAX_LENGTH) fields['reason'] = 'TOO_LONG';
+  else if (typeof reason === 'string' && reason.length > REASON_MAX_LENGTH)
+    fields['reason'] = 'TOO_LONG';
   else if (typeof reason === 'string' && reason.length === 0) fields['reason'] = 'TOO_SHORT';
 
   if (Object.keys(fields).length > 0) {
-    return refuse('VALIDATION_FAILED', 'AUDIT_EVENT_INVALID', 'The record does not match the audit schema.', fields);
+    return refuse(
+      'VALIDATION_FAILED',
+      'AUDIT_EVENT_INVALID',
+      'The record does not match the audit schema.',
+      fields,
+    );
   }
 
   const event: AuditEventDraft = {

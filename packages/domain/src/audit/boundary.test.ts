@@ -88,19 +88,23 @@ const CALLER = { component: 'web' } as const;
 describe('audit and analytics boundary', () => {
   it('appends an audit record and answers with its position', async () => {
     const { deps: d, auditRecords } = deps();
-    const response = await handleAuditAnalyticsBoundary(d, { component: 'system' }, {
-      operation: 'audit.append',
-      args: {
-        actorId: 'stf_01J9Z4C8D1E2F3G4H5J6K7M8NP',
-        actorRole: 'response_staff',
-        action: 'decision.published',
-        entityType: 'Decision',
-        entityId: 'dec_01J9ZB1C3D5E7F9G1H3J5K7LMP',
-        reason: 'Commit published against ODP-004821.',
-        occurredAt: '2026-11-25T12:00:00Z',
-        correlationId: 'req_01J9Z6M2V4',
+    const response = await handleAuditAnalyticsBoundary(
+      d,
+      { component: 'system' },
+      {
+        operation: 'audit.append',
+        args: {
+          actorId: 'stf_01J9Z4C8D1E2F3G4H5J6K7M8NP',
+          actorRole: 'response_staff',
+          action: 'decision.published',
+          entityType: 'Decision',
+          entityId: 'dec_01J9ZB1C3D5E7F9G1H3J5K7LMP',
+          reason: 'Commit published against ODP-004821.',
+          occurredAt: '2026-11-25T12:00:00Z',
+          correlationId: 'req_01J9Z6M2V4',
+        },
       },
-    });
+    );
     expect(response.ok).toBe(true);
     if (!response.ok) return;
     expect(response.status).toBe(201);
@@ -111,18 +115,22 @@ describe('audit and analytics boundary', () => {
 
   it('refuses an audit reason that copies personal data, and writes nothing', async () => {
     const { deps: d, auditRecords } = deps();
-    const response = await handleAuditAnalyticsBoundary(d, { component: 'system' }, {
-      operation: 'audit.append',
-      args: {
-        actorId: 'stf_01J9Z4C8D1E2F3G4H5J6K7M8NP',
-        actorRole: 'moderator',
-        action: 'comment.removed',
-        entityType: 'Comment',
-        entityId: 'cmt_01J9ZB1C3D5E7F9G1H3J5K7LMP',
-        reason: 'Author reachable on 0803 123 4567',
-        occurredAt: '2026-11-25T12:00:00Z',
+    const response = await handleAuditAnalyticsBoundary(
+      d,
+      { component: 'system' },
+      {
+        operation: 'audit.append',
+        args: {
+          actorId: 'stf_01J9Z4C8D1E2F3G4H5J6K7M8NP',
+          actorRole: 'moderator',
+          action: 'comment.removed',
+          entityType: 'Comment',
+          entityId: 'cmt_01J9ZB1C3D5E7F9G1H3J5K7LMP',
+          reason: 'Author reachable on 0803 123 4567',
+          occurredAt: '2026-11-25T12:00:00Z',
+        },
       },
-    });
+    );
     expect(response.ok).toBe(false);
     if (!response.ok) {
       expect(response.status).toBe(422);
@@ -134,17 +142,21 @@ describe('audit and analytics boundary', () => {
 
   it('reports a failed audit append as degraded, so the caller abandons its write', async () => {
     const { deps: d } = deps({ auditThrows: true });
-    const response = await handleAuditAnalyticsBoundary(d, { component: 'system' }, {
-      operation: 'audit.append',
-      args: {
-        actorId: 'stf_01J9Z4C8D1E2F3G4H5J6K7M8NP',
-        actorRole: 'operator',
-        action: 'member_data.export',
-        entityType: 'Member',
-        entityId: 'usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA',
-        occurredAt: '2026-11-25T12:00:00Z',
+    const response = await handleAuditAnalyticsBoundary(
+      d,
+      { component: 'system' },
+      {
+        operation: 'audit.append',
+        args: {
+          actorId: 'stf_01J9Z4C8D1E2F3G4H5J6K7M8NP',
+          actorRole: 'operator',
+          action: 'member_data.export',
+          entityType: 'Member',
+          entityId: 'usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA',
+          occurredAt: '2026-11-25T12:00:00Z',
+        },
       },
-    });
+    );
     expect(response.ok).toBe(false);
     if (!response.ok) {
       expect(response.status).toBe(503);
@@ -172,10 +184,14 @@ describe('audit and analytics boundary', () => {
 
   it('refuses an emitter that is not on the permitted list', async () => {
     const { deps: d, emitted } = deps();
-    const response = await handleAuditAnalyticsBoundary(d, { component: 'admin_script' }, {
-      operation: 'analytics.emit',
-      args: screenViewed(),
-    });
+    const response = await handleAuditAnalyticsBoundary(
+      d,
+      { component: 'admin_script' },
+      {
+        operation: 'analytics.emit',
+        args: screenViewed(),
+      },
+    );
     expect(response.ok).toBe(false);
     if (!response.ok) {
       expect(response.status).toBe(403);
@@ -189,7 +205,10 @@ describe('audit and analytics boundary', () => {
     const { deps: d, emitted } = deps();
     const response = await handleAuditAnalyticsBoundary(d, CALLER, {
       operation: 'analytics.emit',
-      args: { ...screenViewed(), properties: { screen: 'home', ward_description: 'Bodija ward three near the market' } },
+      args: {
+        ...screenViewed(),
+        properties: { screen: 'home', ward_description: 'Bodija ward three near the market' },
+      },
     });
     expect(response.ok).toBe(false);
     if (!response.ok) {
@@ -229,10 +248,14 @@ describe('audit and analytics boundary', () => {
 
   it('replaces an analytics identity', async () => {
     const { deps: d, replaced } = deps();
-    const response = await handleAuditAnalyticsBoundary(d, { component: 'system' }, {
-      operation: 'analytics.replaceUserToken',
-      args: { userId: 'usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA' },
-    });
+    const response = await handleAuditAnalyticsBoundary(
+      d,
+      { component: 'system' },
+      {
+        operation: 'analytics.replaceUserToken',
+        args: { userId: 'usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA' },
+      },
+    );
     expect(response.ok).toBe(true);
     if (response.ok) {
       expect(response.result).toMatchObject({ ok: true, replacedEvents: 12 });
@@ -242,7 +265,13 @@ describe('audit and analytics boundary', () => {
 
   it('has no update or delete operation, and no fifth operation', async () => {
     const { deps: d } = deps();
-    for (const operation of ['audit.update', 'audit.delete', 'analytics.delete', 'audit.appendMany', '']) {
+    for (const operation of [
+      'audit.update',
+      'audit.delete',
+      'analytics.delete',
+      'audit.appendMany',
+      '',
+    ]) {
       const response = await handleAuditAnalyticsBoundary(d, CALLER, { operation, args: {} });
       expect(response.ok, operation).toBe(false);
       if (!response.ok) {

@@ -23,28 +23,28 @@
  * @module infra/local/environment
  */
 
-import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 
 /** The Compose project name. `reset` passes it to every Docker call, so it can only reach this stack. */
-export const COMPOSE_PROJECT_NAME = "odp-local";
+export const COMPOSE_PROJECT_NAME = 'odp-local';
 
 /** The environment file both the app and the worker read in development. Git-ignored. */
-export const ENV_FILE_NAME = ".env";
+export const ENV_FILE_NAME = '.env';
 
 /** The committed example file: shape and disposable defaults only, rendered from this module. */
-export const EXAMPLE_FILE_NAME = ".env.example";
+export const EXAMPLE_FILE_NAME = '.env.example';
 
 /** Hosts that mean "this machine". A connection string aimed at another host is not cross-checked. */
-const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 
 /** Default ports per scheme, used only to compare a URL with the port it actually reaches. */
 const DEFAULT_PORTS = new Map([
-  ["postgres:", "5432"],
-  ["postgresql:", "5432"],
-  ["redis:", "6379"],
-  ["http:", "80"],
-  ["https:", "443"],
+  ['postgres:', '5432'],
+  ['postgresql:', '5432'],
+  ['redis:', '6379'],
+  ['http:', '80'],
+  ['https:', '443'],
 ]);
 
 /** A PostgreSQL role or database name: lower case, digits and underscores, not starting with a digit. */
@@ -62,131 +62,133 @@ const BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
  */
 export const VARIABLES = [
   {
-    name: "DATABASE_URL",
-    group: "postgres",
+    name: 'DATABASE_URL',
+    group: 'postgres',
     description:
-      "Connection string for the Primary Database; used by the app, the worker and drizzle-kit.",
+      'Connection string for the Primary Database; used by the app, the worker and drizzle-kit.',
     secret: true,
-    example: "postgresql://odp_local:odp_local_dev_password@127.0.0.1:5433/odp_local",
-    check: { kind: "url", protocols: ["postgres:", "postgresql:"], requiresPath: true },
+    example: 'postgresql://odp_local:odp_local_dev_password@127.0.0.1:5433/odp_local',
+    check: { kind: 'url', protocols: ['postgres:', 'postgresql:'], requiresPath: true },
   },
   {
-    name: "POSTGRES_USER",
-    group: "postgres",
-    description: "Role the local PostgreSQL container creates and DATABASE_URL connects as.",
+    name: 'POSTGRES_USER',
+    group: 'postgres',
+    description: 'Role the local PostgreSQL container creates and DATABASE_URL connects as.',
     secret: false,
-    example: "odp_local",
-    check: { kind: "identifier" },
+    example: 'odp_local',
+    check: { kind: 'identifier' },
   },
   {
-    name: "POSTGRES_PASSWORD",
-    group: "postgres",
-    description: "Password for that role. A local placeholder only; a real secret never lives here.",
+    name: 'POSTGRES_PASSWORD',
+    group: 'postgres',
+    description:
+      'Password for that role. A local placeholder only; a real secret never lives here.',
     secret: true,
-    example: "odp_local_dev_password",
-    check: { kind: "text" },
+    example: 'odp_local_dev_password',
+    check: { kind: 'text' },
   },
   {
-    name: "POSTGRES_DB",
-    group: "postgres",
-    description: "Database the container creates on first start.",
+    name: 'POSTGRES_DB',
+    group: 'postgres',
+    description: 'Database the container creates on first start.',
     secret: false,
-    example: "odp_local",
-    check: { kind: "identifier" },
+    example: 'odp_local',
+    check: { kind: 'identifier' },
   },
   {
-    name: "POSTGRES_PORT",
-    group: "postgres",
+    name: 'POSTGRES_PORT',
+    group: 'postgres',
     description:
-      "Host port the container publishes; DATABASE_URL must use it. Off the standard 5432 so a PostgreSQL already installed here keeps its port.",
+      'Host port the container publishes; DATABASE_URL must use it. Off the standard 5432 so a PostgreSQL already installed here keeps its port.',
     secret: false,
-    example: "5433",
-    check: { kind: "port" },
+    example: '5433',
+    check: { kind: 'port' },
   },
   {
-    name: "REDIS_URL",
-    group: "redis",
+    name: 'REDIS_URL',
+    group: 'redis',
     description:
-      "Read cache, session store and rate-limit counters. No password: the host port is bound to this machine only.",
+      'Read cache, session store and rate-limit counters. No password: the host port is bound to this machine only.',
     secret: false,
-    example: "redis://127.0.0.1:6380",
-    check: { kind: "url", protocols: ["redis:"], requiresPath: false },
+    example: 'redis://127.0.0.1:6380',
+    check: { kind: 'url', protocols: ['redis:'], requiresPath: false },
   },
   {
-    name: "REDIS_PORT",
-    group: "redis",
+    name: 'REDIS_PORT',
+    group: 'redis',
     description:
-      "Host port the container publishes; REDIS_URL must use it. Off the standard 6379 so a Redis already installed here keeps its port.",
+      'Host port the container publishes; REDIS_URL must use it. Off the standard 6379 so a Redis already installed here keeps its port.',
     secret: false,
-    example: "6380",
-    check: { kind: "port" },
+    example: '6380',
+    check: { kind: 'port' },
   },
   {
-    name: "S3_ENDPOINT",
-    group: "storage",
+    name: 'S3_ENDPOINT',
+    group: 'storage',
     description:
-      "S3-compatible endpoint for the object store (exports, report cards, handover snapshot, evaluation artefacts).",
+      'S3-compatible endpoint for the object store (exports, report cards, handover snapshot, evaluation artefacts).',
     secret: false,
-    example: "http://127.0.0.1:9100",
-    check: { kind: "url", protocols: ["http:", "https:"], requiresPath: false },
+    example: 'http://127.0.0.1:9100',
+    check: { kind: 'url', protocols: ['http:', 'https:'], requiresPath: false },
   },
   {
-    name: "S3_REGION",
-    group: "storage",
-    description: "Region the client signs requests with. The local store accepts any value.",
+    name: 'S3_REGION',
+    group: 'storage',
+    description: 'Region the client signs requests with. The local store accepts any value.',
     secret: false,
-    example: "us-east-1",
-    check: { kind: "text" },
+    example: 'us-east-1',
+    check: { kind: 'text' },
   },
   {
-    name: "S3_BUCKET",
-    group: "storage",
-    description: "Private bucket. Nothing in it is publicly readable; reads go through a signed URL.",
+    name: 'S3_BUCKET',
+    group: 'storage',
+    description:
+      'Private bucket. Nothing in it is publicly readable; reads go through a signed URL.',
     secret: false,
-    example: "odp-local",
-    check: { kind: "bucket" },
+    example: 'odp-local',
+    check: { kind: 'bucket' },
   },
   {
-    name: "S3_ACCESS_KEY_ID",
-    group: "storage",
-    description: "Access key for the local store. A local placeholder only.",
+    name: 'S3_ACCESS_KEY_ID',
+    group: 'storage',
+    description: 'Access key for the local store. A local placeholder only.',
     secret: true,
-    example: "odp-local-access-key",
-    check: { kind: "text" },
+    example: 'odp-local-access-key',
+    check: { kind: 'text' },
   },
   {
-    name: "S3_SECRET_ACCESS_KEY",
-    group: "storage",
-    description: "Secret key for the local store. A local placeholder only.",
+    name: 'S3_SECRET_ACCESS_KEY',
+    group: 'storage',
+    description: 'Secret key for the local store. A local placeholder only.',
     secret: true,
-    example: "odp-local-secret-key",
-    check: { kind: "text" },
+    example: 'odp-local-secret-key',
+    check: { kind: 'text' },
   },
   {
-    name: "S3_FORCE_PATH_STYLE",
-    group: "storage",
+    name: 'S3_FORCE_PATH_STYLE',
+    group: 'storage',
     description:
       '"true", because the local endpoint is an address rather than a per-bucket hostname.',
     secret: false,
-    example: "true",
-    check: { kind: "boolean" },
+    example: 'true',
+    check: { kind: 'boolean' },
   },
   {
-    name: "S3_PORT",
-    group: "storage",
+    name: 'S3_PORT',
+    group: 'storage',
     description:
-      "Host port the object store publishes; S3_ENDPOINT must use it. Off the common 9000 so another local store keeps its port.",
+      'Host port the object store publishes; S3_ENDPOINT must use it. Off the common 9000 so another local store keeps its port.',
     secret: false,
-    example: "9100",
-    check: { kind: "port" },
+    example: '9100',
+    check: { kind: 'port' },
   },
 ];
 
 /** Human headings for the rendered example file. */
 const GROUP_HEADINGS = new Map([
-  ["postgres", "Primary Database - PostgreSQL 16 (architecture.md: Data Stores)"],
-  ["redis", "Read cache, sessions and rate-limit counters - Redis 7"],
-  ["storage", "Object storage - S3-compatible, private bucket"],
+  ['postgres', 'Primary Database - PostgreSQL 16 (architecture.md: Data Stores)'],
+  ['redis', 'Read cache, sessions and rate-limit counters - Redis 7'],
+  ['storage', 'Object storage - S3-compatible, private bucket'],
 ]);
 
 /**
@@ -207,7 +209,7 @@ function isLoopback(hostname) {
  * @returns {string} The explicit port, or the scheme's default, or an empty string.
  */
 function effectivePort(url) {
-  return url.port === "" ? (DEFAULT_PORTS.get(url.protocol) ?? "") : url.port;
+  return url.port === '' ? (DEFAULT_PORTS.get(url.protocol) ?? '') : url.port;
 }
 
 /**
@@ -219,53 +221,53 @@ function effectivePort(url) {
  */
 const CHECKERS = {
   url(value, spec) {
-    if (value !== value.trim()) return "must not start or end with whitespace";
-    if (/\s/.test(value)) return "must not contain whitespace";
+    if (value !== value.trim()) return 'must not start or end with whitespace';
+    if (/\s/.test(value)) return 'must not contain whitespace';
     let url;
     try {
       url = new URL(value);
     } catch {
-      return "is not a valid URL";
+      return 'is not a valid URL';
     }
     const protocols = /** @type {string[]} */ (spec.protocols);
     if (!protocols.includes(url.protocol)) {
-      return `must use the ${protocols.join(" or ")} scheme`;
+      return `must use the ${protocols.join(' or ')} scheme`;
     }
-    if (url.hostname === "") return "must name a host";
+    if (url.hostname === '') return 'must name a host';
     if (spec.requiresPath === true) {
-      const path = url.pathname.replace(/^\//, "");
-      if (path === "") return "must name a database in its path";
+      const path = url.pathname.replace(/^\//, '');
+      if (path === '') return 'must name a database in its path';
     }
     return null;
   },
 
   port(value) {
-    if (!/^[0-9]+$/.test(value)) return "must be a whole number between 1 and 65535";
+    if (!/^[0-9]+$/.test(value)) return 'must be a whole number between 1 and 65535';
     const port = Number(value);
-    if (port < 1 || port > 65535) return "must be between 1 and 65535";
+    if (port < 1 || port > 65535) return 'must be between 1 and 65535';
     return null;
   },
 
   boolean(value) {
-    return value === "true" || value === "false" ? null : 'must be "true" or "false"';
+    return value === 'true' || value === 'false' ? null : 'must be "true" or "false"';
   },
 
   identifier(value) {
     return DB_IDENTIFIER.test(value)
       ? null
-      : "must be lower case letters, digits or underscores, and not start with a digit";
+      : 'must be lower case letters, digits or underscores, and not start with a digit';
   },
 
   bucket(value) {
     if (!BUCKET_NAME.test(value)) {
-      return "must be 3-63 lower-case letters, digits, dots or hyphens, starting and ending alphanumeric";
+      return 'must be 3-63 lower-case letters, digits, dots or hyphens, starting and ending alphanumeric';
     }
-    if (value.includes("..")) return "must not contain two adjacent dots";
+    if (value.includes('..')) return 'must not contain two adjacent dots';
     return null;
   },
 
   text(value) {
-    return value.trim() === "" ? "must not be empty" : null;
+    return value.trim() === '' ? 'must not be empty' : null;
   },
 };
 
@@ -303,9 +305,9 @@ function crossCheck(values) {
 
   const database = new URL(values.DATABASE_URL);
   if (isLoopback(database.hostname)) {
-    comparePort(problems, "DATABASE_URL", database, "POSTGRES_PORT", values);
+    comparePort(problems, 'DATABASE_URL', database, 'POSTGRES_PORT', values);
 
-    const databaseName = decodeURIComponent(database.pathname.replace(/^\//, ""));
+    const databaseName = decodeURIComponent(database.pathname.replace(/^\//, ''));
     if (databaseName !== values.POSTGRES_DB) {
       problems.push(
         `DATABASE_URL names database "${databaseName}" but POSTGRES_DB is "${values.POSTGRES_DB}"; they must match`,
@@ -323,19 +325,19 @@ function crossCheck(values) {
     const password = decodeURIComponent(database.password);
     if (password !== values.POSTGRES_PASSWORD) {
       problems.push(
-        "DATABASE_URL carries a password that does not match POSTGRES_PASSWORD; they must be the same local placeholder",
+        'DATABASE_URL carries a password that does not match POSTGRES_PASSWORD; they must be the same local placeholder',
       );
     }
   }
 
   const redis = new URL(values.REDIS_URL);
   if (isLoopback(redis.hostname)) {
-    comparePort(problems, "REDIS_URL", redis, "REDIS_PORT", values);
+    comparePort(problems, 'REDIS_URL', redis, 'REDIS_PORT', values);
   }
 
   const storage = new URL(values.S3_ENDPOINT);
   if (isLoopback(storage.hostname)) {
-    comparePort(problems, "S3_ENDPOINT", storage, "S3_PORT", values);
+    comparePort(problems, 'S3_ENDPOINT', storage, 'S3_PORT', values);
   }
 
   return problems;
@@ -356,7 +358,7 @@ export function validateEnvironment({ env = process.env, fileValues = {} } = {})
   const merged = { ...fileValues };
   for (const variable of VARIABLES) {
     const fromProcess = env[variable.name];
-    if (typeof fromProcess === "string" && fromProcess.trim() !== "") {
+    if (typeof fromProcess === 'string' && fromProcess.trim() !== '') {
       merged[variable.name] = fromProcess;
     }
   }
@@ -368,7 +370,7 @@ export function validateEnvironment({ env = process.env, fileValues = {} } = {})
 
   for (const variable of VARIABLES) {
     const raw = merged[variable.name];
-    if (typeof raw !== "string" || raw.trim() === "") {
+    if (typeof raw !== 'string' || raw.trim() === '') {
       problems.push(`${variable.name} is not set`);
       continue;
     }
@@ -397,9 +399,9 @@ export function validateEnvironment({ env = process.env, fileValues = {} } = {})
 export function readEnvironmentFile(path) {
   let text;
   try {
-    text = readFileSync(path, "utf8");
+    text = readFileSync(path, 'utf8');
   } catch (error) {
-    if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') {
       return { values: {}, missing: true, problem: null };
     }
     return {
@@ -447,32 +449,32 @@ export function loadEnvironment({ filePath, env = process.env }) {
  */
 export function renderExample() {
   const lines = [
-    "# Oyo Digital Parliament - local development environment.",
-    "#",
-    "# Rendered from `infra/local/environment.mjs`. Change the contract there and run",
-    "# `node scripts/dev/env.mjs render`, then `node scripts/dev/env.mjs check` to prove it.",
-    "#",
-    "# Copy this file to `.env` (or let `node scripts/dev/services.mjs up` do it) to run the local",
-    "# stack. `.env` is git-ignored and must never be committed.",
-    "#",
-    "# Every value below is a disposable local placeholder for the Development environment. There is",
-    "# no real credential in this repository: staging and production values live in the managed secret",
-    "# store, and an unset secret fails boot rather than falling back to a default (NFR-024).",
-    "#",
-    "# `process.env` wins over `.env`, so CI can inject values without a file. Validation never prints",
-    "# a value: `node scripts/dev/env.mjs check` names the missing or malformed variable instead.",
+    '# Oyo Digital Parliament - local development environment.',
+    '#',
+    '# Rendered from `infra/local/environment.mjs`. Change the contract there and run',
+    '# `node scripts/dev/env.mjs render`, then `node scripts/dev/env.mjs check` to prove it.',
+    '#',
+    '# Copy this file to `.env` (or let `node scripts/dev/services.mjs up` do it) to run the local',
+    '# stack. `.env` is git-ignored and must never be committed.',
+    '#',
+    '# Every value below is a disposable local placeholder for the Development environment. There is',
+    '# no real credential in this repository: staging and production values live in the managed secret',
+    '# store, and an unset secret fails boot rather than falling back to a default (NFR-024).',
+    '#',
+    '# `process.env` wins over `.env`, so CI can inject values without a file. Validation never prints',
+    '# a value: `node scripts/dev/env.mjs check` names the missing or malformed variable instead.',
   ];
 
   /** @type {string | null} */
   let currentGroup = null;
   for (const variable of VARIABLES) {
     if (variable.group !== currentGroup) {
-      lines.push("", `# ${GROUP_HEADINGS.get(variable.group) ?? variable.group}`);
+      lines.push('', `# ${GROUP_HEADINGS.get(variable.group) ?? variable.group}`);
       currentGroup = variable.group;
     }
     lines.push(`# ${variable.description}`);
     lines.push(`${variable.name}=${variable.example}`);
   }
 
-  return `${lines.join("\n")}\n`;
+  return `${lines.join('\n')}\n`;
 }

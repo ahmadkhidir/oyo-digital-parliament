@@ -29,10 +29,10 @@ export interface AuditAppendPort {
 
 /** Reads the access log: who read, exported or was refused member data, and when. */
 export interface AuditAccessLogPort {
-  read(query: {
-    readonly since?: string;
-    readonly limit: number;
-  }): Promise<{ readonly entries: readonly AuditAccessLogEntry[]; readonly nextCursor: string | null }>;
+  read(query: { readonly since?: string; readonly limit: number }): Promise<{
+    readonly entries: readonly AuditAccessLogEntry[];
+    readonly nextCursor: string | null;
+  }>;
 }
 
 /** Generates the identifiers the record uses, in the `C-001` form. */

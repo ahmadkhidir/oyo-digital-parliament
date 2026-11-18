@@ -23,11 +23,11 @@
  * invalid, so a missing variable is reported by name before anything starts.
  */
 
-import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { createServer } from "node:net";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   COMPOSE_PROJECT_NAME,
@@ -35,10 +35,10 @@ import {
   EXAMPLE_FILE_NAME,
   loadEnvironment,
   renderExample,
-} from "../../infra/local/environment.mjs";
+} from '../../infra/local/environment.mjs';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const composeFile = join(repoRoot, "docker-compose.yml");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const composeFile = join(repoRoot, 'docker-compose.yml');
 const envPath = join(repoRoot, ENV_FILE_NAME);
 const examplePath = join(repoRoot, EXAMPLE_FILE_NAME);
 
@@ -77,29 +77,29 @@ function fail(message) {
  */
 function compose(args, { capture = false } = {}) {
   const result = spawnSync(
-    "docker",
+    'docker',
     [
-      "compose",
-      "--project-name",
+      'compose',
+      '--project-name',
       COMPOSE_PROJECT_NAME,
-      "--file",
+      '--file',
       composeFile,
-      "--env-file",
+      '--env-file',
       envPath,
       ...args,
     ],
     {
       cwd: repoRoot,
-      encoding: "utf8",
-      stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
+      encoding: 'utf8',
+      stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
       windowsHide: true,
     },
   );
 
   if (result.error) {
-    if (/** @type {NodeJS.ErrnoException} */ (result.error).code === "ENOENT") {
+    if (/** @type {NodeJS.ErrnoException} */ (result.error).code === 'ENOENT') {
       fail(
-        "docker was not found on PATH; install Docker Desktop, or the Docker Engine with the Compose v2 plugin",
+        'docker was not found on PATH; install Docker Desktop, or the Docker Engine with the Compose v2 plugin',
       );
     }
     fail(`could not run docker: ${result.error.message}`);
@@ -119,7 +119,7 @@ function ensureEnvFile() {
   if (existsSync(envPath)) {
     return;
   }
-  const example = existsSync(examplePath) ? readFileSync(examplePath, "utf8") : renderExample();
+  const example = existsSync(examplePath) ? readFileSync(examplePath, 'utf8') : renderExample();
   writeFileSync(envPath, example);
   console.log(
     `services: ${ENV_FILE_NAME} did not exist; wrote it from ${EXAMPLE_FILE_NAME}. Local placeholders only.`,
@@ -152,8 +152,8 @@ function requireEnvironment() {
  * @returns {void}
  */
 function printEndpoints(values) {
-  console.log("");
-  console.log("Local services are up (disposable, synthetic data only):");
+  console.log('');
+  console.log('Local services are up (disposable, synthetic data only):');
   console.log(
     `  PostgreSQL 16   127.0.0.1:${values.POSTGRES_PORT}   database ${values.POSTGRES_DB}`,
   );
@@ -161,11 +161,13 @@ function printEndpoints(values) {
   console.log(
     `  Object storage  127.0.0.1:${values.S3_PORT}   bucket ${values.S3_BUCKET} (S3-compatible, private)`,
   );
-  console.log("");
-  console.log(`  ${ENV_FILE_NAME} is the one environment the app and the worker are configured from.`);
-  console.log("  Stop: node scripts/dev/services.mjs down");
-  console.log("  Reset: node scripts/dev/services.mjs reset --yes");
-  console.log("");
+  console.log('');
+  console.log(
+    `  ${ENV_FILE_NAME} is the one environment the app and the worker are configured from.`,
+  );
+  console.log('  Stop: node scripts/dev/services.mjs down');
+  console.log('  Reset: node scripts/dev/services.mjs reset --yes');
+  console.log('');
 }
 
 /**
@@ -178,16 +180,16 @@ function printEndpoints(values) {
  * @returns {Array<Record<string, unknown>>} The rows.
  */
 function parseComposeRows(stdout) {
-  const text = (stdout ?? "").trim();
-  if (text === "") {
+  const text = (stdout ?? '').trim();
+  if (text === '') {
     return [];
   }
-  if (text.startsWith("[")) {
+  if (text.startsWith('[')) {
     return JSON.parse(text);
   }
   return text
     .split(/\r?\n/)
-    .filter((line) => line.trim() !== "")
+    .filter((line) => line.trim() !== '')
     .map((line) => JSON.parse(line));
 }
 
@@ -201,15 +203,15 @@ function parseComposeRows(stdout) {
 function isPortFree(port) {
   return new Promise((resolveProbe) => {
     const server = createServer();
-    server.once("error", () => {
+    server.once('error', () => {
       resolveProbe(false);
     });
-    server.once("listening", () => {
+    server.once('listening', () => {
       server.close(() => {
         resolveProbe(true);
       });
     });
-    server.listen({ host: "127.0.0.1", port: Number(port), exclusive: true });
+    server.listen({ host: '127.0.0.1', port: Number(port), exclusive: true });
   });
 }
 
@@ -223,7 +225,7 @@ function isPortFree(port) {
  * @returns {Promise<void>} Rejects the command on a conflict.
  */
 async function assertPortsAvailable(values) {
-  const status = compose(["ps", "--status", "running", "--format", "json"], { capture: true });
+  const status = compose(['ps', '--status', 'running', '--format', 'json'], { capture: true });
   try {
     if (parseComposeRows(status.stdout).length > 0) {
       return;
@@ -234,9 +236,9 @@ async function assertPortsAvailable(values) {
 
   /** @type {Array<[string, string]>} */
   const probes = [
-    ["POSTGRES_PORT", values.POSTGRES_PORT],
-    ["REDIS_PORT", values.REDIS_PORT],
-    ["S3_PORT", values.S3_PORT],
+    ['POSTGRES_PORT', values.POSTGRES_PORT],
+    ['REDIS_PORT', values.REDIS_PORT],
+    ['S3_PORT', values.S3_PORT],
   ];
 
   /** @type {string[]} */
@@ -249,7 +251,7 @@ async function assertPortsAvailable(values) {
 
   if (busy.length > 0) {
     fail(
-      `these host ports are already in use: ${busy.join(", ")}. Change the port in ${ENV_FILE_NAME}, change the matching URL with it, and run up again`,
+      `these host ports are already in use: ${busy.join(', ')}. Change the port in ${ENV_FILE_NAME}, change the matching URL with it, and run up again`,
     );
   }
 }
@@ -265,27 +267,27 @@ async function up() {
 
   await assertPortsAvailable(values);
 
-  console.log("services: starting the local stack...");
-  const started = compose(["up", "--detach", "--wait", "--wait-timeout", "180"]);
+  console.log('services: starting the local stack...');
+  const started = compose(['up', '--detach', '--wait', '--wait-timeout', '180']);
   if (started.status !== 0) {
-    console.error("services: the stack did not become healthy; recent logs:");
-    compose(["logs", "--tail", "40"]);
-    fail("fix the service above, then run \"up\" again");
+    console.error('services: the stack did not become healthy; recent logs:');
+    compose(['logs', '--tail', '40']);
+    fail('fix the service above, then run "up" again');
   }
 
   // The bucket bootstrap is a one-shot container behind the `init` profile, so `up --wait` does not
   // wait on a process that exits by design. It is idempotent: a second run finds the bucket.
   const bootstrapped = compose([
-    "--profile",
-    "init",
-    "run",
-    "--rm",
-    "--no-deps",
-    "--no-TTY",
-    "object-storage-init",
+    '--profile',
+    'init',
+    'run',
+    '--rm',
+    '--no-deps',
+    '--no-TTY',
+    'object-storage-init',
   ]);
   if (bootstrapped.status !== 0) {
-    fail("the private object-storage bucket could not be created; see the output above");
+    fail('the private object-storage bucket could not be created; see the output above');
   }
 
   printEndpoints(values);
@@ -299,10 +301,10 @@ async function up() {
 function down() {
   ensureEnvFile();
   requireEnvironment();
-  if (compose(["down"]).status !== 0) {
-    fail("the stack could not be stopped cleanly; see the output above");
+  if (compose(['down']).status !== 0) {
+    fail('the stack could not be stopped cleanly; see the output above');
   }
-  console.log("services: stopped; named volumes were kept.");
+  console.log('services: stopped; named volumes were kept.');
 }
 
 /**
@@ -313,21 +315,23 @@ function down() {
  */
 async function reset(confirmed) {
   if (!confirmed) {
-    console.log("services: reset destroys the odp-local Compose project: its containers and the");
-    console.log("services: named volumes postgres-data, redis-data and object-storage-data.");
-    console.log("services: Nothing outside that project is touched. Re-run with --yes to continue;");
-    console.log("services: `down` stops the stack without deleting anything.");
+    console.log('services: reset destroys the odp-local Compose project: its containers and the');
+    console.log('services: named volumes postgres-data, redis-data and object-storage-data.');
+    console.log(
+      'services: Nothing outside that project is touched. Re-run with --yes to continue;',
+    );
+    console.log('services: `down` stops the stack without deleting anything.');
     return 1;
   }
 
   ensureEnvFile();
   requireEnvironment();
 
-  const destroyed = compose(["down", "--volumes", "--remove-orphans"]);
+  const destroyed = compose(['down', '--volumes', '--remove-orphans']);
   if (destroyed.status !== 0) {
-    fail("the stack could not be destroyed; see the output above");
+    fail('the stack could not be destroyed; see the output above');
   }
-  console.log("services: local data destroyed; recreating the stack empty.");
+  console.log('services: local data destroyed; recreating the stack empty.');
   await up();
   return 0;
 }
@@ -341,9 +345,9 @@ function status() {
   ensureEnvFile();
   const values = requireEnvironment();
 
-  const result = compose(["ps", "--all", "--format", "json"], { capture: true });
+  const result = compose(['ps', '--all', '--format', 'json'], { capture: true });
   if (result.status !== 0) {
-    fail("the stack state could not be read; see the output above");
+    fail('the stack state could not be read; see the output above');
   }
 
   /** @type {Array<{ Service?: string, State?: string, Health?: string }>} */
@@ -360,13 +364,13 @@ function status() {
     return;
   }
 
-  console.log("Service            State");
+  console.log('Service            State');
   for (const row of rows) {
-    const service = (row.Service ?? "unknown").padEnd(18);
-    const health = row.Health === undefined || row.Health === "" ? "" : ` (${row.Health})`;
-    console.log(`${service} ${row.State ?? "unknown"}${health}`);
+    const service = (row.Service ?? 'unknown').padEnd(18);
+    const health = row.Health === undefined || row.Health === '' ? '' : ` (${row.Health})`;
+    console.log(`${service} ${row.State ?? 'unknown'}${health}`);
   }
-  console.log("");
+  console.log('');
   console.log(
     `Endpoints: PostgreSQL 127.0.0.1:${values.POSTGRES_PORT}, Redis 127.0.0.1:${values.REDIS_PORT}, object storage 127.0.0.1:${values.S3_PORT}`,
   );
@@ -380,7 +384,7 @@ function status() {
  */
 function logs(services) {
   ensureEnvFile();
-  const result = compose(["logs", "--follow", "--tail", "100", ...services]);
+  const result = compose(['logs', '--follow', '--tail', '100', ...services]);
   if (result.status !== 0 && result.status !== null) {
     process.exitCode = result.status;
   }
@@ -396,24 +400,24 @@ async function main(argv) {
   const [command, ...rest] = argv;
 
   switch (command) {
-    case "up":
+    case 'up':
       await up();
       return 0;
-    case "down":
+    case 'down':
       down();
       return 0;
-    case "reset":
-      return reset(rest.includes("--yes") || rest.includes("-y"));
-    case "status":
+    case 'reset':
+      return reset(rest.includes('--yes') || rest.includes('-y'));
+    case 'status':
       status();
       return 0;
-    case "logs":
-      logs(rest.filter((argument) => !argument.startsWith("-")));
+    case 'logs':
+      logs(rest.filter((argument) => !argument.startsWith('-')));
       return 0;
     case undefined:
-    case "-h":
-    case "--help":
-    case "help":
+    case '-h':
+    case '--help':
+    case 'help':
       console.log(USAGE);
       return 0;
     default:

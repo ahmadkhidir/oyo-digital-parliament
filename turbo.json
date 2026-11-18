@@ -1,6 +1,12 @@
 {
   "$schema": "https://turborepo.com/schema.json",
-  "globalDependencies": ["tsconfig.base.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"],
+  "globalDependencies": [
+    "tsconfig.base.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "eslint.config.mjs",
+    ".prettierrc"
+  ],
   "globalPassThroughEnv": ["*"],
   "tasks": {
     "build": {

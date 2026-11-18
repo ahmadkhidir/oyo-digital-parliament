@@ -9,7 +9,9 @@ import { replaceAnalyticsUserToken, type ReplaceUserTokenDeps } from './replace-
 const USER_ID = 'usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA';
 
 /** A store that records the replacement and reports a fixed count. */
-function fakeStore(options: { throws?: boolean; replaced?: number } = {}): ReplaceUserTokenDeps['store'] & {
+function fakeStore(
+  options: { throws?: boolean; replaced?: number } = {},
+): ReplaceUserTokenDeps['store'] & {
   calls: Array<{ userId: string; token: string }>;
 } {
   const calls: Array<{ userId: string; token: string }> = [];
@@ -32,7 +34,10 @@ const pseudonym = {
 describe('analytics deletion propagation', () => {
   it('replaces the member id with a token and reports the count', async () => {
     const store = fakeStore();
-    const result = await replaceAnalyticsUserToken({ store, pseudonymTokens: pseudonym }, { userId: USER_ID });
+    const result = await replaceAnalyticsUserToken(
+      { store, pseudonymTokens: pseudonym },
+      { userId: USER_ID },
+    );
     expect(result).toEqual({
       ok: true,
       userIdToken: `ano_${USER_ID.slice(4)}`,

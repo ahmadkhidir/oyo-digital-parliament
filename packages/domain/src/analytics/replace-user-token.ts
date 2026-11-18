@@ -64,7 +64,8 @@ export async function replaceAnalyticsUserToken(
       ok: false,
       code: 'SERVICE_DEGRADED',
       cause: 'ANALYTICS_STORE_UNAVAILABLE',
-      message: 'The analytics store did not confirm the replacement, so the request is not complete.',
+      message:
+        'The analytics store did not confirm the replacement, so the request is not complete.',
       fields: {},
     };
   }

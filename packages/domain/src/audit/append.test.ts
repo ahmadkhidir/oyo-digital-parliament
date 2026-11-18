@@ -79,7 +79,10 @@ describe('audit append', () => {
 
   it('refuses an invalid record without touching the log', async () => {
     const store = fakeStore();
-    const result = await appendAuditEvent({ store, identifiers: ids }, { ...input, actorRole: 'admin' as never });
+    const result = await appendAuditEvent(
+      { store, identifiers: ids },
+      { ...input, actorRole: 'admin' as never },
+    );
     expect(result.ok).toBe(false);
     expect(store.appended).toHaveLength(0);
   });
@@ -97,7 +100,9 @@ describe('audit append', () => {
   it('offers no way to revise or remove a recorded entry', async () => {
     const audit = await import('./index.ts');
     const forbidden = Object.keys(audit).filter((name) =>
-      /(update|delete|remove|edit|revise).*audit|audit.*(update|delete|remove|edit|revise)/i.test(name),
+      /(update|delete|remove|edit|revise).*audit|audit.*(update|delete|remove|edit|revise)/i.test(
+        name,
+      ),
     );
     expect(forbidden).toEqual([]);
     const store = fakeStore();

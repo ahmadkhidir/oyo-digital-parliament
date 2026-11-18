@@ -13,9 +13,9 @@
  * extensions while the package's tsconfig (bundler resolution) would reject them statically;
  * the local declarations pin the types in both cases.
  */
-import type * as Source from "./source";
+import type * as Source from './source';
 
-type RenderModule = typeof import("./render");
+type RenderModule = typeof import('./render');
 type SourceModule = typeof Source;
 
 interface WriteCapableFs {
@@ -24,12 +24,12 @@ interface WriteCapableFs {
 }
 
 async function main(): Promise<void> {
-  const source = (await import("./source" + ".ts")) as unknown as SourceModule;
-  const render = (await import("./render" + ".ts")) as unknown as RenderModule;
-  const fsModule = (await import("node:" + "fs/promises")) as unknown as WriteCapableFs;
+  const source = (await import('./source' + '.ts')) as unknown as SourceModule;
+  const render = (await import('./render' + '.ts')) as unknown as RenderModule;
+  const fsModule = (await import('node:' + 'fs/promises')) as unknown as WriteCapableFs;
 
   for (const artifact of render.generatedArtifacts(source)) {
-    await fsModule.mkdir("src/styles", { recursive: true });
+    await fsModule.mkdir('src/styles', { recursive: true });
     await fsModule.writeFile(artifact.path, artifact.content);
     console.log(`wrote ${artifact.path}`);
   }

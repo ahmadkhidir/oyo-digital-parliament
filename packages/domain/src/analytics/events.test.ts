@@ -96,7 +96,9 @@ describe('analytics taxonomy', () => {
 
   it('declares a bounded value domain for every property, and never a prose field', () => {
     for (const definition of Object.values(ANALYTICS_EVENTS)) {
-      for (const [key, kind] of Object.entries(definition.properties as Record<string, { type: string }>)) {
+      for (const [key, kind] of Object.entries(
+        definition.properties as Record<string, { type: string }>,
+      )) {
         expect(Object.keys(definition.properties), `${definition.name}.${key}`).toContain(key);
         expect(
           ['boolean', 'integer', 'enum', 'token', 'identifier', 'quarter'],
@@ -111,7 +113,8 @@ describe('analytics taxonomy', () => {
       for (const [key, kind] of Object.entries(
         definition.properties as Record<string, { type: string; values?: readonly string[] }>,
       )) {
-        if (kind.type === 'enum') expect(kind.values?.length ?? 0, `${definition.name}.${key}`).toBeGreaterThan(0);
+        if (kind.type === 'enum')
+          expect(kind.values?.length ?? 0, `${definition.name}.${key}`).toBeGreaterThan(0);
       }
     }
   });

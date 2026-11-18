@@ -14,7 +14,7 @@
 /**
  * Property keys that name personal data or free text. Compared with underscores, hyphens and casing
  * removed, so `ward_description`, `wardDescription` and `WardDescription` are one key here.
- */const PERSONAL_KEY_STEMS: readonly string[] = [
+ */ const PERSONAL_KEY_STEMS: readonly string[] = [
   'fullname',
   'displayname',
   'firstname',
