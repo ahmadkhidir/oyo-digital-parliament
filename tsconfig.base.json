@@ -13,6 +13,13 @@
   // - `verbatimModuleSyntax` + `isolatedModules` make every file compile on its own, which is what
   //   Turbopack, Vite/Vitest and Node's type stripping all assume. A type-only import must say so.
   //
+  // `allowImportingTsExtensions` exists for the seam between the two resolutions. An area that
+  // resolves with `bundler` (`apps/web`, `packages/ui`) compiles the source of a workspace package
+  // that resolves with `nodenext` (`@odp/domain`, `packages/platform`), and `nodenext` requires the
+  // explicit `.ts` specifier in the imported source. Without this flag that specifier is an error in
+  // the importing program. It is legal only when nothing emits, which is the case here: `noEmit` is
+  // part of the base, and Next, Turbopack, Vite and Node all resolve an explicit `.ts` specifier.
+  //
   // Nothing is emitted from this configuration: the deployable is built by Next and the other areas
   // are consumed as source, so `noEmit` is part of the base rather than an override.
   "$schema": "https://json.schemastore.org/tsconfig",
@@ -26,6 +33,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
