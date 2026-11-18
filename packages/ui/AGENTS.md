@@ -18,11 +18,14 @@ The intended manifest is `packages/ui/package.json`, publishing the workspace pa
 packages/ui/
   AGENTS.md
   package.json                  created in Phase 0
+  vitest.config.ts              jsdom environment, one per worker, and the shared setup
+  tailwind.preset.ts            generated; maps Tailwind scales onto the custom properties
   src/
     tokens/
       source.ts                 the only transcription of branding.md into code
+    styles/
       theme.css                 generated custom properties, light and dark
-      tailwind.preset.ts        maps Tailwind scales onto those properties
+      fonts.css                 generated @font-face for the two font slots, A-042 and A-043
     primitives/
     records/
     forms/
@@ -30,6 +33,8 @@ packages/ui/
     a11y/
     assets/
     test/
+      setup.ts                  the single setup file (jest-dom, DOM cleanup, fixture locale)
+      a11y.ts                   the shared axe helper (NFR-044 rule set, both families)
     index.ts                    the package barrel
 ```
 
@@ -37,7 +42,7 @@ packages/ui/
 
 **Token source.** `src/tokens/source.ts` transcribes `branding.md` once: every colour family in both its light and dark columns, the type scale with its device values and weights, spacing, sizing, radii, shadows, focus treatment and motion. It is the only file in this package permitted to hold a literal colour, pixel value, shadow or duration. A value the branding document does not define is a specification gap to report, not a local decision.
 
-**Generated outputs.** `src/tokens/theme.css` is generated from that source into namespaced CSS custom properties for the light and dark families, including the structural role mappings; `src/tokens/tailwind.preset.ts` maps Tailwind's colour, spacing, typography, radius and shadow scales onto those properties so a component never needs an arbitrary value. Both are build artifacts: regenerate them, never hand-edit them. A branding change arrives through the specification first, then through the source, then through regeneration.
+**Generated outputs.** `src/styles/theme.css` is generated from that source into namespaced CSS custom properties for the light and dark families, including the structural role mappings, and `src/styles/fonts.css` carries the generated `@font-face` rules for the two font slots; `tailwind.preset.ts` at the package root maps Tailwind's colour, spacing, typography, radius and shadow scales onto those properties so a component never needs an arbitrary value. All three are build artifacts: regenerate them, never hand-edit them. A branding change arrives through the specification first, then through the source, then through regeneration.
 
 **Primitives.** `src/primitives/` holds one folder per component: the component, its variant and size unions, and its test. Primitives know nothing about submissions, wards, decisions, sessions or roles. They take semantic props, render accessible markup and style themselves only through the token layer. Every variant union is exhaustive, so an unknown value fails the typecheck instead of falling through to a default.
 
@@ -51,7 +56,7 @@ packages/ui/
 
 **Asset bindings.** `src/assets/` maps the slots in `assets/ASSETS.md` to typed bindings: the mark and its lockup forms, the seven pillar glyphs, the interface icons, the ten status markers and the two font files. Nothing here redraws, recolours, crops, inlines or vendors a second copy. A missing slot is reported, not substituted, and a pillar never borrows another pillar's glyph.
 
-**Tests.** Tests sit beside the file they cover and are named for it, such as `Button.test.tsx` beside `Button.tsx`. A shared render and axe helper lives in `src/test/` with the single setup file. Each test renders every state the component declares, asserts the accessible name or role rather than a class name, and runs the accessibility check in both token families.
+**Tests.** Tests sit beside the file they cover and are named for it, such as `Button.test.tsx` beside `Button.tsx`. The single setup file is `src/test/setup.ts` (jest-dom matchers, DOM cleanup between tests, the fixture document language); the shared axe helper is `src/test/a11y.ts`, running the WCAG 2.2 AA rule set of `NFR-044` over a rendered fixture in a chosen token family and locale. Each test renders every state the component declares, asserts the accessible name or role rather than a class name, and runs the accessibility check in both token families and both launch locales.
 
 **Placement.** A component belongs in this package when two or more screens use it, or when it carries brand, status, asset or accessibility behaviour that must not drift. A single-use composition stays in its route. A new primitive goes to `src/primitives/`, a new shared record component to `src/records/`, and either is exported from the barrel with its test beside it.
 

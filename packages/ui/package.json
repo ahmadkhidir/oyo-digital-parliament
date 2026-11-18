@@ -21,8 +21,10 @@
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "axe-core": "^4.10.2",
     "jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
