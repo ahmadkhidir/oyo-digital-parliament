@@ -7,5 +7,6 @@
  */
 export * from './analytics/index.ts';
 export * from './audit/index.ts';
+export * from './identity/index.ts';
 export * from './ports/index.ts';
 export * from './wards/index.ts';
