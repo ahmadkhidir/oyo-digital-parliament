@@ -10,6 +10,7 @@
  * Exported constant names are prefixed where the analytics module already publishes the same
  * schema enum under its own name, because `src/index.ts` exports one flat package surface.
  */
+import type { RateLimitHeaders } from '../ports/session.ts';
 
 /** `Member.locale` and `PendingRegistration.locale` - the two launch locales (`NFR-045`). */
 export const MEMBER_LOCALES = ['en-NG', 'yo-NG'] as const;
@@ -264,6 +265,15 @@ export interface IdentityFailure {
   readonly retryAfterSeconds?: number;
   readonly attemptsRemaining?: number;
   readonly meta?: IdentityFailureMeta;
+  /**
+   * The `C-001` rate-limit signals the refusal's own limiter answer produced.
+   *
+   * A refusal the limiter handed down carries the cap, what is left of the window and when it resets,
+   * so the transport prints `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` and
+   * `Retry-After` from this refusal rather than from a second consult. A refusal raised by a rule of
+   * its own — a resend cooldown, a used code — has no limiter answer behind it and leaves this absent.
+   */
+  readonly rateLimit?: RateLimitHeaders;
 }
 
 /** Builds a refusal. Kept next to the shapes so every use case reports the same parts. */
@@ -276,6 +286,7 @@ export function identityFailure(
     readonly retryAfterSeconds?: number;
     readonly attemptsRemaining?: number;
     readonly meta?: IdentityFailureMeta;
+    readonly rateLimit?: RateLimitHeaders;
   } = {},
 ): IdentityFailure {
   return {
@@ -291,5 +302,6 @@ export function identityFailure(
       ? {}
       : { attemptsRemaining: extra.attemptsRemaining }),
     ...(extra.meta === undefined ? {} : { meta: extra.meta }),
+    ...(extra.rateLimit === undefined ? {} : { rateLimit: extra.rateLimit }),
   };
 }

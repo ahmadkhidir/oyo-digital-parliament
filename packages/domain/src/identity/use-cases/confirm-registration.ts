@@ -28,7 +28,7 @@ import {
   toIsoSeconds,
   type RegistrationMemberProjection,
 } from '../policies.ts';
-import type { CodeAttempts, IdentityPorts } from '../ports.ts';
+import type { CodeAttempts, CodeMatchResult, IdentityPorts } from '../ports.ts';
 import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import { appendIdentityAudit, emitIdentityAnalytics } from './support.ts';
 
@@ -147,9 +147,9 @@ export async function confirmRegistration(
     );
   }
 
-  let matches: boolean;
+  let comparison: CodeMatchResult;
   try {
-    matches = await deps.codes.matches(pending.id, code.value);
+    comparison = await deps.codes.matches(pending.id, code.value);
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -158,7 +158,20 @@ export async function confirmRegistration(
     );
   }
 
-  if (!matches) {
+  if (comparison === 'absent') {
+    // `C-003`: the pending registration is still live, since an expired one was refused above, so a code
+    // that is no longer stored closed its window. Nothing is counted as an attempt — an expiry is not a
+    // wrong guess — and the answer carries the resend the screen's Expired state leads with.
+    return identityFailure(
+      'VALIDATION_FAILED',
+      'CODE_EXPIRED',
+      'That code has expired. Request a new one.',
+      {},
+      { meta: { recoveryPath: '/join/confirm' } },
+    );
+  }
+
+  if (comparison === 'mismatch') {
     let failures: number;
     try {
       failures = await deps.codes.recordFailure(pending.id, now);

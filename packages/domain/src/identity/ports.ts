@@ -17,6 +17,7 @@ import type { AuditAppendPort } from '../audit/index.ts';
 import type { ClockPort } from '../ports/clock.ts';
 import type { IdentifierPort } from '../ports/identifiers.ts';
 import type { ObjectStoragePort } from '../ports/object-store.ts';
+import type { RateLimitOutcome } from '../ports/session.ts';
 import type {
   Consent,
   ConsentPurpose,
@@ -35,6 +36,21 @@ export interface CodeDelivery {
   readonly status: 'sent' | 'delayed';
   readonly channel: 'sms';
 }
+
+/**
+ * What one comparison found (`C-003`, `C-006`).
+ *
+ * A boolean could not say the two apart: digits that do not match a code that is still live, and a code
+ * that is no longer there at all. The store can always tell them apart — a stored digest either matches
+ * or it does not, and no digest means nothing is left to compare — and the resident is owed a different
+ * answer for each, `CODE_INCORRECT` against `CODE_EXPIRED`.
+ *
+ * `absent` is read against the caller's own record rather than the code's clock: the pending
+ * registration or the challenge the use case has just loaded is still live, so a code that is gone has
+ * closed its window. Guessing the window from `codeSentAt` and the adapter's lifetime would mislabel a
+ * first wrong digit the moment the two clocks disagree.
+ */
+export type CodeMatchResult = 'match' | 'mismatch' | 'absent';
 
 /**
  * The one-time code store, shared by registration and sign-in.
@@ -59,11 +75,11 @@ export interface VerificationCodePort {
   }): Promise<CodeDelivery>;
 
   /**
-   * Compares a supplied code in constant time.
+   * Compares a supplied code in constant time and reports which of the three answers it is.
    *
    * @throws when the store could not answer; the caller then refuses rather than accepting.
    */
-  matches(targetId: string, code: string): Promise<boolean>;
+  matches(targetId: string, code: string): Promise<CodeMatchResult>;
 
   /** Void the stored code. Called on acceptance so a code can never create a second account. */
   consume(targetId: string): Promise<void>;
@@ -445,6 +461,11 @@ export type RateLimitSubject =
  *
  * The numeric caps are operator configuration, so they live with the adapter: the domain names the
  * bucket, and a cap the specification fixes is passed as `fixedLimit`.
+ *
+ * The answer is the whole {@link RateLimitOutcome}, not the decision alone: `C-001` puts
+ * `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` on every response, and a refusal the
+ * limiter produced can only print them if the cap, the remainder and the reset instant reach the
+ * caller that writes the response.
  */
 export interface RateLimitPort {
   consume(input: {
@@ -452,7 +473,7 @@ export interface RateLimitPort {
     readonly subject: RateLimitSubject;
     /** Only the caps `NFR-027` fixes, such as the three code attempts or the five staff failures. */
     readonly fixedLimit?: number;
-  }): Promise<{ readonly allowed: boolean; readonly retryAfterSeconds: number }>;
+  }): Promise<RateLimitOutcome>;
 }
 
 /** One transport key's recorded answer (`C-001` idempotency, `C-092` replay). */

@@ -36,6 +36,10 @@ export const FAKE_CODE = '418302';
 export const FAKE_TOTP_CODE = '492013';
 /** The password every fake staff credential accepts. */
 export const FAKE_PASSWORD = 'market-lantern-river-2026';
+/** The cap every fake limiter bucket reports, for the `C-001` header values a refusal carries. */
+export const FAKE_RATE_LIMIT = 5;
+/** The window every fake limiter bucket reports, in seconds. */
+export const FAKE_RATE_WINDOW_SECONDS = 60;
 
 /** One staff credential plus the plaintext material a fake needs to check. */
 export interface FakeStaffCredential {
@@ -267,7 +271,10 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
       async matches(targetId, code) {
         guard(options.codeStoreUnavailable, 'the code store is unavailable');
         const entry = codes.get(targetId);
-        return entry !== undefined && entry.code === code.replace(/\s+/g, '');
+        // A consumed or never-issued code leaves nothing to compare, exactly as the adapter's digest
+        // key does; only a live code can be guessed wrong (`C-003`, `C-006`).
+        if (entry === undefined || entry.code === '') return 'absent';
+        return entry.code === code.replace(/\s+/g, '') ? 'match' : 'mismatch';
       },
       async consume(targetId) {
         guard(options.codeStoreUnavailable, 'the code store is unavailable');
@@ -695,9 +702,26 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
     rateLimits: {
       async consume() {
         guard(options.rateLimitUnavailable, 'the limiter is unavailable');
+        // The adapter always reports its cap, remainder and reset, so the double does too: a refusal
+        // built from this answer can be rendered as the `C-001` headers without a second consult.
+        const resetAt = new Date(Date.parse(now) + FAKE_RATE_WINDOW_SECONDS * 1000)
+          .toISOString()
+          .replace(/\.\d{3}Z$/, 'Z');
         return options.rateLimited === undefined
-          ? { allowed: true, retryAfterSeconds: 0 }
-          : { allowed: false, retryAfterSeconds: options.rateLimited.retryAfterSeconds };
+          ? {
+              allowed: true,
+              retryAfterSeconds: 0,
+              limit: FAKE_RATE_LIMIT,
+              remaining: FAKE_RATE_LIMIT - 1,
+              resetAt,
+            }
+          : {
+              allowed: false,
+              retryAfterSeconds: options.rateLimited.retryAfterSeconds,
+              limit: FAKE_RATE_LIMIT,
+              remaining: 0,
+              resetAt,
+            };
       },
     },
 

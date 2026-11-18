@@ -16,6 +16,7 @@ import {
 import {
   FAKE_NOW,
   FAKE_PASSWORD,
+  FAKE_RATE_LIMIT,
   FAKE_TOTP_CODE,
   createIdentityHarness,
   fakeStaffCredential,
@@ -79,6 +80,13 @@ describe('beginStaffSignIn (C-092)', () => {
       },
       secondFactorEnrolled: true,
       nextScreen: '/admin/verify',
+      // `C-001` puts the limiter's cap, remainder and reset on the response, so the answer carries them
+      // and the transport prints `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.
+      rateLimit: {
+        limit: FAKE_RATE_LIMIT,
+        remaining: FAKE_RATE_LIMIT - 1,
+        resetSeconds: Math.ceil(Date.parse('2026-11-18T09:01:00Z') / 1000),
+      },
     });
     expect(fakes.audit.map((event) => event.action)).toEqual(['staff.sign_in_started']);
     expect(fakes.idempotency.has('key-1')).toBe(true);
@@ -96,7 +104,16 @@ describe('beginStaffSignIn (C-092)', () => {
       password: FAKE_PASSWORD,
       idempotencyKey: 'key-1',
     });
-    expect(replay).toEqual(first);
+    if (!first.ok || !replay.ok) throw new Error('both calls must open a challenge');
+    // The replay returns the recorded answer, and transport material is never part of it: a second
+    // presentation of the token would be a second way into one session, and the first call's header
+    // values would describe a window this request did not consume.
+    expect(replay.cookie).toBeUndefined();
+    expect(replay.rateLimit).toBeUndefined();
+    const recorded: Record<string, unknown> = { ...first };
+    delete recorded['cookie'];
+    delete recorded['rateLimit'];
+    expect(replay).toEqual(recorded);
     expect(fakes.staffSessions.size).toBe(1);
     expect(fakes.audit).toHaveLength(1);
   });

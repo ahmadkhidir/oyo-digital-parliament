@@ -10,6 +10,12 @@
  * answers `delayed` at registration and `SERVICE_DEGRADED` on a resend, exactly as `C-002` and `C-004`
  * state, and the resident is never left with digits that were stored but never sent.
  *
+ * A comparison answers with one of three results, never a boolean: the digits matched, they did not
+ * match a code that is still live, or no code is left to compare. The last is what lets `C-003` and
+ * `C-006` answer `CODE_EXPIRED` instead of counting a closed window as another wrong guess. The store
+ * keeps the digest for exactly the window it is worth, so absence after the window is the same reading
+ * as absence after a consumption; the caller decides which of those its own live record makes it.
+ *
  * @module adapters/session/redis/codes
  */
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
@@ -138,8 +144,10 @@ export function createVerificationCodeStore(
 
     async matches(targetId, code) {
       const digest = storedDigest(await store.get(verificationCodeKey(targetId)));
-      if (digest === null) return false;
-      return digestsMatch(digest, digestCode(code));
+      // No stored digest and no match are different answers: the first says the window closed or the
+      // dispatch never landed, the second says a live code was guessed wrong (`C-003`, `C-006`).
+      if (digest === null) return 'absent';
+      return digestsMatch(digest, digestCode(code)) ? 'match' : 'mismatch';
     },
 
     async consume(targetId) {

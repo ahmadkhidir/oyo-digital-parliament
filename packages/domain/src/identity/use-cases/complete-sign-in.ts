@@ -25,7 +25,7 @@ import {
   toIsoSeconds,
   type SessionMemberProjection,
 } from '../policies.ts';
-import type { CodeAttempts, IdentityPorts } from '../ports.ts';
+import type { CodeAttempts, CodeMatchResult, IdentityPorts } from '../ports.ts';
 import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import { appendIdentityAudit } from './support.ts';
 
@@ -170,9 +170,9 @@ export async function completeSignIn(
     );
   }
 
-  let matches: boolean;
+  let comparison: CodeMatchResult;
   try {
-    matches = await deps.codes.matches(challenge.id, code.value);
+    comparison = await deps.codes.matches(challenge.id, code.value);
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -181,7 +181,20 @@ export async function completeSignIn(
     );
   }
 
-  if (!matches) {
+  if (comparison === 'absent') {
+    // `C-006`: the challenge is still live — an expired one was refused above — so the code that is no
+    // longer stored has closed its own window. The resident asks for a new code rather than being told
+    // the digits were wrong.
+    return identityFailure(
+      'VALIDATION_FAILED',
+      'CODE_EXPIRED',
+      'That code has expired. Request a new one.',
+      {},
+      { meta: { recoveryPath: '/sign-in' } },
+    );
+  }
+
+  if (comparison === 'mismatch') {
     let failures: number;
     try {
       failures = await deps.codes.recordFailure(challenge.id, now);

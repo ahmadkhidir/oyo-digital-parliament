@@ -1,9 +1,10 @@
 /**
  * The one-time-code store (`NFR-020`, `C-002` to `C-006`).
  *
- * The suite proves what the contracts rely on: the digits are never stored or logged, a wrong code
- * counts, the third wrong code's cooldown is reported, a resend starts the count again, an expired
- * code cannot be accepted, and a gateway that did not accept the message leaves no code behind.
+ * The suite proves what the contracts rely on: the digits are never stored or logged, a wrong code is
+ * reported as a mismatch while a closed window or a consumed code is reported as absent, the third wrong
+ * code's cooldown is reported, a resend starts the count again, and a gateway that did not accept the
+ * message leaves no code behind (`C-002` to `C-006`).
  */
 import { describe, expect, it } from 'vitest';
 
@@ -56,9 +57,9 @@ describe('one-time codes', () => {
       expect(memory.raw(key) ?? '').not.toContain(code);
     }
 
-    await expect(codes.matches(PENDING_ID, code)).resolves.toBe(true);
+    await expect(codes.matches(PENDING_ID, code)).resolves.toBe('match');
     await expect(codes.matches(PENDING_ID, code === '000000' ? '111111' : '000000')).resolves.toBe(
-      false,
+      'mismatch',
     );
   });
 
@@ -69,7 +70,15 @@ describe('one-time codes', () => {
 
     await codes.consume(PENDING_ID);
 
-    await expect(codes.matches(PENDING_ID, code)).resolves.toBe(false);
+    // `C-003`: a consumed code is gone rather than wrong, so the use case answers `CODE_ALREADY_USED`
+    // from the record it holds and never counts a guess against a code that no longer exists.
+    await expect(codes.matches(PENDING_ID, code)).resolves.toBe('absent');
+  });
+
+  it('reports no code for a target nothing was ever sent to', async () => {
+    const { codes } = harness();
+
+    await expect(codes.matches(PENDING_ID, '418302')).resolves.toBe('absent');
   });
 
   it('counts wrong attempts and reports the cooldown the domain starts', async () => {
@@ -102,14 +111,17 @@ describe('one-time codes', () => {
     await expect(codes.readAttempts(PENDING_ID)).resolves.toEqual({ attempts: 0 });
   });
 
-  it('refuses an expired code', async () => {
+  it('reports a closed window as absence, never as a wrong code', async () => {
     const { clock, sms, codes, issue } = harness();
     await issue();
     const code = codeFrom(sms.sent[0]?.body ?? '');
 
     clock.advance(10 * 60 * 1000 + 1000);
 
-    await expect(codes.matches(PENDING_ID, code)).resolves.toBe(false);
+    // `C-003`: the window closed, so there is nothing left to compare and the refusal is `CODE_EXPIRED`
+    // rather than a counted wrong guess.
+    await expect(codes.matches(PENDING_ID, code)).resolves.toBe('absent');
+    await expect(codes.matches(PENDING_ID, '000000')).resolves.toBe('absent');
   });
 
   it('leaves no code behind when the gateway did not take the message', async () => {
