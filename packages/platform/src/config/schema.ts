@@ -21,7 +21,8 @@
  */
 
 /** The headings the rendered example file uses, in order. */
-export type ConfigGroup = 'postgres' | 'redis' | 'cache' | 'storage' | 'sms' | 'model' | 'flags';
+export type ConfigGroup =
+  'postgres' | 'redis' | 'cache' | 'storage' | 'sms' | 'model' | 'flags' | 'worker';
 
 /** The shape a value must have. */
 export type VariableKind = 'text' | 'url' | 'integer' | 'boolean' | 'enum' | 'bucket';
@@ -468,6 +469,38 @@ export const VARIABLES: readonly VariableSpec[] = [
   },
   ...modelCapabilityVariables(),
   ...featureFlagVariables(),
+  {
+    name: 'WORKER_HOST',
+    group: 'worker',
+    description:
+      'Interface the worker probe listener binds to. Defaults to all interfaces inside the container.',
+    secret: false,
+    kind: 'text',
+    required: false,
+    default: '0.0.0.0',
+  },
+  {
+    name: 'WORKER_PORT',
+    group: 'worker',
+    description: "The worker's own probe listener, separate from the web deployable (C-091).",
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '3001',
+    min: 1,
+    max: 65535,
+  },
+  {
+    name: 'WORKER_SHUTDOWN_GRACE_MS',
+    group: 'worker',
+    description: 'Time a running batch has after SIGTERM before its lock is released.',
+    secret: false,
+    kind: 'integer',
+    required: false,
+    default: '10000',
+    min: 0,
+    max: 300000,
+  },
 ];
 
 /** Every declared variable name, for a completeness assertion in the loader's tests. */
@@ -482,6 +515,7 @@ export const GROUP_HEADINGS: Readonly<Record<ConfigGroup, string>> = {
   sms: 'SMS gateway - notification boundary transport (C-076)',
   model: 'Inference Gateway - pinned capability configuration (C-078, NFR-045)',
   flags: 'Feature flags - launch state per environment (release.md, C-069)',
+  worker: 'Worker runtime - probe listener and shutdown (C-091)',
 };
 
 /** A value the schema accepted. */
