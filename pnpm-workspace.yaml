@@ -35,6 +35,10 @@ catalog:
   # Redis 7 client for the read cache, sessions and rate-limit counters.
   redis: 6.3.1
 
+  # Staff credential material: Argon2id password hashing behind a domain port (NFR-021). A prebuilt
+  # N-API binding, so no toolchain is needed to install it.
+  '@node-rs/argon2': 2.2.2
+
   # Tests: Vitest, Testing Library, Playwright, axe (AGENTS.md Stack).
   vitest: 5.1.0
   # jsdom 30 and 31 require Node ^24.15; the workspace floor is Node 24.0 (`engines`), so the client

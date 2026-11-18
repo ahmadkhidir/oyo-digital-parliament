@@ -20,7 +20,11 @@ import {
   MIGRATIONS_FOLDER,
   createTestDatabase,
   readDownMigration,
+  readMigration,
 } from '../../src/testing/index.ts';
+
+/** The second migration: the staff credential and the nullable member identifiers. */
+const CREDENTIAL_MIGRATION = '0001_staff_credential_and_nullable_member_identifiers';
 
 describe('initial migration', () => {
   it('builds every table, then drops them all through the down path and builds again', async () => {
@@ -30,7 +34,10 @@ describe('initial migration', () => {
         "select tablename from pg_tables where schemaname = 'public' order by tablename",
       );
       expect(tablesBefore.rows.map((row) => row.tablename)).toContain('ward');
-      expect(tablesBefore.rows).toHaveLength(32);
+      expect(tablesBefore.rows).toHaveLength(33);
+
+      const downCredential = await readDownMigration(CREDENTIAL_MIGRATION);
+      await database.pool.query(downCredential);
 
       const down = await readDownMigration('0000_initial');
       await database.pool.query(down);
@@ -52,7 +59,7 @@ describe('initial migration', () => {
       const tablesRebuilt = await database.pool.query<{ tablename: string }>(
         "select tablename from pg_tables where schemaname = 'public'",
       );
-      expect(tablesRebuilt.rows).toHaveLength(32);
+      expect(tablesRebuilt.rows).toHaveLength(33);
     } finally {
       await database.dispose();
     }
@@ -155,6 +162,71 @@ describe('initial migration', () => {
           supersedesDecisionId: revision,
         }),
       ).resolves.toBeTypeOf('string');
+    } finally {
+      await database.dispose();
+    }
+  });
+});
+
+describe('staff credential migration', () => {
+  it('adds the credential table and nullable identifiers, and reverses both', async () => {
+    const database = await createTestDatabase();
+    try {
+      const staffId = await createStaffUser(database.db);
+      const memberId = await createMember(database.db, { telephoneNumber: '+2348031234567' });
+
+      // A deleted account, in the state the forward migration makes possible: identifiers nulled, row
+      // and public author reference kept.
+      await database.pool.query(
+        `update member set telephone_number = null, full_name = null, declared_age = null,
+                          deleted_at = '2026-03-01T09:00:00Z'
+          where id = $1`,
+        [memberId],
+      );
+
+      await database.pool.query(
+        `insert into staff_credential
+           (id, staff_user_id, username, password_hash, recovery_codes, failed_attempt_count, created_at)
+         values ($1, $2, 'a.balogun', '$argon2id$v=19$m=19456,t=12,p=1$c2FsdA$aGFzaA', '[]'::jsonb, 0, now())`,
+        ['scd_01J9Z4C8D1E2F3G4H5J6K7M8NP', staffId],
+      );
+
+      const down = await readDownMigration(CREDENTIAL_MIGRATION);
+      await database.pool.query(down);
+
+      const afterDown = await database.pool.query<{ tablename: string }>(
+        "select tablename from pg_tables where schemaname = 'public' and tablename = 'staff_credential'",
+      );
+      expect(afterDown.rows).toHaveLength(0);
+
+      // The rollback restores the pre-migration representation rather than failing on the nulled row,
+      // and the row itself survives.
+      const restored = await database.pool.query<{
+        telephone_number: string;
+        full_name: string;
+        declared_age: number;
+      }>('select telephone_number, full_name, declared_age from member where id = $1', [memberId]);
+      expect(restored.rows[0]).toEqual({
+        telephone_number: '+2340000000000',
+        full_name: 'Deleted member',
+        declared_age: 18,
+      });
+
+      const forward = await readMigration(CREDENTIAL_MIGRATION);
+      await database.pool.query(forward);
+
+      const rebuilt = await database.pool.query<{ tablename: string }>(
+        "select tablename from pg_tables where schemaname = 'public' and tablename = 'staff_credential'",
+      );
+      expect(rebuilt.rows).toHaveLength(1);
+
+      const nullable = await database.pool.query<{ column_name: string; is_nullable: string }>(
+        `select column_name, is_nullable from information_schema.columns
+          where table_schema = 'public' and table_name = 'member'
+            and column_name in ('telephone_number', 'full_name', 'declared_age')
+          order by column_name`,
+      );
+      expect(nullable.rows.map((row) => row.is_nullable)).toEqual(['YES', 'YES', 'YES']);
     } finally {
       await database.dispose();
     }

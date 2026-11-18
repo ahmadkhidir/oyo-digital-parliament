@@ -4,10 +4,19 @@
  * Field classification (`C-001`, `NFR-040`):
  *
  * - `telephone_number` — direct identifier, personal data. Looked up for sign-in only; never indexed
- *   together with a ward and never selected by a public projection.
- * - `full_name` — direct identifier, personal data. Held for attribution and never published.
- * - `declared_age` — personal data, used only to check the 18-to-35 band.
+ *   together with a ward and never selected by a public projection. Null once a deletion request is
+ *   completed.
+ * - `full_name` — direct identifier, personal data. Held for attribution and never published. Null
+ *   once a deletion request is completed.
+ * - `declared_age` — personal data, used only to check the 18-to-35 band. Null once a deletion request
+ *   is completed.
  * - `member.id` — the account reference other aggregates carry; a pseudonymous key, not a public name.
+ *
+ * **Deletion is a state change, not a delete** (`FEAT-012`, `schema.md` Member). `anonymise` sets the
+ * three direct identifiers to null and stamps `deleted_at`; the row and its identifier stay, so every
+ * submission, comment and backing keeps a non-identifying author reference and no published record
+ * disappears. The format and band checks still hold for a live row: a `CHECK` constraint passes on a
+ * null, so they do not have to be relaxed for the anonymised one.
  *
  * There is deliberately **no index on `ward_id`**: the platform never produces a member register by
  * ward, and an index whose only use would be that query is not added (`AGENTS.md` Boundaries,
@@ -35,14 +44,14 @@ export const member = pgTable(
   'member',
   {
     id: text('id').primaryKey(),
-    /** Personal data — direct identifier. E.164 (`+234` plus ten digits). */
-    telephoneNumber: varchar('telephone_number', { length: 20 }).notNull(),
-    /** Personal data — direct identifier. Held for attribution, never published. */
-    fullName: varchar('full_name', { length: 160 }).notNull(),
+    /** Personal data — direct identifier. E.164 (`+234` plus ten digits); null once deleted. */
+    telephoneNumber: varchar('telephone_number', { length: 20 }),
+    /** Personal data — direct identifier. Held for attribution, never published; null once deleted. */
+    fullName: varchar('full_name', { length: 160 }),
     /** The public name shown on submissions and comments. */
     displayName: varchar('display_name', { length: 60 }).notNull(),
-    /** Personal data. Only the 18-to-35 band is checked; the exact value is not published. */
-    declaredAge: smallint('declared_age').notNull(),
+    /** Personal data. Only the 18-to-35 band is checked; null once deleted. */
+    declaredAge: smallint('declared_age'),
     wardId: text('ward_id').references(() => ward.id),
     wardStatus: wardStatus('ward_status').notNull(),
     identityState: identityState('identity_state').notNull(),

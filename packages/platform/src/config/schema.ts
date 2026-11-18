@@ -25,6 +25,7 @@ export type ConfigGroup =
   | 'postgres'
   | 'redis'
   | 'session'
+  | 'credentials'
   | 'limits'
   | 'cache'
   | 'storage'
@@ -34,7 +35,7 @@ export type ConfigGroup =
   | 'worker';
 
 /** The shape a value must have. */
-export type VariableKind = 'text' | 'url' | 'integer' | 'boolean' | 'enum' | 'bucket';
+export type VariableKind = 'text' | 'url' | 'integer' | 'boolean' | 'enum' | 'bucket' | 'base64key';
 
 /** One declared variable. */
 export interface VariableSpec {
@@ -294,6 +295,15 @@ export const VARIABLES: readonly VariableSpec[] = [
     default: '30',
     min: 5,
     max: 240,
+  },
+  {
+    name: 'STAFF_TOTP_SECRET_KEY',
+    group: 'credentials',
+    description:
+      'Base64 key of exactly 32 bytes that seals every staff second-factor secret at rest with AES-256-GCM (NFR-024). Changing it invalidates the enrolled factors, so the operator resets each credential and the staff member enrols again.',
+    secret: true,
+    kind: 'base64key',
+    required: true,
   },
   {
     name: 'RATE_LIMIT_WINDOW_MINUTES',
@@ -697,6 +707,8 @@ export const GROUP_HEADINGS: Readonly<Record<ConfigGroup, string>> = {
   redis: 'Read cache, sessions and rate-limit counters - Redis 7',
   session:
     'Sessions and one-time codes - timeouts only, never a cap the specification fixes (NFR-026)',
+  credentials:
+    'Staff credential material - password hashing and second-factor secret sealing (NFR-021, NFR-024)',
   limits: 'Rate limits - operator caps per bucket and subject (NFR-027, C-001)',
   cache: 'Cache lifetimes - one explicit expiry per key family (C-075, C-086)',
   storage: 'Object storage - S3-compatible, private bucket',
@@ -779,6 +791,18 @@ export function parseVariable(spec: VariableSpec, raw: string): ParsedValue {
         };
       }
       if (raw.includes('..')) return { ok: false, problem: 'must not contain two adjacent dots' };
+      return { ok: true, value: raw };
+    }
+
+    case 'base64key': {
+      // A symmetric key: base64 text that decodes to exactly 32 bytes (AES-256). Anything shorter is
+      // refused here, so a deployment cannot boot on a weak key (`NFR-024`).
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw) || raw.length % 4 !== 0) {
+        return { ok: false, problem: 'must be base64 text' };
+      }
+      if (Buffer.from(raw, 'base64').length !== 32) {
+        return { ok: false, problem: 'must decode to exactly 32 bytes' };
+      }
       return { ok: true, value: raw };
     }
 

@@ -69,6 +69,8 @@ const LOCAL_EXAMPLES = {
   S3_ACCESS_KEY_ID: 'odp-local-access-key',
   S3_SECRET_ACCESS_KEY: 'odp-local-secret-key',
   S3_FORCE_PATH_STYLE: 'true',
+  // A disposable 32-byte key. A real key lives in the managed secret store (NFR-024).
+  STAFF_TOTP_SECRET_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
   SMS_PROVIDER: 'none',
   SMS_API_URL: 'https://sms-gateway.example.test/send',
   SMS_API_KEY: 'local-sms-placeholder',
@@ -178,6 +180,7 @@ export const VARIABLES = [
   }),
 
   ...appGroup('session'),
+  ...appGroup('credentials'),
   ...appGroup('limits'),
 
   ...appGroup('cache'),

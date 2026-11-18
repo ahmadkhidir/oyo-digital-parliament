@@ -103,6 +103,12 @@ export interface SessionConfig {
   readonly staffIdleSeconds: number;
 }
 
+/** The credential-material secrets (`NFR-021`, `NFR-024`). */
+export interface CredentialsConfig {
+  /** Base64 of 32 bytes, the AES-256-GCM key that seals each second-factor secret at rest. */
+  readonly totpSecretKey: string;
+}
+
 /** The limiter's fixed window and one cap per bucket (`NFR-027`). */
 export interface RateLimitConfig {
   readonly windowSeconds: number;
@@ -122,6 +128,7 @@ export interface PlatformConfig {
   readonly redisUrl: string;
   readonly worker: WorkerConfig;
   readonly session: SessionConfig;
+  readonly credentials: CredentialsConfig;
   readonly rateLimit: RateLimitConfig;
   readonly cache: CacheTtlConfig;
   readonly storage: StorageConfig;
@@ -257,6 +264,7 @@ function buildScalars(values: ParsedValues): {
   redisUrl: string;
   worker: WorkerConfig;
   session: SessionConfig;
+  credentials: CredentialsConfig;
   rateLimit: RateLimitConfig;
   cache: CacheTtlConfig;
   storage: StorageConfig;
@@ -299,6 +307,9 @@ function buildScalars(values: ParsedValues): {
       codeTtlSeconds: numberValue(values, 'SESSION_CODE_TTL_MINUTES') * 60,
       memberIdleSeconds: numberValue(values, 'SESSION_MEMBER_IDLE_MINUTES') * 60,
       staffIdleSeconds: numberValue(values, 'SESSION_STAFF_IDLE_MINUTES') * 60,
+    },
+    credentials: {
+      totpSecretKey: stringValue(values, 'STAFF_TOTP_SECRET_KEY'),
     },
     rateLimit: {
       windowSeconds: numberValue(values, 'RATE_LIMIT_WINDOW_MINUTES') * 60,
@@ -404,6 +415,7 @@ export function loadConfig(options: LoadConfigOptions = {}): PlatformConfig {
 
   // Freeze the nested slices before the outer object so no adapter can mutate a shared setting.
   Object.freeze(config.session);
+  Object.freeze(config.credentials);
   Object.freeze(config.rateLimit.caps);
   Object.freeze(config.rateLimit);
   Object.freeze(config.cache);

@@ -8,10 +8,10 @@
  *
  * `CONTRACTS.md` records one prefix per kind and this module mints exactly that record: a Comment is
  * `cmt` and a Commitment `com`, a Reservation `rsv` and a ResidenceReview `rvd`, a ReportCard `rcd`, a
- * SessionQuestion `sqt` and a queued write `qwr`. {@link ENTITY_PREFIXES} holds the stored record
- * entities and {@link TOKEN_PREFIXES} the kinds that are not record entities — an emitted analytics
- * event and a page cursor; {@link CONTRACT_PREFIXES} is the two together, and the tests assert every
- * prefix in it.
+ * SessionQuestion `sqt`, a staff user `stf` and their credential `scd`, and a queued write `qwr`.
+ * {@link ENTITY_PREFIXES} holds the stored record entities and {@link TOKEN_PREFIXES} the kinds that
+ * are not record entities — an emitted analytics event and a page cursor; {@link CONTRACT_PREFIXES} is
+ * the two together, and the tests assert every prefix in it.
  *
  * Randomness and time are injectable so a test can mint a reproducible identifier, and this module
  * is one of the two places in the package allowed to read the clock or a random source
@@ -47,6 +47,8 @@ export const ENTITY_PREFIXES = {
   residenceReview: 'rvd',
   consent: 'cns',
   staffUser: 'stf',
+  /** `C-092`: the credential a staff user signs in with; one per staff user (`C-001`). */
+  staffCredential: 'scd',
   wardReview: 'wdr',
   submission: 'sub',
   submissionDraft: 'sdr',

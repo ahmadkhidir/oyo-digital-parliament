@@ -15,6 +15,7 @@ export * from './pending-registration.ts';
 export * from './residence-review.ts';
 export * from './consent.ts';
 export * from './staff-user.ts';
+export * from './staff-credential.ts';
 export * from './ward-description-review.ts';
 export * from './submission.ts';
 export * from './submission-draft.ts';

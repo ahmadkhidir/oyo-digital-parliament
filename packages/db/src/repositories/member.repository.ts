@@ -24,14 +24,15 @@ import { member } from '../schema/member.ts';
 import { submission } from '../schema/submission.ts';
 
 /**
- * The replacement values written by `anonymise`.
+ * The values the **read projection** carries for a deleted row's direct identifiers.
  *
- * They are reserved rather than real: `+2340000000000` satisfies the stored E.164 check without being
- * a reachable or allocated Nigerian number, `Deleted member` carries no one's name, and `18` is the
- * floor of the declared-age band the column constraint requires. `schema.md` states in words that
- * deletion replaces the direct identifiers with non-identifying values; it does not print the
- * literals, so these are chosen to be obviously non-identifying and are documented here rather than
- * scattered through the statement.
+ * `schema.md` states that deletion removes a direct identifier by setting it to null, and
+ * {@link anonymise} does exactly that. The identity domain type (`MemberRecord`) still declares these
+ * three as non-null strings, and that module is not this package's to change; a deleted account is
+ * therefore projected with reserved, obviously non-identifying values rather than a null the domain
+ * cannot represent. None of them is a real number, name or age: the number is unallocated, the name is
+ * a label, and the age is the floor of the band. When the domain type admits null these constants go,
+ * and the stored row is already correct.
  */
 const ANONYMISED_TELEPHONE_NUMBER = '+2340000000000';
 const ANONYMISED_FULL_NAME = 'Deleted member';
@@ -48,10 +49,10 @@ function toMemberRecord(row: typeof member.$inferSelect): MemberRecord {
   const deletedAt = row.deletedAt ?? undefined;
   return {
     id: row.id,
-    telephoneNumber: row.telephoneNumber,
-    fullName: row.fullName,
+    telephoneNumber: row.telephoneNumber ?? ANONYMISED_TELEPHONE_NUMBER,
+    fullName: row.fullName ?? ANONYMISED_FULL_NAME,
     displayName: row.displayName,
-    declaredAge: row.declaredAge,
+    declaredAge: row.declaredAge ?? ANONYMISED_DECLARED_AGE,
     ...(wardId === undefined ? {} : { wardId }),
     wardStatus: row.wardStatus,
     identityState: row.identityState,
@@ -149,14 +150,17 @@ export function createMemberRepository(executor: Executor): MemberRepository {
     },
 
     async anonymise(memberId, at) {
-      // The guard makes a second call a no-op rather than moving `deleted_at` forward: the first
-      // deletion is the recorded one.
+      // Deletion removes the direct identifiers by setting them to null (`schema.md` Member,
+      // `FEAT-012`) and stamps when, in one statement. The row and its identifier stay, so every
+      // submission, comment and backing keeps a non-identifying author reference. The guard makes a
+      // second call a no-op rather than moving `deleted_at` forward: the first deletion is the
+      // recorded one.
       await db
         .update(member)
         .set({
-          telephoneNumber: ANONYMISED_TELEPHONE_NUMBER,
-          fullName: ANONYMISED_FULL_NAME,
-          declaredAge: ANONYMISED_DECLARED_AGE,
+          telephoneNumber: null,
+          fullName: null,
+          declaredAge: null,
           deletedAt: at,
         })
         .where(and(eq(member.id, memberId), isNull(member.deletedAt)));
