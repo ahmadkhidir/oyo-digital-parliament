@@ -19,7 +19,7 @@ Four surfaces exist, and every entry names one:
 
 ## Version History
 
-Append-only. A later version supersedes an earlier one; no entry below changes an accepted record of what was frozen.
+Append-only. Each row records what that version changed; an accepted version is never rewritten, and a later correction is a new row rather than an edit to an older one.
 
 | Version | Change |
 |---|---|
