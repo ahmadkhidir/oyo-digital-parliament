@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 /**
  * Configuration for the single deployable (`architecture.md`: one application, public record plus
@@ -15,10 +15,10 @@ import type { NextConfig } from "next";
  *   Deployment Topology: Docker containers, single Nigerian region).
  */
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
-  transpilePackages: ["@odp/ui", "@odp/domain", "@odp/db", "@odp/inference", "@odp/platform"],
+  transpilePackages: ['@odp/ui', '@odp/domain', '@odp/db', '@odp/inference', '@odp/platform'],
 };
 
 export default nextConfig;

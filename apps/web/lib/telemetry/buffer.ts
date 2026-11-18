@@ -22,7 +22,10 @@ export interface TelemetryBuffer {
    *
    * @returns whether it was kept, and the event displaced when the buffer was full.
    */
-  enqueue(request: AnalyticsEmitRequest): { readonly kept: boolean; readonly dropped?: AnalyticsEmitRequest };
+  enqueue(request: AnalyticsEmitRequest): {
+    readonly kept: boolean;
+    readonly dropped?: AnalyticsEmitRequest;
+  };
 
   /** Removes and returns everything queued, oldest first. */
   drain(): AnalyticsEmitRequest[];

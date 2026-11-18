@@ -14,8 +14,4 @@ export {
   type TelemetryReporter,
   type TelemetrySink,
 } from './dispatcher';
-export {
-  DEFAULT_BUFFER_CAPACITY,
-  createTelemetryBuffer,
-  type TelemetryBuffer,
-} from './buffer';
+export { DEFAULT_BUFFER_CAPACITY, createTelemetryBuffer, type TelemetryBuffer } from './buffer';

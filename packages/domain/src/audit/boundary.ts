@@ -74,9 +74,17 @@ export type AuditAnalyticsBoundaryResponse =
       readonly ok: true;
       readonly operation: AuditAnalyticsOperation;
       readonly status: 200 | 201;
-      readonly result: AppendAuditEventResult | ReadAuditAccessLogResult | ReplaceUserTokenResult | AnalyticsEmitAccepted;
+      readonly result:
+        | AppendAuditEventResult
+        | ReadAuditAccessLogResult
+        | ReplaceUserTokenResult
+        | AnalyticsEmitAccepted;
     }
-  | { readonly ok: false; readonly status: 400 | 403 | 422 | 503; readonly error: AuditAnalyticsFailure };
+  | {
+      readonly ok: false;
+      readonly status: 400 | 403 | 422 | 503;
+      readonly error: AuditAnalyticsFailure;
+    };
 
 /** The `C-089` response shape for an accepted event. */
 export interface AnalyticsEmitAccepted {

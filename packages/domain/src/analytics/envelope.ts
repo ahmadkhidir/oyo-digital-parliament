@@ -70,18 +70,14 @@ export interface AnalyticsEmitRequest {
 
 /** The outcome of building or parsing an event. */
 export type AnalyticsEmitResult =
-  | { readonly ok: true; readonly request: AnalyticsEmitRequest }
-  | AnalyticsRejection;
+  { readonly ok: true; readonly request: AnalyticsEmitRequest } | AnalyticsRejection;
 
 /**
  * Envelope field patterns.
  *
- * `C-001` fixes the canonical identifier as a three-letter prefix plus twenty-six Crockford characters,
- * but the frozen examples in `CONTRACTS.md` do not hold to it: they range from `sub_01J9ZJ2` (seven
- * characters) to `dec_01J9ZB1C3D5E7F9G1H3J5K7LMP`, which contains an `L` the Crockford alphabet
- * excludes. This boundary therefore enforces the part that carries the privacy rule (a three-letter
- * prefix, an underscore, and an upper-case alphanumeric body of 4 to 26 characters) and does not
- * reject a record the contract prints. Reconciling the pattern with the examples is a change request.
+ * `C-001` reconciles the canonical identifier with the examples printed in the contract: a three-letter
+ * prefix, an underscore, and an upper-case alphanumeric body of 4 to 26 characters. The boundary
+ * enforces that reconciled form rather than the earlier fixed-length Crockford pattern.
  */
 const EVENT_ID_PATTERN = /^evt_[0-9A-Z]{4,26}$/;
 const SESSION_ID_PATTERN = /^ses_[0-9A-Z]{4,26}$/;
@@ -111,7 +107,12 @@ const COMMON_PROPERTY_KEYS = [
 ] as const;
 
 /** Envelope keys this boundary accepts: the event name, the common properties and the payload. */
-const ENVELOPE_KEYS: readonly string[] = ['event_name', 'correlation_id', 'properties', ...COMMON_PROPERTY_KEYS];
+const ENVELOPE_KEYS: readonly string[] = [
+  'event_name',
+  'correlation_id',
+  'properties',
+  ...COMMON_PROPERTY_KEYS,
+];
 
 /** A refusal that is not about one property. */
 function refuse(
@@ -189,7 +190,11 @@ function checkPattern(
  */
 export function parseAnalyticsEmitRequest(raw: unknown): AnalyticsEmitResult {
   if (!isPlainObject(raw)) {
-    return refuse('VALIDATION_FAILED', 'ENVELOPE_MALFORMED', 'The analytics envelope is not an object.');
+    return refuse(
+      'VALIDATION_FAILED',
+      'ENVELOPE_MALFORMED',
+      'The analytics envelope is not an object.',
+    );
   }
 
   const unknownEnvelopeKeys = Object.keys(raw).filter((key) => !ENVELOPE_KEYS.includes(key));
@@ -221,9 +226,14 @@ export function parseAnalyticsEmitRequest(raw: unknown): AnalyticsEmitResult {
   // Personal data is refused before anything else is read, so the event is never partially accepted.
   const rawProperties = raw['properties'];
   if (!isPlainObject(rawProperties)) {
-    return refuse('VALIDATION_FAILED', 'PROPERTIES_REQUIRED', 'The event carries no property object.', {
-      properties: rawProperties === undefined ? 'REQUIRED' : 'OUT_OF_BAND',
-    });
+    return refuse(
+      'VALIDATION_FAILED',
+      'PROPERTIES_REQUIRED',
+      'The event carries no property object.',
+      {
+        properties: rawProperties === undefined ? 'REQUIRED' : 'OUT_OF_BAND',
+      },
+    );
   }
   const findings = findPersonalDataFindings(rawProperties);
   const policyFindings = findings.filter((finding) => finding.kind !== 'NESTED_VALUE');
@@ -263,7 +273,10 @@ export function parseAnalyticsEmitRequest(raw: unknown): AnalyticsEmitResult {
     fields['user_id'] = userId === undefined ? 'REQUIRED' : 'PATTERN_MISMATCH';
   }
   const anonymousId = raw['anonymous_id'];
-  if (anonymousId !== null && (typeof anonymousId !== 'string' || !ANONYMOUS_ID_PATTERN.test(anonymousId))) {
+  if (
+    anonymousId !== null &&
+    (typeof anonymousId !== 'string' || !ANONYMOUS_ID_PATTERN.test(anonymousId))
+  ) {
     fields['anonymous_id'] = anonymousId === undefined ? 'REQUIRED' : 'PATTERN_MISMATCH';
   }
   // Exactly one identity: pseudonymous after registration, anonymous before it, never both.
@@ -294,7 +307,12 @@ export function parseAnalyticsEmitRequest(raw: unknown): AnalyticsEmitResult {
   }
 
   if (Object.keys(fields).length > 0) {
-    return refuse('VALIDATION_FAILED', 'EVENT_ENVELOPE_INVALID', 'The event does not match the taxonomy.', fields);
+    return refuse(
+      'VALIDATION_FAILED',
+      'EVENT_ENVELOPE_INVALID',
+      'The event does not match the taxonomy.',
+      fields,
+    );
   }
 
   const request: AnalyticsEmitRequest = {
@@ -356,4 +374,3 @@ export function buildAnalyticsEvent<K extends AnalyticsEventName>(
   if (input.correlationId !== undefined) raw['correlation_id'] = input.correlationId;
   return parseAnalyticsEmitRequest(raw);
 }
-

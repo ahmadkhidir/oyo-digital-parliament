@@ -15,9 +15,9 @@
  * usage error.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   ENV_FILE_NAME,
@@ -25,9 +25,9 @@ import {
   loadEnvironment,
   renderExample,
   validateEnvironment,
-} from "../../infra/local/environment.mjs";
+} from '../../infra/local/environment.mjs';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const examplePath = resolve(repoRoot, EXAMPLE_FILE_NAME);
 
 const USAGE = `Usage:
@@ -66,12 +66,12 @@ function check(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--no-file") {
+    if (argument === '--no-file') {
       useFile = false;
-    } else if (argument === "--env-file") {
+    } else if (argument === '--env-file') {
       const path = argv[index + 1];
-      if (path === undefined || path.startsWith("-")) {
-        return usageError("--env-file needs a path");
+      if (path === undefined || path.startsWith('-')) {
+        return usageError('--env-file needs a path');
       }
       envFileName = path;
       index += 1;
@@ -96,7 +96,7 @@ function check(argv) {
     return 1;
   }
 
-  const source = useFile ? envFileName : "the process environment";
+  const source = useFile ? envFileName : 'the process environment';
   console.log(`env: ok - ${Object.keys(result.values).length} variables validated from ${source}`);
   return 0;
 }
@@ -108,8 +108,8 @@ function check(argv) {
  * @returns {number} The exit code.
  */
 function render(argv) {
-  const verifyOnly = argv.includes("--check");
-  const unknown = argv.filter((argument) => argument !== "--check");
+  const verifyOnly = argv.includes('--check');
+  const unknown = argv.filter((argument) => argument !== '--check');
   if (unknown.length > 0) {
     return usageError(`unknown option "${unknown[0]}"`);
   }
@@ -117,7 +117,7 @@ function render(argv) {
   const rendered = renderExample();
 
   if (verifyOnly) {
-    if (!existsSync(examplePath) || readFileSync(examplePath, "utf8") !== rendered) {
+    if (!existsSync(examplePath) || readFileSync(examplePath, 'utf8') !== rendered) {
       console.error(
         `env: ${EXAMPLE_FILE_NAME} is out of date; run "node scripts/dev/env.mjs render"`,
       );
@@ -142,14 +142,14 @@ function main(argv) {
   const [command, ...rest] = argv;
 
   switch (command) {
-    case "check":
+    case 'check':
       return check(rest);
-    case "render":
+    case 'render':
       return render(rest);
     case undefined:
-    case "-h":
-    case "--help":
-    case "help":
+    case '-h':
+    case '--help':
+    case 'help':
       console.log(USAGE);
       return 0;
     default:

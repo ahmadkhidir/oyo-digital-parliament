@@ -15,7 +15,7 @@ has been written yet.
 |---|---|
 | A coding agent or engineer | [`AGENTS.md`](AGENTS.md) — the coordinator manual, then the nearest area `AGENTS.md` |
 | Looking for the product definition | [`docs/OyoDigitalParliament/overview.md`](docs/OyoDigitalParliament/overview.md) |
-| Implementing an interface | [`CONTRACTS.md`](CONTRACTS.md) — frozen contracts `C-001` to `C-090` |
+| Implementing an interface | [`CONTRACTS.md`](CONTRACTS.md) - frozen contracts `C-001` to `C-091` |
 | Working on visuals | [`assets/ASSETS.md`](assets/ASSETS.md) — slots `A-001` to `A-043` |
 | Reviewing a technical choice | [`.decisions/`](.decisions/) — append-only ADRs |
 | Planning the build | [`docs/OyoDigitalParliament/roadmap.md`](docs/OyoDigitalParliament/roadmap.md) |

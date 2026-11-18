@@ -29,6 +29,7 @@ export function findReasonFinding(reason: string): ReasonFinding | null {
   if (/[^\s@]+@[^\s@]+\.[a-z]{2,}/i.test(reason)) return 'EMAIL_ADDRESS';
   if (containsTelephoneNumber(reason)) return 'TELEPHONE_NUMBER';
   // Both straight and curly quotation marks are matched, because a pasted excerpt can carry either.
-  if (new RegExp(`["\u201C][^"\u201D]{${QUOTED_EXCERPT_LENGTH},}["\u201D]`).test(reason)) return 'QUOTED_EXCERPT';
+  if (new RegExp(`["\u201C][^"\u201D]{${QUOTED_EXCERPT_LENGTH},}["\u201D]`).test(reason))
+    return 'QUOTED_EXCERPT';
   return null;
 }

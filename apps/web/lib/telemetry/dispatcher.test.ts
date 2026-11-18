@@ -55,7 +55,10 @@ const context = {
 /** A dispatcher over the given effects. */
 function dispatcherFor(
   store: ReturnType<typeof sink>,
-  extra: { reporter?: ReturnType<typeof reporter>; buffer?: ReturnType<typeof createTelemetryBuffer> } = {},
+  extra: {
+    reporter?: ReturnType<typeof reporter>;
+    buffer?: ReturnType<typeof createTelemetryBuffer>;
+  } = {},
 ) {
   return createTelemetryDispatcher({
     context,
@@ -95,8 +98,16 @@ describe('telemetry dispatcher', () => {
   it('mints one event id per event', async () => {
     const store = sink();
     const dispatcher = dispatcherFor(store);
-    await dispatcher.emit('screen_viewed', { screen: 'home', device_class: 'mobile', signed_in: true });
-    await dispatcher.emit('screen_viewed', { screen: 'submit', device_class: 'mobile', signed_in: true });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'home',
+      device_class: 'mobile',
+      signed_in: true,
+    });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'submit',
+      device_class: 'mobile',
+      signed_in: true,
+    });
     const ids = store.emitted.map((event) => event.event_id);
     expect(new Set(ids).size).toBe(2);
   });
@@ -135,8 +146,16 @@ describe('telemetry dispatcher', () => {
       appVersion: '2026.11.3',
     });
 
-    await dispatcher.emit('screen_viewed', { screen: 'home', device_class: 'mobile', signed_in: true });
-    await dispatcher.emit('screen_viewed', { screen: 'submit', device_class: 'mobile', signed_in: true });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'home',
+      device_class: 'mobile',
+      signed_in: true,
+    });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'submit',
+      device_class: 'mobile',
+      signed_in: true,
+    });
     expect(dispatcher.pending()).toBe(2);
 
     available = true;
@@ -166,8 +185,16 @@ describe('telemetry dispatcher', () => {
       appVersion: '2026.11.3',
     });
 
-    await dispatcher.emit('screen_viewed', { screen: 'home', device_class: 'mobile', signed_in: true });
-    await dispatcher.emit('screen_viewed', { screen: 'submit', device_class: 'mobile', signed_in: true });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'home',
+      device_class: 'mobile',
+      signed_in: true,
+    });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'submit',
+      device_class: 'mobile',
+      signed_in: true,
+    });
     expect(dispatcher.pending()).toBe(2);
 
     down = false;
@@ -195,7 +222,11 @@ describe('telemetry dispatcher', () => {
     expect(store.emitted).toHaveLength(0);
     expect(dispatcher.pending()).toBe(0);
     expect(reports.failures).toEqual([
-      expect.objectContaining({ kind: 'REJECTED', code: 'POLICY_VIOLATION', cause: 'PERSONAL_DATA_IN_EVENT' }),
+      expect.objectContaining({
+        kind: 'REJECTED',
+        code: 'POLICY_VIOLATION',
+        cause: 'PERSONAL_DATA_IN_EVENT',
+      }),
     ]);
   });
 
@@ -224,8 +255,16 @@ describe('telemetry dispatcher', () => {
       buffer: createTelemetryBuffer(1),
       reporter: { report: (failure) => failures.push(failure) },
     });
-    await dispatcher.emit('screen_viewed', { screen: 'home', device_class: 'mobile', signed_in: true });
-    await dispatcher.emit('screen_viewed', { screen: 'submit', device_class: 'mobile', signed_in: true });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'home',
+      device_class: 'mobile',
+      signed_in: true,
+    });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'submit',
+      device_class: 'mobile',
+      signed_in: true,
+    });
     expect(dispatcher.pending()).toBe(1);
     expect(failures.some((failure) => failure.kind === 'QUEUE_FULL')).toBe(true);
   });
