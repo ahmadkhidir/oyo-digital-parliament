@@ -204,7 +204,13 @@ export async function createDataRequest(
   if (refused !== null) return refused;
 
   await emitIdentityAnalytics(deps, [
-    { name: 'data_request_created', properties: { request_type: type.value } },
+    {
+      name: 'data_request_created',
+      properties: { request_type: type.value },
+      // `EVT-036`, `C-089`: the request belongs to the signed-in member who filed it.
+      subject: { kind: 'member', memberId: member.id },
+      locale: member.locale,
+    },
   ]);
 
   return {

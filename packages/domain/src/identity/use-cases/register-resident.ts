@@ -237,7 +237,17 @@ export async function registerResident(
     delivery = { status: 'delayed', channel: 'sms' };
   }
 
-  await emitIdentityAnalytics(deps, [{ name: 'registration_started', properties: { locale } }]);
+  await emitIdentityAnalytics(deps, [
+    {
+      name: 'registration_started',
+      properties: { locale },
+      // `EVT-042`, `C-089`: there is no account yet, so the event is attributed to the pending
+      // registration — the identifier the platform mints for this visitor's pre-account window and
+      // expires with it. Nothing about the person travels with it.
+      subject: { kind: 'anonymous', anonymousId: pending.id },
+      locale,
+    },
+  ]);
 
   return {
     ok: true,

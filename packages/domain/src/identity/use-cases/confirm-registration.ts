@@ -300,6 +300,10 @@ export async function confirmRegistration(
         attempts: attempts.attempts + 1,
         delivery_delay_band: deliveryDelayBand(pending.codeSentAt, now),
       },
+      // `EVT-003`, `C-089`: the code was accepted for this member, and the account exists by the time
+      // the event is dispatched, so the subject is the member rather than the pending registration.
+      subject: { kind: 'member', memberId },
+      locale: member.locale,
     },
     {
       name: 'account_registered',
@@ -310,6 +314,8 @@ export async function confirmRegistration(
         ward_resolved: false,
         locale: member.locale,
       },
+      subject: { kind: 'member', memberId },
+      locale: member.locale,
     },
   ]);
 

@@ -164,7 +164,20 @@ export async function requestSignInCode(
     );
   }
 
-  await emitIdentityAnalytics(deps, [{ name: 'sign_in_started', properties: { attempt } }]);
+  await emitIdentityAnalytics(deps, [
+    {
+      name: 'sign_in_started',
+      properties: { attempt },
+      // `EVT-002`, `C-089`: one account on the number is the subject. A shared number has no single
+      // subject until the resident chooses which one is acting, so the challenge — the identifier
+      // this attempt minted — stands in until `C-006` names the account.
+      subject:
+        accounts.length === 1 && accounts[0] !== undefined
+          ? { kind: 'member', memberId: accounts[0].id }
+          : { kind: 'anonymous', anonymousId: challengeId },
+      locale: accounts[0]?.locale ?? 'en-NG',
+    },
+  ]);
 
   return {
     ok: true,

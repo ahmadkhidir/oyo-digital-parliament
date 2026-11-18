@@ -509,8 +509,46 @@ export interface QueuedWritePort {
   }>;
 }
 
+/**
+ * Who one identity event is about (`C-089`, `EVT-003`, `EVT-004`, `EVT-042`).
+ *
+ * A resident is anonymous until their account exists and a member from then on, and `C-089` requires
+ * exactly one of `user_id` and `anonymous_id` on every event: an event carrying neither is refused by
+ * the envelope, and one carrying both is refused as `ALREADY_SET`. The subject is therefore a
+ * required part of the event, not something an emitter may leave for the adapter to invent — the
+ * adapter holds no identity of its own, and an event it cannot attribute is one it must not quietly
+ * discard.
+ */
+export type IdentityAnalyticsSubject =
+  | {
+      /**
+       * Before the account exists: the identifier the platform minted for this visitor's record.
+       *
+       * At registration that is the PendingRegistration, which exists exactly for the pre-account
+       * window and expires with it; on a shared number's sign-in it is the challenge, because the
+       * resident has not yet said which account is acting.
+       */
+      readonly kind: 'anonymous';
+      readonly anonymousId: string;
+    }
+  | {
+      /** Once the account exists: the member the event is about. */
+      readonly kind: 'member';
+      readonly memberId: string;
+    };
+
 /** One identity event the module emits, named and shaped as `analytics.md` declares. */
-export type IdentityAnalyticsEvent =
+export type IdentityAnalyticsEvent = {
+  /** The subject `C-089` requires; the envelope refuses an event without one. */
+  readonly subject: IdentityAnalyticsSubject;
+  /**
+   * The locale the resident is reading, when the emitter holds one the envelope can use.
+   *
+   * `C-089` puts a `locale` on every event. The adapter prefers this, then the payload's own
+   * `locale` property on the events whose taxonomy declares one, then the deployment default.
+   */
+  readonly locale?: Locale;
+} & (
   | {
       readonly name: 'registration_started';
       readonly properties: AnalyticsPayloads['registration_started'];
@@ -534,13 +572,16 @@ export type IdentityAnalyticsEvent =
   | {
       readonly name: 'data_request_created';
       readonly properties: AnalyticsPayloads['data_request_created'];
-    };
+    }
+);
 
 /**
  * Emits one product event (`C-089`).
  *
  * A rejection is the emitter's to buffer and retry, never a reason to undo the account, the consent or
- * the request that produced the event.
+ * the request that produced the event. The subject travels with the event so the adapter can envelope
+ * `user_id` or `anonymous_id` without guessing, and so an unattributable event cannot be emitted at
+ * all.
  */
 export interface IdentityAnalyticsPort {
   /** @throws when the analytics store did not take the event. */
