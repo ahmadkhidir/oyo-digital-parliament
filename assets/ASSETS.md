@@ -85,7 +85,7 @@ canvas, on a transparent background.
 - Artboard 100×100 units. The silhouette is centred on the optical centre, its longest side 76 units, with at least 12 units clear on every side.
 - Drawn as filled paths only, with no stroke. The minimum feature is 2 units, so nothing dissolves when the mark renders at 16px.
 - The spine is a 14-unit band expressed as a 2-unit step in the top and bottom contour, never as an interior line.
-- The tear enters the contour 8 units below the top-right corner and runs 76 units inboard in four uneven steps of 18, 16, 22 and 20 units, stopping 10 units clear of the spine. The torn leaf rises 3 units above the top edge at its free corner.
+- The tear is cut in from the right edge: the torn leaf rises 3 units above the top edge at its free corner, 2 units in from the right edge, and the tear edge runs 38 units inboard in four uneven steps of 6, 8, 10 and 14 units, stopping 10 units clear of the spine.
 - The four outer corners are eased by 2 units. The tear edge carries no radius.
 - Output is editable SVG with no embedded raster, no filters, and no background rectangle. A 1024×1024 PNG reference is exported from it for review only.
 - One-colour behaviour: a single flat ink, no tint, no overprint, no transparency-dependent edge, so the form survives one-ink print, embroidery and a monochrome screen.
@@ -164,7 +164,7 @@ the other six in a row.
 
 **Medium:** Sourced — Tabler Icons 3.52.0, outline set, MIT. Files are the set's own glyphs, unmodified.
 
-**Palette:** One tone per glyph, carried by the file as ink `#1B1815` and resolved at render to the interface role: default `#6B635C` (neutral-500), active `#9A4A26` (primary-500), disabled at 40% opacity. No icon is recoloured per feature.
+**Palette:** One tone per glyph, carried by the file as Tabler's `currentColor` and set at render by the interface role: default `#6B635C` (neutral-500), active `#9A4A26` (primary-500), disabled at 40% opacity. No icon is recoloured per feature.
 
 **Invariants:** 24×24 grid, 2px stroke, round caps and joins, outlined single weight only. An active state is carried by colour, never by swapping the glyph for a filled one. No icon is redrawn or combined. Every icon carries its action as visible text or an accessible name; no icon stands alone as the only label. Rendered at 20px, 22px and 24px per the `icon-size` token.
 
@@ -173,7 +173,7 @@ the other six in a row.
 **Settings:**
 - Source: `@tabler/icons` 3.52.0, outline set, MIT. Each file is taken from `https://cdn.jsdelivr.net/npm/@tabler/icons@3.52.0/icons/outline/`, one glyph file per slot, named in the variant table below.
 - Ship the upstream MIT licence text at `assets/icons/LICENSE`. No attribution appears in the interface.
-- Take the SVG unmodified: 24×24 `viewBox`, `stroke-width="2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`, `fill="none"`. File names keep the upstream glyph name so provenance stays traceable.
+- Take the SVG unmodified: 24×24 `viewBox`, `stroke-width="2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`, `fill="none"`. The stroke stays `stroke="currentColor"` as Tabler ships it, so the render applies the interface role and no file is rewritten per role. File names keep the upstream glyph name so provenance stays traceable.
 - Only glyphs for actions a screen declares are slotted. `NFR-009` requires in-product search but no screen declares a search field, so no search glyph is slotted; a search affordance is a screen change first, then a new slot.
 - Verify each file renders at 20px inside a 48px touch target without the stroke collapsing.
 
@@ -199,41 +199,42 @@ the other six in a row.
 
 **Palette:** One tone per file, carried as ink `#1B1815` and resolved at render to the label's own text colour: `#1B1815` (neutral-900) for Awaiting decision and Declined, `#3D3733` (neutral-700) for Withdrawn, `#3A2504` (warning-900) for Overdue and Slipped, `#122334` (info-900) for Committed and Referred, `#1E2C13` (success-900) for Delivered, `#3D0B0B` (error-900) for Dropped and Withheld.
 
-**Invariants:** Shape carries the status second, after the word, so the marker never stands alone and colour is never the encoding. Geometry is built from a square, a circle, an equilateral triangle, a diamond and a bar — five primitives, no sixth. Outline forms are 2-unit strokes with mitred joins; filled forms are solid to the same extents. No shadow, no gradient, no rounding on the primitives.
+**Invariants:** Shape carries the status second, after the word, so the marker never stands alone and colour is never the encoding. Geometry is built from a square, a circle, an equilateral triangle, a diamond and a bar — five primitives, no sixth. Filled forms are solid, and each outlined form is a 2-unit stroke with mitred joins drawn to its filled counterpart's outer extents, except the outlined dot and the outlined bar, which are sized so all ten separate by shape. No shadow, no gradient, no rounding on the primitives.
 
 **Prompt:**
 ```text
-Ten small geometric status markers, one per file, on a 16-unit square artboard: an outlined dot, an outlined
-equilateral triangle, a filled circle, a filled diamond, a filled square, a filled equilateral
+Ten small geometric status markers, one per file, on a 16-unit square artboard: an outlined dot, an
+outlined equilateral triangle, a filled circle, a filled diamond, a filled square, a filled equilateral
 triangle, a filled horizontal bar, an outlined circle, an outlined horizontal bar and an outlined
-square. Each shape occupies 10 of the 16 units and is centred, leaving 3 units clear on every
-side. Outlined forms carry a 2-unit stroke with mitred joins and no rounding; filled forms are
-solid to the same extents. One flat tone per file, no gradient, no shadow, no second colour, no
-text. Crisp edges, drawn to survive a 16px render.
+square. Every marker is centred, leaving at least 3 units clear on every side. The filled circle,
+square, diamond and triangle occupy 10 units, and their outlined counterparts fill the same outer
+extents with a 2-unit stroke and mitred joins; the outlined dot is a 6.5-unit ring, smaller than the
+outlined circle, and the outlined bar is 10 units wide and 6 units high outside with a 6 by 2 opening,
+so it never reads as the filled bar. Filled forms are solid. One flat tone per file, no gradient, no
+shadow, no second colour, no text. Crisp edges, drawn to survive a 16px render.
 ```
 
 **Settings:**
-- Artboard 16×16 units per file, exported at 16px and 32px. The shape occupies a 10×10 box centred, so it optically centres against `caption` text at 12px.
-- The bar forms are 10 units wide and 3 units high, horizontally set, filled in one file and outlined in the other.
-- The triangle is 10 units wide and 9 units tall, flat edge down, so it reads as a marker and not an arrow.
-- The diamond is a 10×10 square turned 45°, so its width matches the circle's diameter.
-- Filled and outline counterparts of the same primitive share identical extents, so swapping `Delivered` for `Withheld` never shifts the label.
+- Artboard 16×16 units per file, exported at 16px and 32px. Every marker is centred at 8, 8, so it optically centres against `caption` text at 12px.
+- Filled forms: a circle of radius 5, a 10×10 square, a 10×10 diamond turned 45° so its width matches the circle's diameter, a triangle 10 units wide and 9 units tall with its flat edge down so it reads as a marker and not an arrow, and a bar 10 units wide and 3 units high, set horizontally.
+- Outlined forms carry a 2-unit stroke with mitred joins and are drawn inside the filled extents: a circle of radius 4 and an 8×8 square, each measuring 10 units outside with a 6-unit opening, and a triangle inset so its mitred stroke fills the same 10×9 outside. Each outlined form therefore keeps its filled counterpart's extents, so swapping `Delivered` for `Withheld` never shifts the label.
+- The outlined dot and the outlined bar are the two exceptions, sized so shape alone separates all ten at a 2-unit stroke: the dot is a ring of radius 2.25, 6.5 units outside with a 2.5-unit opening and clearly smaller than the outlined circle; the outlined bar is an 8×4 rectangle stroked to 10 units wide and 6 units high outside with a 6×2 opening, because a 10×3 bar has no room for a 2-unit stroke and would collapse into the filled bar.
 - Each file is a single flat tone with no baked background. The presentation applies the label's text colour; the file itself is never edited per status.
 - Verify each marker against its own word at `caption` size and in a greyscale screenshot, where shape alone must still separate the ten.
 
 **Variants:**
 | Variant | Target | Execution Delta |
 |---|---|---|
-| Awaiting decision | assets/status/marker-awaiting-decision.svg | Outline dot, 2-unit stroke. |
-| Overdue | assets/status/marker-overdue.svg | Outline triangle, 2-unit stroke. |
-| Committed | assets/status/marker-committed.svg | Filled circle. |
-| Referred | assets/status/marker-referred.svg | Filled diamond. |
-| Delivered | assets/status/marker-delivered.svg | Filled square. |
-| Slipped | assets/status/marker-slipped.svg | Filled triangle. |
-| Dropped | assets/status/marker-dropped.svg | Filled bar. |
-| Declined | assets/status/marker-declined.svg | Outline circle, 2-unit stroke. |
-| Withdrawn | assets/status/marker-withdrawn.svg | Outline bar, 2-unit stroke. |
-| Withheld | assets/status/marker-withheld.svg | Outline square, 2-unit stroke. |
+| Awaiting decision | assets/status/marker-awaiting-decision.svg | Outline dot: a ring of radius 2.25 and 2-unit stroke, 6.5 units outside with a 2.5-unit opening. |
+| Overdue | assets/status/marker-overdue.svg | Outline triangle: the 10×9 triangle inset so its 2-unit mitred stroke fills the filled extents. |
+| Committed | assets/status/marker-committed.svg | Filled circle, radius 5. |
+| Referred | assets/status/marker-referred.svg | Filled diamond: a 10×10 square turned 45°. |
+| Delivered | assets/status/marker-delivered.svg | Filled square, 10×10. |
+| Slipped | assets/status/marker-slipped.svg | Filled triangle, 10 units wide and 9 units tall, flat edge down. |
+| Dropped | assets/status/marker-dropped.svg | Filled bar, 10 units wide and 3 units high. |
+| Declined | assets/status/marker-declined.svg | Outline circle: radius 4 and 2-unit stroke, 10 units outside with a 6-unit opening. |
+| Withdrawn | assets/status/marker-withdrawn.svg | Outline bar: an 8×4 rectangle and 2-unit stroke, 10 units wide and 6 units high outside with a 6×2 opening. |
+| Withheld | assets/status/marker-withheld.svg | Outline square: an 8×8 square and 2-unit stroke, 10 units outside with a 6-unit opening. |
 
 ### Family: Social share card
 
@@ -298,8 +299,8 @@ mark, and no text beyond the three lines above.
 **Settings:**
 - Source: Google Fonts, `fonts.google.com/noto`, with the upstream at `https://github.com/notofonts/latin-greek-cyrillic`. Licence SIL OFL 1.1, confirmed in the upstream `OFL.txt`. Ship that licence text beside the files at `assets/fonts/OFL.txt`; it is a licence copy, not a visual slot.
 - Version pin: Noto Sans as served at `v42`, Noto Serif as served at `v33` (`https://fonts.gstatic.com/s/notosans/v42/…`, `https://fonts.gstatic.com/s/notoserif/v33/…`). Pin the downloaded files by version and record the checksum in the commit that adds them.
-- Obtain the Latin, Latin Extended and Yoruba ranges and merge them into one variable WOFF2 per family. Google Fonts splits these across three subset files, and the split is the trap: the `latin-ext` file alone carries `U+1E00-1E9F` (the ẹ ọ ṣ letters) but not the combining tone marks, which sit in the file Google labels `vietnamese`. A subset built from `latin-ext` only loses the accents silently.
-- Required ranges: `U+0000-00FF`, `U+0131`, `U+0152-0153`, `U+02BB-02BC`, `U+02C6`, `U+02DA`, `U+02DC`, `U+2000-206F`, `U+20AC`, `U+2122`, `U+2191`, `U+2193`, `U+2212`, `U+2215`, `U+FEFF`, `U+FFFD`; `U+0100-02BA`, `U+02BD-02C5`, `U+02C7-02CC`, `U+02CE-02D7`, `U+02DD-02FF`, `U+1D00-1DBF`, `U+1E00-1E9F`, `U+1EF2-1EFF`, `U+2020`, `U+20A0-20AB`, `U+20AD-20C4`, `U+2113`, `U+2C60-2C7F`, `U+A720-A7FF`; and the combining marks `U+0300-0304`, `U+0308-0309`, `U+0323`, `U+0329`.
+- Obtain the Latin, Latin Extended and Yoruba ranges and merge them into one variable WOFF2 per family. Google Fonts splits these across three subset files, and the split is the trap: the `latin-ext` file alone carries `U+1E00-1E9F`, the combining tone marks sit in the file Google labels `vietnamese`, and the Ẹ ẹ Ọ ọ block at `U+1EA0-1EF1` sits in neither, so a subset built from the named ranges alone loses the dotted vowels and the accents silently.
+- Required ranges: `U+0000-00FF`, `U+0131`, `U+0152-0153`, `U+02BB-02BC`, `U+02C6`, `U+02DA`, `U+02DC`, `U+2000-206F`, `U+20AC`, `U+2122`, `U+2191`, `U+2193`, `U+2212`, `U+2215`, `U+FEFF`, `U+FFFD`; `U+0100-02BA`, `U+02BD-02C5`, `U+02C7-02CC`, `U+02CE-02D7`, `U+02DD-02FF`, `U+1D00-1DBF`, `U+1E00-1E9F`, `U+1EA0-1EF1`, `U+1EF2-1EFF`, `U+2020`, `U+20A0-20AB`, `U+20AD-20C4`, `U+2113`, `U+2C60-2C7F`, `U+A720-A7FF`; and the combining marks `U+0300-0304`, `U+0308-0309`, `U+0323`, `U+0329`.
 - Named glyphs that must be present and checked individually: `Ẹ` `U+1EB8`, `ẹ` `U+1EB9`, `Ọ` `U+1ECC`, `ọ` `U+1ECD`, `Ṣ` `U+1E62`, `ṣ` `U+1E63`, plus the combining acute `U+0301`, grave `U+0300` and dot below `U+0323`.
 - Noto Sans is a variable font on the weight axis; keep the `wght` axis covering 400 to 600 so `body`, `body-strong` and `caption` come from one file. Noto Serif is requested at 600 only.
 - Acceptance test: render the string `Ẹ kú ọjọ́, ṣé àlàáfíà ni?` and the ten status words in both families and both locales, and confirm no glyph falls back to another face and no accent sits on the wrong vowel.
