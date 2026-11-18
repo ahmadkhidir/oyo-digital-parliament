@@ -20,3 +20,24 @@ export type {
 } from './notifications.ts';
 export type { ObjectStoragePort, ObjectWrite, StoredObject } from './object-store.ts';
 export type { CacheFamily, CacheInvalidation, CacheInvalidationPort } from './cache.ts';
+export {
+  SESSION_COOKIE_NAMES,
+  SESSION_COOKIE_ATTRIBUTES,
+  presentSessionCookie,
+  clearedSessionCookie,
+  isSessionToken,
+  liveSessionCookie,
+  readSessionCookie,
+  RATE_LIMIT_HEADER_NAMES,
+  rateLimitHeaders,
+  renderRateLimitHeaders,
+} from './session.ts';
+export type {
+  SessionNamespace,
+  SessionCookieAttributes,
+  SessionCookie,
+  RateLimitSubjectKind,
+  RateLimitRequest,
+  RateLimitOutcome,
+  RateLimitHeaders,
+} from './session.ts';
