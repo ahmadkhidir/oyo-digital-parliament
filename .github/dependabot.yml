@@ -1,0 +1,87 @@
+# Dependency and tooling updates for the Oyo Digital Parliament workspace (`NFR-029`; F0-03).
+#
+# `NFR-029` requires pinned versions and a maintained bill of materials; those two only stay true if
+# something keeps proposing the next version. Dependabot is that something, and it is configured to
+# be quiet: weekly, grouped, capped, and never a major bump of a pinned tool on its own.
+#
+# Every update arrives as a pull request and is gated by `ci.yml`, which audits the resolved tree and
+# regenerates the bill of materials. That is the point of the arrangement: the proposal is automatic,
+# the decision to merge is not, and a version only lands once the pipeline has run it.
+#
+# Catalog note: this workspace pins versions once in `pnpm-workspace.yaml` and every area manifest
+# references `catalog:`. A dependency bump therefore lands as a catalog edit plus the regenerated
+# lockfile, which is the same change a person would make by hand.
+version: 2
+
+updates:
+  # The workspace itself: every area manifest, resolved through the one committed `pnpm-lock.yaml`.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      # Nigeria's working week; a Monday morning proposal is actionable the same week.
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(deps)
+    labels:
+      - dependencies
+    groups:
+      # Patch and minor updates of the pinned stack arrive together, so reviewing them is one pass
+      # and the pipeline runs once rather than once per package.
+      workspace:
+        applies-to: version-updates
+        update-types:
+          - patch
+          - minor
+    ignore:
+      # A major version is a deliberate decision with an ADR, not a schedule entry: the toolchain,
+      # framework and test runner majors are recorded in `.decisions/` before they are adopted.
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
+
+  # The actions this workflow runs. Each `uses:` names a commit with its release in a comment; this
+  # entry is what keeps those commits current, including the security fixes that arrive in an action
+  # without a new major.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(ci)
+    labels:
+      - dependencies
+      - ci
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns:
+          - '*'
+
+  # The images the disposable local stack pulls (`docker-compose.yml`, F0-02). A digest or patch
+  # bump of PostgreSQL, Redis or the object store is the same class of change as a package bump.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(infra)
+    labels:
+      - dependencies
+      - ci
+    groups:
+      local-services:
+        applies-to: version-updates
+        patterns:
+          - '*'

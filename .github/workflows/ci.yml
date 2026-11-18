@@ -1,0 +1,434 @@
+# Continuous integration and the supply-chain gate for the Oyo Digital Parliament workspace.
+#
+# Every pull request and every push to `main` runs one job per check, so that a failure names the
+# check that found it: a lockfile that drifted, a lint rule, a type, a unit test, the build, the
+# migration journal, the browser flows, the accessibility scans, or an advisory in the resolved tree.
+# `CI` at the bottom is the single aggregate verdict the Phase 0 gate reads; it passes only when every
+# other job passed or was skipped for a capability the tree does not have yet.
+#
+# Three properties are deliberate and load-bearing:
+#
+# - **Least privilege, no repository secret.** The workflow asks for `contents: read` and nothing
+#   else, and checkout does not persist the token. No step reads `secrets.*`: everything here can run
+#   on a pull request from a fork, which is what makes the gate meaningful on one.
+# - **Pinned actions.** Each `uses:` names a commit, with the release it came from in a comment, so a
+#   retagged action cannot change what runs. Dependabot proposes the bumps (`dependabot.yml`).
+# - **Cheap re-runs.** The pnpm store and the Turborepo cache are restored per job, so a second run
+#   after a one-line fix re-executes only what that fix touched. Turborepo keys its own entries by
+#   content hash, so a restored cache can only ever hand back the output of identical inputs.
+#
+# The private specification submodule is never fetched: `docs/` is not checked out, because the
+# workflow has no credential for it and nothing it runs reads the specification. The committed
+# generated artefacts under `packages/ui` are what the code consumes.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only for every job. A job that needs more asks for it explicitly, and none does.
+permissions:
+  contents: read
+
+# A pull request supersedes its own previous run; `main` is never cancelled mid-flight.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # No build tool in this workspace reports telemetry from CI.
+  TURBO_TELEMETRY_DISABLED: 1
+  NEXT_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  # Which capabilities the tree actually has. Four jobs below have a subject a later Phase 0 task
+  # supplies, and running them before it lands would paint `main` red for a reason no pull request
+  # can fix. This job says which are missing and why, in the run summary.
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      web_app: ${{ steps.probe.outputs.web_app }}
+      db_schema: ${{ steps.probe.outputs.db_schema }}
+      browser_flows: ${{ steps.probe.outputs.browser_flows }}
+      a11y_flows: ${{ steps.probe.outputs.a11y_flows }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Probe Phase 0 capabilities
+        id: probe
+        run: node scripts/ci/capabilities.mjs
+
+  # The lockfile is the record of every resolved version (`NFR-029`). A manifest that changed without
+  # regenerating it fails here before anything is built against a version nobody agreed to.
+  install:
+    name: Install
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+
+  # ESLint over the repository and every area, including the import boundaries and the copy rules
+  # (`ADR-003`). The root script also type-checks, so a type error fails here as well as below.
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Restore the Turborepo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.job }}-
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Lint every area
+        run: pnpm lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Restore the Turborepo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.job }}-
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Type-check every area
+        run: pnpm typecheck
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Restore the Turborepo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.job }}-
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Run the unit suites
+        run: pnpm test
+
+  # The deployable, built the way it ships: Next.js standalone output, compiled from workspace source
+  # exactly as the container image will. Skipped while the application has no route to build.
+  build:
+    name: Build
+    needs: preflight
+    if: needs.preflight.outputs.web_app == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Restore the Turborepo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.job }}-
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      # The build evaluates the same validated configuration the application boots with, from the
+      # example the local stack renders. No service is started: nothing here connects.
+      - name: Export the validated environment
+        run: node scripts/ci/export-env.mjs --from .env.example
+      - name: Build the deployable
+        run: pnpm build
+
+  # The migration journal and the schema drift check (`db:check`). Skipped until the data area has a
+  # drizzle configuration; applying and reversing the migrations themselves belongs to the gate.
+  migration:
+    name: Migration check
+    needs: preflight
+    if: needs.preflight.outputs.db_schema == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Check the migration journal
+        run: pnpm db:check
+
+  # The browser flows in `apps/web/e2e` against the built application and the disposable stack, on
+  # Chromium. Skipped until the first flow exists.
+  browser:
+    name: Browser smoke
+    needs: preflight
+    if: needs.preflight.outputs.web_app == 'true' && needs.preflight.outputs.browser_flows == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Restore the Turborepo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.job }}-
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      # The same one command a developer runs: writes `.env` from the example when it is missing,
+      # validates it, starts PostgreSQL, Redis and object storage, and waits for every health check.
+      - name: Start the disposable services
+        run: node scripts/dev/services.mjs up
+      # The application and the stack must read one environment; the runner has no `.env` the app
+      # would load, so the validated values are exported to the job.
+      - name: Export the validated environment
+        run: node scripts/ci/export-env.mjs
+      - name: Install the browser
+        run: pnpm --filter @odp/web exec playwright install --with-deps chromium
+      - name: Run the browser flows
+        run: pnpm test:e2e
+      - name: Keep the browser report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-browser
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Stop the services
+        if: always()
+        run: node scripts/dev/services.mjs down
+
+  # The axe scans, tagged `@a11y` in the same flow files (`NFR-044`). A separate job so an
+  # accessibility regression is named as one rather than hidden inside a browser failure.
+  a11y:
+    name: Accessibility smoke
+    needs: preflight
+    if: needs.preflight.outputs.web_app == 'true' && needs.preflight.outputs.a11y_flows == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Restore the Turborepo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.job }}-
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Start the disposable services
+        run: node scripts/dev/services.mjs up
+      - name: Export the validated environment
+        run: node scripts/ci/export-env.mjs
+      - name: Install the browser
+        run: pnpm --filter @odp/web exec playwright install --with-deps chromium
+      - name: Run the accessibility scans
+        run: pnpm test:a11y
+      - name: Keep the accessibility report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-a11y
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Stop the services
+        if: always()
+        run: node scripts/dev/services.mjs down
+
+  # `NFR-029`: no known critical vulnerability at release, and a maintained bill of materials. The
+  # audit fails on a critical advisory at the bar; the BOM is uploaded whether the audit passes or
+  # not, because an artefact of what the release would contain is most useful when something is wrong
+  # with it.
+  supply_chain:
+    name: Supply chain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Generate the bill of materials
+        run: node scripts/ci/sbom.mjs --out build/sbom.cdx.json
+      - name: Audit the resolved tree
+        run: node scripts/ci/audit.mjs
+      - name: Keep the bill of materials
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: build/sbom.cdx.json
+          retention-days: 90
+          if-no-files-found: error
+
+  # The single verdict. A required status check has to answer "is this branch good" in one name, and
+  # a skipped job must not be able to answer "yes" by accident: `gate.mjs` accepts a skip only, never
+  # a failure or a cancellation, and writes every job's result to the run summary.
+  ci:
+    name: CI
+    if: always()
+    needs:
+      - preflight
+      - install
+      - lint
+      - typecheck
+      - unit
+      - build
+      - migration
+      - browser
+      - a11y
+      - supply_chain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Sum the pipeline
+        env:
+          CI_RESULTS: ${{ toJSON(needs) }}
+        run: node scripts/ci/gate.mjs
