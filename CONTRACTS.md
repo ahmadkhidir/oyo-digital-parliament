@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.2.0
+**Contract version:** 1.4.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -26,6 +26,8 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.0.0 | First frozen set, `C-001` to `C-090`. |
 | 1.1.0 | Adds `C-091` operational health probes. Reconciles the `C-001` identifier pattern with the identifiers this document prints. Aligns `C-077` with `C-089` and `C-090`: one event-name spelling, one audit result shape, and the correlation identifier carried beside the audit entity rather than on it. Defines the two result shapes `C-077` left open. Replaces the last abbreviated value in `C-011` with a timestamp. |
 | 1.2.0 | Settles the identifier prefix record under `C-001`. `C-063` prints `sqt_` for a SessionQuestion and `C-001` prints `qwr_` and `cur_`, so every printed identifier has a three-letter prefix. `C-019` keeps `cmt_` for the Comment and the `C-043` family prints `com_` for the Commitment; `C-057` prints `rvd_` so the ResidenceReview no longer shares `rsv_` with the Reservation; the `C-027` family prints `rcd_` for the ReportCard. Adds the complete prefix table to `C-001`, against which the platform identifier factory is asserted. |
+| 1.3.0 | Adds `C-092` staff authentication: the public sign-in challenge, second-factor verification, one-time enrolment, the staff session read and staff sign-out, with the lockout, timeout, idempotency and audit rules ADR-004 requires, and the staff cookie recorded in `C-001`. Enumerates `C-010`'s candidate `source` as `model`, `exact` or `alias` and gives `C-071`'s `matchType` the same three values. Defines `C-055`'s `candidateWards` scope and `C-056`'s `submissionsUnchanged`, and states that a re-description by a member whose ward is already recorded queues the description and keeps the ward. States that a confirmation records `fallback` as its source on the deterministic path and `model` when `C-080` produced the set. Corrects `C-068` so a new staff account is created unenrolled and only `C-092` sets enrolment, and adds the staff actions to `C-090`. |
+| 1.4.0 | Adds `C-093` operator credential and second-factor reset: one operator resets another staff user's password and factor, clears the lockout, ends that user's sessions and requires re-enrolment before any admin screen, with the reset audited and no credential returned. Bans self-reset without a second operator and makes a repeat idempotent. Adds `staff.credential_reset` and `staff.credential_reset_refused` to `C-090`, and records the reset as the session-ending event `C-092` names. |
 
 ## Contract Index
 
@@ -122,6 +124,8 @@ Append-only. Each row records what that version changed; an accepted version is 
 | C-089 | Analytics event envelope | Internal only | Internal RPC | EVT-001–EVT-048, `analytics.md` |
 | C-090 | Audit event envelope | Internal only | Internal RPC | NFR-028, `schema.md` AuditEvent |
 | C-091 | Operational health probes | Monitor only | Route handler `GET /healthz`, `GET /readyz` | NFR-010, NFR-011, `operations.md` Incident & Escalation, `architecture.md` Logging & Monitoring |
+| C-092 | Staff authentication and staff session | Public (challenge), staff session (the rest) | Actions `beginStaffSignIn`, `verifyStaffSecondFactor`, `enrolStaffSecondFactor`, `signOutStaff`; route handler `GET /api/staff/session` | NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffCredential |
+| C-093 | Staff credential and second-factor reset | Staff session (operator, second factor satisfied) | Action `resetStaffCredential` on `/admin` | NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffCredential |
 
 ---
 
@@ -146,7 +150,7 @@ Append-only. Each row records what that version changed; an accepted version is 
     "Idempotency-Key": "UUIDv4, required on every state-changing call",
     "X-Correlation-Id": "optional; when supplied it must match ^req_[0-9A-Z]{4,32}$ and is echoed unchanged; generated in that form when absent",
     "Origin": "required on browser writes; cross-origin values are refused",
-    "Cookie": "odp_session=opaque; HttpOnly; SameSite=Lax; Secure"
+    "Cookie": "odp_session=opaque on member surfaces; odp_staff_session=opaque on staff surfaces; both HttpOnly; SameSite=Lax; Secure"
   },
   "transport": {
     "reads": "GET with query parameters",
@@ -628,6 +632,8 @@ A staff session never carries a member object, and an `external_reviewer` sessio
 ```
 When the capability is off or the gateway returns nothing, the response is `200` with `capabilityStatus:"fallback"`, candidates drawn from alias and exact matching only, and no notice shown to the resident.
 
+Every candidate carries `source`, exactly one of `model`, `exact` or `alias`: `model` when `C-080` ranked it, `exact` when the description equals a ward's name, and `alias` when it equals a recorded alias. `C-071`'s `matchType` uses the same three values for the same match, so the boundary's answer and the wire answer carry one vocabulary and a caller prints the value unchanged. On the deterministic fallback a candidate is `exact` or `alias` and never `model`.
+
 **Errors:** `VALIDATION_FAILED` with `fields` covering `description` (`REQUIRED`, `TOO_LONG` at 500) and `localGovernmentArea` (`REQUIRED` when two wards share a name). `CAPABILITY_UNAVAILABLE` is never returned to the client; it is absorbed into `capabilityStatus:"fallback"`. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`.
 
 ---
@@ -642,7 +648,7 @@ When the capability is off or the gateway returns nothing, the response is `200`
 
 **Spec anchors:** FEAT-002, EVT-007, EVT-008, `screens/05-ward-confirmation.md`, `screens/13-my-record.md`
 
-**Authority:** Writes `Member.wardId` and `Member.wardStatus` on the caller's own record. When no candidate is accepted, writes a `queued` WardDescriptionReview and leaves the member `unresolved`. Never moves an existing submission.
+**Authority:** Writes `Member.wardId` and `Member.wardStatus` on the caller's own record. When no candidate is accepted, writes a `queued` WardDescriptionReview and leaves a member who has no recorded ward `unresolved`. Never moves an existing submission.
 
 **Request (candidate confirmed):**
 ```json
@@ -678,7 +684,9 @@ When the capability is off or the gateway returns nothing, the response is `200`
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:20:00Z" }
 }
 ```
-The unresolved branch returns `200` with `member.wardStatus:"unresolved"`, `member.wardId` absent, and `wardDescriptionReview: { "id": "wdr_01J9Z7A3B5C7D9E1F3G5H7J9KM", "status": "queued", "createdAt": "2026-11-18T09:20:00Z" }`.
+The unresolved branch returns `200` with `member.wardStatus:"unresolved"`, `member.wardId` absent, and `wardDescriptionReview: { "id": "wdr_01J9Z7A3B5C7D9E1F3G5H7J9KM", "status": "queued", "createdAt": "2026-11-18T09:20:00Z" }`. A member whose ward is already recorded keeps it: a later description queues exactly as a first one does, the answer returns their recorded `wardId` with `wardStatus:"resolved"`, and no submission moves, because sending a description for review is not a withdrawal of the ward on the record. A queued description never clears, replaces or re-opens a recorded ward.
+
+The confirmation records the source of the candidate set it issued, in `EVT-007`'s `source`: `fallback` when the set came from the deterministic exact and alias path, and `model` when `C-080` produced it under `ward_candidate_suggestions`. The value is derived on the server from the set the member was shown and is never read from the request, so a caller cannot assert a provenance it was not given. The confirmed candidate's own match kind stays on `C-010`'s `source` field and is not re-recorded here.
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"description":["REQUIRED","TOO_LONG"],"localGovernmentArea":"REQUIRED"}` when the local government area is required to disambiguate two wards with one name. `FORBIDDEN_ROLE` when `memberId` is not the session's member. `NOT_FOUND` when `confirmedWardId` does not exist. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`; the free-text description alone is then accepted and queued.
 
@@ -2629,6 +2637,8 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 }
 ```
 
+`candidateWards` is the picker the reviewer resolves this page from: every ward of the local government areas represented on the returned page, plus every ward of the supplied `localGovernmentArea` filter when one is set. It is never the whole state's list, and it is ordered by local government area and then by name, so two wards sharing a name are always read with their area. It is empty when the page carries no review and no filter is set.
+
 **Errors:** `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful queue and its `asAt`. A review whose member account has since been deleted is returned with `memberDeleted:true` and can only be closed, not resolved.
 
 ---
@@ -2643,7 +2653,7 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Spec anchors:** FEAT-002, EVT-009, `screens/19-ward-review-queue.md`
 
-**Authority:** Resolves a queued description to one ward, or rejects it with a reason. On resolution, sets `Member.wardId` and `Member.wardStatus` for the member and moves that member's unresolved submissions to the same ward without changing their text. Never moves a submission that already carries a resolved ward.
+**Authority:** Resolves a queued description to one ward, or rejects it with a reason. On resolution, sets `Member.wardId` and `Member.wardStatus` for the member and moves that member's unresolved in-state submissions to the same ward without changing a word of their text. Never moves a submission that already carries a ward, and never gives a ward to an out-of-area submission.
 
 **Request (resolved):**
 ```json
@@ -2678,6 +2688,8 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-19T10:30:00Z" }
 }
 ```
+
+`submissionsMoved` lists the references the resolution placed on the ward. `submissionsUnchanged` counts the member's submissions that already carried a ward at the moment of resolution and were therefore left where they were. The two fields count different sets: a submission appears in one or the other, never in both. On a move the only fields written are `wardId` and `wardStatus`; the text, the `status` and the `submittedAt` stay exactly as the author left them. On a rejection nothing moves, `submissionsMoved` is empty and `submissionsUnchanged` still counts what the member already had.
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `status` (`REQUIRED`, `ENUM_MISMATCH`), `resolvedWardId` (`REQUIRED` for `resolved`, `NOT_FOUND`), `rejectionReason` (`REQUIRED` for `rejected`, `TOO_LONG` at 500). `CONFLICT_ALREADY_DECIDED` when the description is already resolved or rejected. `POLICY_VIOLATION` with `cause:"MEMBER_ACCOUNT_DELETED"`; the review may then only be rejected. `FORBIDDEN_ROLE`.
 
@@ -3205,7 +3217,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Spec anchors:** FEAT-011, FEAT-012, NFR-020, `operations.md` Admin & Governance, `release.md` Change approval
 
-**Authority:** Creates a StaffUser or changes `role`, `authorisedWardIds` and `active`. Every staff role requires a second factor. An `external_reviewer` must have `external:true`. No account may both read member personal data and see field operations. A change to a verification or identity rule requires the campaign director.
+**Authority:** Creates a StaffUser or changes `role`, `authorisedWardIds` and `active`. Every staff role requires a second factor, and an account created here cannot work an admin queue until the staff member has enrolled through `C-092` and verified the factor. An `external_reviewer` must have `external:true`. No account may both read member personal data and see field operations. A change to a verification or identity rule requires the campaign director.
 
 **Request:**
 ```json
@@ -3215,7 +3227,6 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
   "role": "external_reviewer",
   "external": true,
   "authorisedWardIds": [],
-  "secondFactorEnrolled": true,
   "active": true
 }
 ```
@@ -3231,7 +3242,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
       "role": "external_reviewer",
       "external": true,
       "authorisedWardIds": [],
-      "secondFactorEnrolled": true,
+      "secondFactorEnrolled": false,
       "active": true,
       "createdAt": "2026-11-22T11:00:00Z"
     },
@@ -3240,8 +3251,9 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-22T11:00:00Z" }
 }
 ```
+`secondFactorEnrolled` is read, never written: a new account is created unenrolled with no credential enrolled, and the flag becomes true only when the staff member confirms enrolment under `C-092`. The response reports it so the operator can tell which accounts have not yet enrolled.
 
-**Errors:** `VALIDATION_FAILED` with `fields` for `fullName` (`REQUIRED`, `TOO_LONG`), `role` (`REQUIRED`, `ENUM_MISMATCH` against the six staff roles), `external` (`REQUIRED`, `IMMUTABLE` when a role change would strip external status from an `external_reviewer`), `authorisedWardIds` (`REQUIRED` for `ward_organiser`), `secondFactorEnrolled` (`REQUIRED`, `ALREADY_SET` when false). `POLICY_VIOLATION` with `cause:"COMBINED_ACCESS_FORBIDDEN"` when the requested role would hold both member-data access and field operations. `FORBIDDEN_ROLE`. `CONFLICT_ALREADY_DECIDED` when deactivating the last active operator.
+**Errors:** `VALIDATION_FAILED` with `fields` for `fullName` (`REQUIRED`, `TOO_LONG`), `role` (`REQUIRED`, `ENUM_MISMATCH` against the six staff roles), `external` (`REQUIRED`, `IMMUTABLE` when a role change would strip external status from an `external_reviewer`), and `authorisedWardIds` (`REQUIRED` for `ward_organiser`). `POLICY_VIOLATION` with `cause:"COMBINED_ACCESS_FORBIDDEN"` when the requested role would hold both member-data access and field operations. `FORBIDDEN_ROLE`. `CONFLICT_ALREADY_DECIDED` when deactivating the last active operator.
 
 ---
 
@@ -3280,6 +3292,175 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 The seven flags are `ward_candidate_suggestions`, `similar_submission_suggestions`, `moderation_routing`, `assisted_intake`, `budget_line_extraction`, `report_card_workbench` and `session_reservations`.
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `flag` (`REQUIRED`, `ENUM_MISMATCH`) and `enabled` (`REQUIRED`). `POLICY_VIOLATION` with `cause:"MODEL_EVALUATION_MISSING_OR_FAILED"` and `meta.requiredThreshold` and `meta.capability` when a model flag is enabled without a passing evaluation. `NOT_FOUND`. `FORBIDDEN_ROLE`.
+
+---
+
+### C-092: Staff authentication and staff session
+
+**Status:** Frozen
+
+**Auth:** Public for the sign-in challenge; staff session for every other operation
+
+**Surface:** Server actions `beginStaffSignIn` on `/admin/sign-in`, `verifyStaffSecondFactor` on `/admin/verify`, `enrolStaffSecondFactor` on `/admin/enrol` and `signOutStaff` in the admin shell; route handler `GET /api/staff/session`. The entry groups the five operations of one sign-in flow, and each states its own surface and auth below; no operation inherits another's auth. The staff cookie `odp_staff_session` lives in a namespace separate from the member `odp_session` and is set `HttpOnly`, `SameSite=Lax` and `Secure`; neither cookie authenticates the other's surface.
+
+**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `architecture.md` Cross-Cutting Concerns, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
+
+**Authority:** Opens one staff session from a username and a password, satisfies it with a time-based one-time password or an unused recovery code, enrols the second factor once, reports the session and ends it. It reads no member record and carries no member identifier, name, telephone number or ward description. It never creates or changes a StaffUser's role, external flag, authorised wards or active state. While the second factor is unsatisfied the session reaches the enrolment screen and the session read and nothing else. Every state change appends its AuditEvent (`C-090`) before it answers, with a stable reason token and never the password, a code, a recovery code or the TOTP secret.
+
+**Request (sign-in challenge, public):**
+```json
+{ "username": "a.balogun", "password": "market-lantern-river-2026" }
+```
+`username` matches `^[a-z0-9][a-z0-9._-]{2,31}$`; it is a staff identifier and never a member identifier, a telephone number or an email address. `password` is 12 to 128 characters, compared against the stored Argon2id hash at cost 12 or above (`NFR-021`), and is never logged, echoed or returned.
+
+**Response 200 (challenge opened):**
+```json
+{
+  "ok": true,
+  "data": {
+    "session": { "established": true, "secondFactorSatisfied": false, "expiresAt": "2026-11-18T09:24:00Z", "absoluteExpiresAt": "2026-11-18T09:24:00Z" },
+    "secondFactorEnrolled": true,
+    "nextScreen": "/admin/verify"
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:14:00Z" }
+}
+```
+The password step opens the session without satisfying the second factor. The challenge lasts ten minutes, idle and absolute at once, and admits the verification, the enrolment, the session read and the sign-out only. When `secondFactorEnrolled` is `false` the answer carries `nextScreen:"/admin/enrol"` and enrolment is the only screen the session may reach. A `200` here is not a sign-in: no `C-040` to `C-069` operation is admitted until a verification satisfies the factor.
+
+**Request (second factor, staff session):**
+```json
+{ "code": "492013", "recoveryCode": null }
+```
+Exactly one of `code` and `recoveryCode` is present. `code` is the six-digit code for the current thirty-second step, verified with a one-step tolerance either side; `recoveryCode` spends one unused recovery code. Either is single-use.
+
+**Response 200 (second factor satisfied):**
+```json
+{
+  "ok": true,
+  "data": {
+    "staff": {
+      "id": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP",
+      "fullName": "A. Balogun",
+      "role": "response_staff",
+      "external": false,
+      "authorisedWardIds": [],
+      "secondFactorSatisfied": true,
+      "secondFactorEnrolled": true
+    },
+    "session": { "expiresAt": "2026-11-18T09:44:00Z", "absoluteExpiresAt": "2026-11-18T17:14:00Z" },
+    "nextScreen": "/admin"
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:14:00Z" }
+}
+```
+Verification replaces the challenge with the staff session: the idle timeout is thirty minutes, renewed by each request the session authorises, and the absolute timeout is eight hours from the password step and is never extended. A recovery code consumed here is marked spent and recorded as `staff.recovery_code_used`. Only a session with `secondFactorSatisfied:true` may call `C-040` to `C-069`; from an unsatisfied session each of those operations answers `UNAUTHENTICATED` with `cause:"SECOND_FACTOR_REQUIRED"` and `meta.recoveryPath` naming the verification screen.
+
+**Request (enrolment begin, staff session):**
+```json
+{ "action": "begin" }
+```
+
+**Response 200 (enrolment begun):**
+```json
+{
+  "ok": true,
+  "data": {
+    "totp": {
+      "otpauthUri": "otpauth://totp/Oyo%20Digital%20Parliament:a.balogun?secret=JBSWY3DPEHPK3PXP&issuer=Oyo%20Digital%20Parliament&algorithm=SHA1&digits=6&period=30",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "periodSeconds": 30
+    }
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:16:00Z" }
+}
+```
+The secret is returned on this answer only. It is never returned again and never enters a log, an audit reason, an analytics event or a cache key; the stored copy is encrypted at rest.
+
+**Request (enrolment confirm, staff session):**
+```json
+{ "action": "confirm", "code": "492013" }
+```
+
+**Response 200 (enrolment complete):**
+```json
+{
+  "ok": true,
+  "data": {
+    "secondFactorEnrolled": true,
+    "secondFactorEnrolledAt": "2026-11-18T09:20:00Z",
+    "recoveryCodes": [
+      "5F2C-9A71-KM04-QD7V",
+      "8H3N-2B60-RT51-WCYZ",
+      "2P7M-XR48-JN93-FB6T",
+      "9K4W-7D2Q-VB18-HL5S",
+      "6T8X-M3CN-40PZ-KR7W",
+      "QD2V-5H9B-XN61-TM4K",
+      "3WZC-K7P5-2M8N-9RXQ",
+      "V6N9-4KT2-8C7P-ZM3H",
+      "7H4M-QV9X-5B2K-ND8T",
+      "M8X3-6RZV-9K4P-TC5N"
+    ],
+    "nextScreen": "/admin"
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:20:00Z" }
+}
+```
+Confirmation verifies one code against the secret issued at `begin`, writes `secondFactorEnrolledAt`, sets `StaffUser.secondFactorEnrolled` and answers with the ten recovery codes. The codes are shown once in this answer, held only as hashes, and are single-use. This is the only write this entry makes to a StaffUser, and `C-068` never sets the flag. `C-093` clears it when an operator resets a credential, after which the staff member enrols again through this entry before reaching any admin screen.
+
+**Request (session read):**
+```json
+{ "query": {} }
+```
+
+**Response 200 (signed out):**
+```json
+{
+  "data": { "signedIn": false, "staff": null, "session": null, "nextScreen": "/admin/sign-in" },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:24:30Z", "degraded": false }
+}
+```
+
+**Response 200 (challenge session, enrolment pending):**
+```json
+{
+  "data": {
+    "signedIn": true,
+    "staff": {
+      "id": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP",
+      "fullName": "A. Balogun",
+      "role": "response_staff",
+      "external": false,
+      "authorisedWardIds": [],
+      "secondFactorSatisfied": false,
+      "secondFactorEnrolled": false
+    },
+    "session": { "expiresAt": "2026-11-18T09:26:00Z", "absoluteExpiresAt": "2026-11-18T09:26:00Z" },
+    "nextScreen": "/admin/enrol"
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:16:30Z", "degraded": false }
+}
+```
+The satisfied session answers the same shape with `secondFactorSatisfied:true`, `secondFactorEnrolled:true` and `nextScreen:"/admin"`; a session awaiting its factor names `/admin/verify`. The `staff` object is the `C-007` staff projection with `secondFactorEnrolled` added, and the two entries read one session, so the role, the external flag and the authorised wards cannot disagree between them. The read admits a caller with no session and answers `signedIn:false`, because a signed-out admin caller is a state the shell must render rather than an error; it never returns a member object.
+
+**Request (sign-out, staff session):**
+```json
+{ "scope": "current" }
+```
+
+**Response 204:** no body; the cookie is cleared with `Max-Age=0`. Sign-out ends the current staff session only. A role change, a deactivation, a credential reset by the operator (`C-093`) and the absolute timeout each end every session for that staff user, and the session read then answers signed out.
+
+**Lockout and attempt accounting:**
+- Five failed authentications within fifteen minutes — a wrong password, a wrong code, an unknown recovery code or a spent recovery code — lock the credential for thirty minutes. The count clears on a successful verification and when a lock lapses.
+- A locked credential refuses the password step and the second-factor step alike with `RATE_LIMITED`, `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds` equal to the time left on the lock.
+- An unknown username and a wrong password produce one answer, `UNAUTHENTICATED` with `cause:"STAFF_CREDENTIALS_INVALID"`, and the same work is done either way, so no answer reveals whether a username exists.
+- A failure is recorded as `staff.sign_in_refused` with a stable reason token (`CREDENTIALS_INVALID`, `SECOND_FACTOR_INCORRECT`, `RECOVERY_CODE_UNKNOWN`, `RECOVERY_CODE_SPENT`, `ACCOUNT_LOCKED`, `STAFF_INACTIVE`); an accepted password step is `staff.sign_in_started`, a satisfied factor is `staff.signed_in`, and a sign-out is `staff.signed_out`.
+- Every operation except the session read carries the `C-001` `Idempotency-Key`. A replay returns the recorded answer rather than opening a second session, spending a second recovery code or appending a second audit event.
+- Authentication is rate-limited per account and per source address. The five-attempt lockout is the cap the specification fixes; the remaining caps are operator configuration (`NFR-027`).
+- This entry emits no analytics event. A staff username is a staff identifier and never enters analytics; the events in `analytics.md` are product events about residents.
+
+**Errors:** `VALIDATION_FAILED` with `fields` for `username` (`REQUIRED`, `PATTERN_MISMATCH`), `password` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128), `code` (`REQUIRED`, `PATTERN_MISMATCH` outside six digits), `recoveryCode` (`REQUIRED`, `PATTERN_MISMATCH`; `ALREADY_SET` when a code and a recovery code are both supplied), `action` (`REQUIRED`, `ENUM_MISMATCH`), `scope` (`ENUM_MISMATCH`), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` for a wrong username or password (`cause:"STAFF_CREDENTIALS_INVALID"`), no session or a session past its idle or absolute timeout (`cause:"STAFF_SESSION_REQUIRED"`), a challenge past its ten minutes (`cause:"SECOND_FACTOR_CHALLENGE_EXPIRED"`), a wrong code (`cause:"SECOND_FACTOR_INCORRECT"`), and an unknown or spent recovery code (`cause:"RECOVERY_CODE_UNKNOWN"`, `cause:"RECOVERY_CODE_SPENT"`). `FORBIDDEN_ROLE` with `cause:"STAFF_INACTIVE"` for a credential whose account is not active, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls a staff operation. `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_NOT_ENROLLED"` and `meta.recoveryPath:"/admin/enrol"` when verification is attempted before enrolment, and with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` when enrolment is begun on an enrolled credential. `RATE_LIMITED` with `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds`, and for the per-address cap. `SERVICE_DEGRADED` with `cause:"SESSION_STORE_UNAVAILABLE"` when the session cannot be read or written, and with `cause:"CREDENTIAL_STORE_UNAVAILABLE"` when the credential cannot be read; either refusal admits nobody and leaves an existing session untouched. No operation in this entry answers `NOT_FOUND`, because an unknown username, an unknown recovery code and a wrong one are deliberately indistinguishable.
 
 ---
 
@@ -3372,6 +3553,8 @@ The seven flags are `ward_candidate_suggestions`, `similar_submission_suggestion
   }
 }
 ```
+
+`matchType` is exactly one of `model`, `exact` or `alias`, the three values `C-010` prints as a candidate's `source`: `model` when the capability ranked the candidate, `exact` when the description equals the ward's name, and `alias` when it equals a recorded alias. A caller that renders the boundary's answer prints the value unchanged.
 
 **Errors:** `NOT_FOUND` for an unknown ward or review. `VALIDATION_FAILED` for an unknown operation, a description over 500 characters, or a missing local government area where two wards share a name. `POLICY_VIOLATION` when appending an alias to a `seeded` ward without a confirmed description. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`; the caller falls back to the free-text path.
 
@@ -4242,7 +4425,7 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
   "correlationId": "req_01J9Z6M2V4"
 }
 ```
-`actorId` references a Member or StaffUser; `actorRole` is one of `member`, `ward_organiser`, `response_staff`, `moderator`, `external_reviewer`, `legal_reviewer`, `operator`, `system`. `action` is a stable verb such as `member.registered`, `identity_state.changed`, `decision.published`, `decision.revised`, `comment.removed`, `comment.restored`, `legal.takedown`, `member_data.read`, `member_data.read_refused`, `member_data.export`, `member_data.deleted`, `ward.resolved`, `residence.reviewed`, `data_request.completed`, `flag.changed`, `role.changed`, `handover.completed`.
+`actorId` references a Member or StaffUser; `actorRole` is one of `member`, `ward_organiser`, `response_staff`, `moderator`, `external_reviewer`, `legal_reviewer`, `operator`, `system`. `action` is a stable verb such as `member.registered`, `identity_state.changed`, `decision.published`, `decision.revised`, `staff.sign_in_started`, `staff.signed_in`, `staff.sign_in_refused`, `staff.second_factor_enrolled`, `staff.recovery_code_used`, `staff.signed_out`, `staff.credential_reset`, `staff.credential_reset_refused`, `comment.removed`, `comment.restored`, `legal.takedown`, `member_data.read`, `member_data.read_refused`, `member_data.export`, `member_data.deleted`, `ward.resolved`, `residence.reviewed`, `data_request.completed`, `flag.changed`, `role.changed`, `handover.completed`.
 
 `correlationId` is the request identifier from `C-001` in its `req_` form, not a property of the record: `schema.md` declares no such field on `AuditEvent`, and adding one here would be a schema change rather than a contract change. The append therefore carries it beside the entity, the log stores it with the row, and no read returns it as part of the event. `actorId` and `entityId` take the `C-001` identifier form, each with the prefix of the entity it names (`mbr_`, `stf_`, `dec_`, `sub_`, `cmt_` and so on).
 
@@ -4306,4 +4489,63 @@ Both take no query parameter, no request body, no cookie and no header. A reques
 **Monitoring use:** the external uptime monitor samples `/readyz` once a minute from outside the hosting environment, which is how `NFR-010` is measured, and the same check runs against the archive address after handover for `NFR-011`. The container orchestrator uses `/healthz` for liveness and `/readyz` before it routes traffic to an instance. An alert fires at eighty percent of the monthly error budget consumed, per `operations.md` Incident & Escalation.
 
 **Errors:** no `C-001` error envelope is used on either path. `/readyz` answers `503` with `{"status":"not_ready"}` and `/healthz` answers nothing when it cannot answer. A caller outside the monitor allowlist is refused at the reverse proxy before the request reaches the application; the deployment requirement is that both paths are reachable only from the monitor, and a test exercises that refusal. A `405` on a non-`GET` method is the only application-level refusal either path produces.
+
+---
+
+## Domain 9 — Staff Credential Recovery
+
+### C-093: Staff credential and second-factor reset
+
+**Status:** Frozen
+
+**Auth:** Staff session (operator, second factor satisfied)
+
+**Surface:** Server action `resetStaffCredential` on `/admin`
+
+**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
+
+**Authority:** Resets one other staff user's credential: replaces the password, clears the enrolled second factor and its recovery codes, clears the lockout, and ends that user's sessions so they must enrol again before returning to work. It changes no role, no external flag, no authorised ward and no active state, and it reactivates nobody. It reads no member record and returns no part of the credential: not the password it accepted, not the TOTP secret, not a recovery code. It appends one AuditEvent (`C-090`) before it answers, carrying the operator as actor, the target staff user as the entity, the time and the operator's reason. A refused reset appends `staff.credential_reset_refused` with its refusal cause as the reason, so no attempt is silently dropped.
+
+**Request:**
+```json
+{
+  "staffUserId": "stf_01J9ZL1M3N5P7Q9R1S3T5V7WXY",
+  "newPassword": "harbour-lantern-quiet-2026",
+  "reason": "Second-factor handset lost; identity confirmed in person against the staff record."
+}
+```
+`staffUserId` names the staff user being reset. `newPassword` is 12 to 128 characters and is hashed with Argon2id at cost 12 or above before it is stored; the operator hands it over in person and it is never echoed. `reason` is required, at most 500 characters, and is the audit reason: it must not reproduce the password, a code, the TOTP secret or member data.
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "staffUser": {
+      "id": "stf_01J9ZL1M3N5P7Q9R1S3T5V7WXY",
+      "fullName": "B. Adebayo",
+      "role": "external_reviewer",
+      "external": true,
+      "secondFactorEnrolled": false,
+      "active": true
+    },
+    "credential": {
+      "passwordChangedAt": "2026-11-18T10:00:00Z",
+      "secondFactorEnrolledAt": null,
+      "failedAttemptCount": 0,
+      "lockedUntil": null
+    },
+    "sessionsEnded": 2,
+    "nextStep": "re_enrol"
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T10:00:00Z" }
+}
+```
+The write replaces `passwordHash` and sets `passwordChangedAt`, clears `totpSecretEncrypted`, `secondFactorEnrolledAt`, `recoveryCodes`, `failedAttemptCount` and `lockedUntil`, and sets `StaffUser.secondFactorEnrolled` to false. The target's live sessions end: `sessionsEnded` reports how many, a session presented afterwards is refused, and the target reaches no `C-040` to `C-069` admin surface until a fresh `C-092` enrolment and verification succeed. Recovery codes are issued to the staff member on their own enrolment screen and never to the operator. An inactive account can be reset and stays inactive; reactivating it is `C-068`'s write.
+
+**Self-reset:** a reset may not target the caller's own account. The request is refused with `POLICY_VIOLATION` and `cause:"SELF_RESET_REQUIRES_SECOND_OPERATOR"`, and the second operator signs in and performs the reset; there is no self-service recovery path, which is the accepted cost recorded in ADR-004. Resetting the last other operator's credential is permitted, because the caller remains an active operator.
+
+**Idempotency:** a replay carrying the same `Idempotency-Key` answers the recorded result without a second write, a second session-ending sweep or a second audit event. A repeat under a new key against a credential already in this state applies the same end state, reports `sessionsEnded:0` because there is nothing left to end, and appends its own `staff.credential_reset` event; it is neither refused nor doubled.
+
+**Errors:** `VALIDATION_FAILED` with `fields` for `staffUserId` (`REQUIRED`, `PATTERN_MISMATCH`), `newPassword` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128, `ALREADY_SET` when it matches the password being replaced), `reason` (`REQUIRED`, `TOO_LONG` above 500), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` with `cause:"STAFF_SESSION_REQUIRED"` when there is no session or it has expired, and with `cause:"SECOND_FACTOR_REQUIRED"` when the operator's session has not satisfied its factor. `FORBIDDEN_ROLE` with `cause:"OPERATOR_REQUIRED"` for any other staff role, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls it. `POLICY_VIOLATION` with `cause:"SELF_RESET_REQUIRES_SECOND_OPERATOR"` for a self-targeted reset. `NOT_FOUND` when the staff user or their credential does not exist. `RATE_LIMITED` per operator account with `retryAfterSeconds`; the cap is operator configuration (`NFR-027`). `SERVICE_DEGRADED` with `cause:"CREDENTIAL_STORE_UNAVAILABLE"`; a failed write or a failed audit append leaves the credential, the lock and the sessions exactly as they were.
 
