@@ -28,8 +28,13 @@ import {
 } from '../policies.ts';
 import type { IdentityPorts } from '../ports.ts';
 import {
+  liveSessionCookie,
+  rateLimitHeaders,
+  type RateLimitHeaders,
+  type SessionCookie,
+} from '../../ports/session.ts';
+import {
   appendIdentityAudit,
-  consumeRateLimit,
   fingerprintOf,
   isRecord,
   lookupReplay,
@@ -58,6 +63,13 @@ export interface StaffChallengeOpened {
   };
   readonly secondFactorEnrolled: boolean;
   readonly nextScreen: '/admin/verify' | '/admin/enrol';
+  /**
+   * The cookie the transport must set (`C-092`, `NFR-026`). It is not part of the response body: the
+   * opaque session token reaches the browser in this header and nowhere else.
+   */
+  readonly cookie?: SessionCookie;
+  /** The `C-001` rate-limit headers this request's limiter answer produced. */
+  readonly rateLimit?: RateLimitHeaders;
 }
 
 /** The `C-092` answer, or the refusal that stopped it. */
@@ -126,7 +138,7 @@ export async function beginStaffSignIn(
   if (replay.kind === 'mismatch') return reusedKeyFailure();
   if (replay.kind === 'replay') return replay.result;
 
-  const limited = await consumeRateLimit(deps, {
+  const limited = await consultLimiter(deps, {
     bucket: 'staff_sign_in',
     ...(input.sourceAddress === undefined
       ? { subject: { kind: 'staff' as const, value: username.value } }
@@ -291,13 +303,14 @@ export async function beginStaffSignIn(
   }
 
   const window = staffChallengeWindow(now);
+  let sessionId: string;
   try {
-    await deps.staffSessions.create({
+    ({ sessionId } = await deps.staffSessions.create({
       staffId: staff.id,
       at: now,
       expiresAt: window.expiresAt,
       absoluteExpiresAt: window.absoluteExpiresAt,
-    });
+    }));
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -319,6 +332,8 @@ export async function beginStaffSignIn(
   if (refused !== null) return refused;
 
   const enrolled = credential.secondFactorEnrolledAt !== undefined;
+  // Recorded without the transport material: the replay store keeps the answer, and a session token
+  // belongs in the session store only, where it is held as a digest (`NFR-026`).
   const result: StaffChallengeOpened = {
     ok: true,
     session: {
@@ -331,5 +346,44 @@ export async function beginStaffSignIn(
     nextScreen: enrolled ? '/admin/verify' : '/admin/enrol',
   };
   await recordAnswer(deps, key.value, fingerprint, result);
-  return result;
+
+  const cookie = liveSessionCookie({
+    namespace: 'staff',
+    token: sessionId,
+    expiresAt: window.expiresAt,
+    absoluteExpiresAt: window.absoluteExpiresAt,
+    now,
+  });
+  const headers = rateLimitHeaders(limited.outcome);
+  return {
+    ...result,
+    ...(cookie === null ? {} : { cookie }),
+    ...(headers === null ? {} : { rateLimit: headers }),
+  };
+}
+
+/** One limiter consult that keeps the header values, with a store failure kept apart from a refusal. */
+async function consultLimiter(
+  deps: Pick<IdentityPorts, 'rateLimits'>,
+  input: Parameters<IdentityPorts['rateLimits']['consume']>[0],
+): Promise<
+  | {
+      readonly ok: true;
+      readonly allowed: boolean;
+      readonly retryAfterSeconds: number;
+      readonly outcome: Awaited<ReturnType<IdentityPorts['rateLimits']['consume']>>;
+    }
+  | { readonly ok: false }
+> {
+  try {
+    const outcome = await deps.rateLimits.consume(input);
+    return {
+      ok: true,
+      allowed: outcome.allowed,
+      retryAfterSeconds: outcome.retryAfterSeconds,
+      outcome,
+    };
+  } catch {
+    return { ok: false };
+  }
 }

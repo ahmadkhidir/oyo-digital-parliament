@@ -28,6 +28,10 @@ import { createUnconfiguredSmsDelivery } from './adapters/sms/none/adapter.ts';
 import { createS3Client } from './adapters/storage/s3/client.ts';
 import { createObjectStorage } from './adapters/storage/s3/adapter.ts';
 import { createSignedReadUrl } from './adapters/storage/s3/urls.ts';
+import {
+  createSessionCapabilityFromUrl,
+  type SessionCapability,
+} from './adapters/session/index.ts';
 import { createSystemClock } from './clock/clock.ts';
 import { loadConfig, type LoadConfigOptions, type PlatformConfig } from './config/load.ts';
 import type { CacheStore } from './ports/cache-store.ts';
@@ -37,6 +41,7 @@ export type { PlatformConfig } from './config/load.ts';
 export { loadConfig } from './config/index.ts';
 export type { WorkerConfig } from './config/load.ts';
 export type { IdFactory } from './ids/ids.ts';
+export type { SessionCapability } from './adapters/session/index.ts';
 
 /** The effects an application or worker receives. */
 export interface Platform {
@@ -49,6 +54,12 @@ export interface Platform {
   readonly cache: CacheStore;
   readonly cacheInvalidation: CacheInvalidationPort;
   readonly featureFlags: PlatformConfig['featureFlags'];
+  /**
+   * Session material, one-time codes and rate-limit counters (`C-003` to `C-008`, `C-092`, `NFR-026`,
+   * `NFR-027`). The domain's identity use cases take these as their ports; the web layer reads the
+   * rate-limit headers off the same bundle.
+   */
+  readonly sessions: SessionCapability;
   /** Release the clients this bundle opened. Safe to call once, during shutdown. */
   close(): Promise<void>;
 }
@@ -94,6 +105,11 @@ export function createPlatform(config: PlatformConfig = loadConfig()): Platform 
   const http = createFetchHttpClient();
   const redis = createRedisConnection(config.redisUrl);
   const cache = createRedisCacheStore(redis.commands);
+  const sms = buildSms(config, http);
+
+  // Sessions get a connection of their own, as the adapter requires: an eviction storm on cached pages
+  // must not take sign-in with it (`NFR-026`).
+  const sessions = createSessionCapabilityFromUrl({ config, sms, clock }, config.redisUrl);
 
   const storageClient = createS3Client({
     endpoint: config.storage.endpoint,
@@ -118,12 +134,18 @@ export function createPlatform(config: PlatformConfig = loadConfig()): Platform 
     config,
     clock,
     ids: createIdFactory({ clock }),
-    sms: buildSms(config, http),
+    sms,
     storage,
     cache,
     cacheInvalidation: createCacheInvalidator(cache),
     featureFlags: config.featureFlags,
-    close: () => redis.close(),
+    sessions,
+    // Sessions close before the cache: a session read during shutdown must report degraded rather than
+    // wait on a Redis the bundle has already released.
+    close: async () => {
+      await sessions.close();
+      await redis.close();
+    },
   };
 }
 

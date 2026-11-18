@@ -22,6 +22,11 @@ import {
   type StaffProjection,
 } from '../policies.ts';
 import type { IdentityPorts, ResolvedMemberSession, ResolvedStaffSession } from '../ports.ts';
+import {
+  clearedSessionCookie,
+  liveSessionCookie,
+  type SessionCookie,
+} from '../../ports/session.ts';
 
 /** The `C-007` request: the two opaque cookie values the transport read, and a fallback locale. */
 export interface ReadSessionInput {
@@ -37,6 +42,8 @@ export interface SignedOutSession {
   readonly member: null;
   readonly staff: null;
   readonly locale: Locale;
+  /** The clearing cookie a stale token earns, so the browser stops presenting it (`NFR-026`). */
+  readonly cookie?: SessionCookie;
 }
 
 /** The member answer. */
@@ -47,6 +54,8 @@ export interface MemberSessionRead {
   readonly staff: null;
   readonly locale: Locale;
   readonly session: { readonly expiresAt: string };
+  /** The renewed cookie, so the browser's lifetime follows the sliding idle window (`NFR-026`). */
+  readonly cookie?: SessionCookie;
 }
 
 /** The staff answer. */
@@ -60,6 +69,8 @@ export interface StaffSessionRead {
     readonly expiresAt: string;
     readonly absoluteExpiresAt: string;
   };
+  /** The renewed cookie, so the browser's lifetime follows the sliding idle window (`NFR-026`). */
+  readonly cookie?: SessionCookie;
 }
 
 /** The `C-007` answer, or the degraded refusal. */
@@ -106,6 +117,13 @@ export async function readSession(
         );
       }
       if (member !== null && member.deletedAt === undefined) {
+        const cookie = liveSessionCookie({
+          namespace: 'member',
+          token: input.memberSessionToken,
+          expiresAt: session.expiresAt,
+          absoluteExpiresAt: session.absoluteExpiresAt,
+          now,
+        });
         return {
           ok: true,
           signedIn: true,
@@ -113,6 +131,7 @@ export async function readSession(
           staff: null,
           locale: member.locale,
           session: { expiresAt: session.expiresAt },
+          ...(cookie === null ? {} : { cookie }),
         };
       }
     }
@@ -145,6 +164,13 @@ export async function readSession(
         );
       }
       if (staff !== null && staff.active) {
+        const cookie = liveSessionCookie({
+          namespace: 'staff',
+          token: input.staffSessionToken,
+          expiresAt: session.expiresAt,
+          absoluteExpiresAt: session.absoluteExpiresAt,
+          now,
+        });
         return {
           ok: true,
           signedIn: true,
@@ -157,12 +183,28 @@ export async function readSession(
             expiresAt: session.expiresAt,
             absoluteExpiresAt: session.absoluteExpiresAt,
           },
+          ...(cookie === null ? {} : { cookie }),
         };
       }
     }
   }
 
-  return { ok: true, signedIn: false, member: null, staff: null, locale };
+  // A token that names no live session is cleared rather than left in the browser: `C-007` answers
+  // signed out, and the next request must not present the same dead token.
+  const presented =
+    input.memberSessionToken !== undefined && input.memberSessionToken !== ''
+      ? 'member'
+      : input.staffSessionToken !== undefined && input.staffSessionToken !== ''
+        ? 'staff'
+        : null;
+  return {
+    ok: true,
+    signedIn: false,
+    member: null,
+    staff: null,
+    locale,
+    ...(presented === null ? {} : { cookie: clearedSessionCookie(presented) }),
+  };
 }
 
 /**

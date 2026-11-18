@@ -9,7 +9,9 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    include: ['test/**/*.test.ts'],
+    // `test/` holds the suites that drive a disposable service end to end; the session adapter's suite
+    // sits beside the adapter it covers (`src/adapters/session/redis`), so both roots are included.
+    include: ['test/**/*.test.ts', 'src/**/*.integration.test.ts'],
     environment: 'node',
     testTimeout: 20_000,
     hookTimeout: 20_000,
