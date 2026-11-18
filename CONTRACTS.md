@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.4.0
+**Contract version:** 1.5.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -28,6 +28,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.2.0 | Settles the identifier prefix record under `C-001`. `C-063` prints `sqt_` for a SessionQuestion and `C-001` prints `qwr_` and `cur_`, so every printed identifier has a three-letter prefix. `C-019` keeps `cmt_` for the Comment and the `C-043` family prints `com_` for the Commitment; `C-057` prints `rvd_` so the ResidenceReview no longer shares `rsv_` with the Reservation; the `C-027` family prints `rcd_` for the ReportCard. Adds the complete prefix table to `C-001`, against which the platform identifier factory is asserted. |
 | 1.3.0 | Adds `C-092` staff authentication: the public sign-in challenge, second-factor verification, one-time enrolment, the staff session read and staff sign-out, with the lockout, timeout, idempotency and audit rules ADR-004 requires, and the staff cookie recorded in `C-001`. Enumerates `C-010`'s candidate `source` as `model`, `exact` or `alias` and gives `C-071`'s `matchType` the same three values. Defines `C-055`'s `candidateWards` scope and `C-056`'s `submissionsUnchanged`, and states that a re-description by a member whose ward is already recorded queues the description and keeps the ward. States that a confirmation records `fallback` as its source on the deterministic path and `model` when `C-080` produced the set. Corrects `C-068` so a new staff account is created unenrolled and only `C-092` sets enrolment, and adds the staff actions to `C-090`. |
 | 1.4.0 | Adds `C-093` operator credential and second-factor reset: one operator resets another staff user's password and factor, clears the lockout, ends that user's sessions and requires re-enrolment before any admin screen, with the reset audited and no credential returned. Bans self-reset without a second operator and makes a repeat idempotent. Adds `staff.credential_reset` and `staff.credential_reset_refused` to `C-090`, and records the reset as the session-ending event `C-092` names. |
+| 1.5.0 | Reconciles the identity entries with the implementation. `C-001` admits `REUSED_WITH_DIFFERENT_PAYLOAD` to the field-reason set it already printed, records the `scd_` prefix for StaffCredential, and defines `attemptsRemaining` beside `retryAfterSeconds` on a refusal. `C-003` names `attemptsRemaining` on the incorrect-code and cooldown answers. `C-008` drops a sign-out scope the entry never defined. `C-032` defines each `heldItems` entry. `C-035` drops the unused `note`, because `outcomeReason` and `legalHoldNote` already record a deferred or refused request and no schema column is added. `C-092` names the `scd_` credential identifier and states that a repeated enrolment confirmation never replays the recovery codes. |
 
 ## Contract Index
 
@@ -191,7 +192,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | `evt` | Analytics event | `mev` | ModelEvaluation | `ntf` | Notification |
 | `ntc` | PublicNotice | `cus` | Custodian | `usr` | Analytics user |
 | `tok` | Pseudonym token | `qwr` | Queued write | `cur` | Pagination cursor |
-| `req` | Request correlation identifier | | | | |
+| `req` | Request correlation identifier | `scd` | StaffCredential | | |
 
 `evt_` names an emitted analytics event (`C-089`), `qwr_` a durably queued write (`C-001`), `cur_` a page cursor, and `req_` a request correlation identifier, so those four are identifier kinds rather than stored record entities; every other row names a record. A cursor, a queued-write identifier and an event identifier carry bodies of the same form as a record identifier and are equally opaque.
 
@@ -245,7 +246,7 @@ A queued write is durable before the response returns. The submitted text is nev
   }
 }
 ```
-`code` is one of the frozen taxonomy values below. `cause` is a stable upper-snake token naming the specific reason, so one code can carry several distinct causes without renaming the taxonomy. `fields` is present whenever validation is involved and maps a field path to a reason token (`REQUIRED`, `PATTERN_MISMATCH`, `OUT_OF_BAND`, `TOO_SHORT`, `TOO_LONG`, `ENUM_MISMATCH`, `IMMUTABLE`, `ALREADY_SET`, `UNKNOWN_FIELD`).
+`code` is one of the frozen taxonomy values below. `cause` is a stable upper-snake token naming the specific reason, so one code can carry several distinct causes without renaming the taxonomy. `fields` is present whenever validation is involved and maps a field path to a reason token (`REQUIRED`, `PATTERN_MISMATCH`, `OUT_OF_BAND`, `TOO_SHORT`, `TOO_LONG`, `ENUM_MISMATCH`, `IMMUTABLE`, `ALREADY_SET`, `UNKNOWN_FIELD`, `REUSED_WITH_DIFFERENT_PAYLOAD`). The last token is the one a reason may attach to a request header: an `Idempotency-Key` already used for a different payload names a different request, so the answer refuses it rather than replaying the earlier one. A refusal that counts attempts also carries `attemptsRemaining` beside `retryAfterSeconds` (`C-003`, `C-006`): the number of further wrong codes the caller may submit before the cooldown, `0` on the answer that reaches it, and absent where no attempt counter applies.
 
 | Code | HTTP | Action result | Meaning |
 |---|---|---|---|
@@ -360,7 +361,7 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 }
 ```
 
-**Errors:** `VALIDATION_FAILED` with `fields:{"code":["REQUIRED","PATTERN_MISMATCH"]}` and `cause:"CODE_INCORRECT"` or `cause:"CODE_EXPIRED"`; the response states attempts remaining. `NOT_FOUND` when the PendingRegistration is unknown or already expired (`cause:"PENDING_REGISTRATION_EXPIRED"`). `CONFLICT_ALREADY_DECIDED` with `cause:"CODE_ALREADY_USED"` when the same code would create a second account. `RATE_LIMITED` after three wrong attempts, with a short cooldown in `retryAfterSeconds`.
+**Errors:** `VALIDATION_FAILED` with `fields:{"code":["REQUIRED","PATTERN_MISMATCH"]}`; a well-formed code that does not match answers `cause:"CODE_INCORRECT"` with `attemptsRemaining` on the failure envelope — `2` after the first wrong code and `1` after the second — and `cause:"CODE_EXPIRED"` where the code window has closed. `NOT_FOUND` when the PendingRegistration is unknown or already expired (`cause:"PENDING_REGISTRATION_EXPIRED"`). `CONFLICT_ALREADY_DECIDED` with `cause:"CODE_ALREADY_USED"` when the same code would create a second account. `RATE_LIMITED` after three wrong attempts, with `attemptsRemaining:0`, a short cooldown in `retryAfterSeconds`, and `meta.recoveryPath:"/join/confirm"` so the screen offers a resend.
 
 ---
 
@@ -546,10 +547,7 @@ A staff session never carries a member object, and an `external_reviewer` sessio
 
 **Authority:** Ends the current session only. Does not revoke another device's session.
 
-**Request:**
-```json
-{ "allSessions": false }
-```
+**Request:** no body. The action takes no argument, signs out the session that carries the cookie, and cannot name another session or a device.
 
 **Response 204:** no body; the session cookie is cleared with `Max-Age=0`.
 
@@ -1648,12 +1646,15 @@ A repeat call for the same member and session returns `200` with the existing re
     "dataRequests": [
       { "id": "drq_01J9ZE2G4H6J8K1L3M5N7P9QRS", "type": "export", "status": "completed", "requestedAt": "2026-11-20T09:00:00Z", "fileReference": "exports/mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA/2026-11-20.zip" }
     ],
-    "heldItems": []
+    "heldItems": [
+      { "reference": "cmt_01J9ZJ8K2M4N6P8Q1R3S5T7V9W", "reason": "Withheld while a legal review checks a complaint about it." }
+    ]
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-20T09:05:00Z", "degraded": false },
   "page": { "nextCursor": null, "hasMore": false }
 }
 ```
+Each `heldItems` entry names one thing the member wrote that is currently withheld from publication, and carries exactly two fields. `reference` is the value the member knows the item by: the `ODP-` public reference for a submission and the `cmt_` identifier for a comment. `reason` is the member-facing sentence stating why the item is withheld, never the reviewer's internal case notes and never a citation of the held text. The entry carries no title, body or excerpt, because the member wrote the item and returning it here would keep a second copy of material under review. `heldItems` is not paginated and is `[]` when nothing the member wrote is withheld; an empty list is not an error.
 
 **Errors:** `UNAUTHENTICATED`. `FORBIDDEN_ROLE` for any staff session; there is no staff view of this response. `SERVICE_DEGRADED` with `cause:"IDENTITY_STORE_UNAVAILABLE"`; no partial personal data is returned.
 
@@ -1750,8 +1751,9 @@ A repeat call for the same member and session returns `200` with the existing re
 
 **Request:**
 ```json
-{ "type": "deletion", "note": null }
+{ "type": "deletion" }
 ```
+The request carries its type and nothing else. `DataRequest` has no field for the member's own words, so the action collects none and the queue receives no free text; the outcome an operator records later lives in `outcomeReason`, and a deferral under legal hold lives in `legalHoldNote`. No column is added for a creation-time note.
 
 **Response 201:**
 ```json
@@ -3407,7 +3409,9 @@ The secret is returned on this answer only. It is never returned again and never
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:20:00Z" }
 }
 ```
-Confirmation verifies one code against the secret issued at `begin`, writes `secondFactorEnrolledAt`, sets `StaffUser.secondFactorEnrolled` and answers with the ten recovery codes. The codes are shown once in this answer, held only as hashes, and are single-use. This is the only write this entry makes to a StaffUser, and `C-068` never sets the flag. `C-093` clears it when an operator resets a credential, after which the staff member enrols again through this entry before reaching any admin screen.
+Confirmation verifies one code against the secret issued at `begin`, writes `secondFactorEnrolledAt` and the recovery-code hashes on the `StaffCredential` record whose identifier carries the `scd_` prefix (`C-001`), sets `StaffUser.secondFactorEnrolled` and answers with the ten recovery codes. The codes are shown once in this answer, held only as hashes, and are single-use. This is the only write this entry makes to a StaffUser, and `C-068` never sets the flag. `C-093` clears it when an operator resets a credential, after which the staff member enrols again through this entry before reaching any admin screen.
+
+**Enrolment replay.** The recovery codes are the one answer in this document that a replay never repeats. Confirmation records no code list in the idempotency store, so a repeat — the same `Idempotency-Key` resubmitted or the confirm screen sent again under a new key — answers `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` and `meta.recoveryPath:"/admin"`. It never displays the codes a second time and never performs a second enrolment. This is the exception to the replay rule below, because storing the answer would keep a second plaintext copy of secrets the credential holds only as hashes.
 
 **Request (session read):**
 ```json
@@ -3456,11 +3460,11 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 - A locked credential refuses the password step and the second-factor step alike with `RATE_LIMITED`, `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds` equal to the time left on the lock.
 - An unknown username and a wrong password produce one answer, `UNAUTHENTICATED` with `cause:"STAFF_CREDENTIALS_INVALID"`, and the same work is done either way, so no answer reveals whether a username exists.
 - A failure is recorded as `staff.sign_in_refused` with a stable reason token (`CREDENTIALS_INVALID`, `SECOND_FACTOR_INCORRECT`, `RECOVERY_CODE_UNKNOWN`, `RECOVERY_CODE_SPENT`, `ACCOUNT_LOCKED`, `STAFF_INACTIVE`); an accepted password step is `staff.sign_in_started`, a satisfied factor is `staff.signed_in`, and a sign-out is `staff.signed_out`.
-- Every operation except the session read carries the `C-001` `Idempotency-Key`. A replay returns the recorded answer rather than opening a second session, spending a second recovery code or appending a second audit event.
+- Every operation except the session read carries the `C-001` `Idempotency-Key`. A replay returns the recorded answer rather than opening a second session, spending a second recovery code or appending a second audit event. Enrolment confirmation is the stated exception: a repeat answers the already-enrolled failure, never the recorded answer, because that answer carries the recovery codes.
 - Authentication is rate-limited per account and per source address. The five-attempt lockout is the cap the specification fixes; the remaining caps are operator configuration (`NFR-027`).
 - This entry emits no analytics event. A staff username is a staff identifier and never enters analytics; the events in `analytics.md` are product events about residents.
 
-**Errors:** `VALIDATION_FAILED` with `fields` for `username` (`REQUIRED`, `PATTERN_MISMATCH`), `password` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128), `code` (`REQUIRED`, `PATTERN_MISMATCH` outside six digits), `recoveryCode` (`REQUIRED`, `PATTERN_MISMATCH`; `ALREADY_SET` when a code and a recovery code are both supplied), `action` (`REQUIRED`, `ENUM_MISMATCH`), `scope` (`ENUM_MISMATCH`), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` for a wrong username or password (`cause:"STAFF_CREDENTIALS_INVALID"`), no session or a session past its idle or absolute timeout (`cause:"STAFF_SESSION_REQUIRED"`), a challenge past its ten minutes (`cause:"SECOND_FACTOR_CHALLENGE_EXPIRED"`), a wrong code (`cause:"SECOND_FACTOR_INCORRECT"`), and an unknown or spent recovery code (`cause:"RECOVERY_CODE_UNKNOWN"`, `cause:"RECOVERY_CODE_SPENT"`). `FORBIDDEN_ROLE` with `cause:"STAFF_INACTIVE"` for a credential whose account is not active, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls a staff operation. `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_NOT_ENROLLED"` and `meta.recoveryPath:"/admin/enrol"` when verification is attempted before enrolment, and with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` when enrolment is begun on an enrolled credential. `RATE_LIMITED` with `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds`, and for the per-address cap. `SERVICE_DEGRADED` with `cause:"SESSION_STORE_UNAVAILABLE"` when the session cannot be read or written, and with `cause:"CREDENTIAL_STORE_UNAVAILABLE"` when the credential cannot be read; either refusal admits nobody and leaves an existing session untouched. No operation in this entry answers `NOT_FOUND`, because an unknown username, an unknown recovery code and a wrong one are deliberately indistinguishable.
+**Errors:** `VALIDATION_FAILED` with `fields` for `username` (`REQUIRED`, `PATTERN_MISMATCH`), `password` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128), `code` (`REQUIRED`, `PATTERN_MISMATCH` outside six digits), `recoveryCode` (`REQUIRED`, `PATTERN_MISMATCH`; `ALREADY_SET` when a code and a recovery code are both supplied), `action` (`REQUIRED`, `ENUM_MISMATCH`), `scope` (`ENUM_MISMATCH`), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` for a wrong username or password (`cause:"STAFF_CREDENTIALS_INVALID"`), no session or a session past its idle or absolute timeout (`cause:"STAFF_SESSION_REQUIRED"`), a challenge past its ten minutes (`cause:"SECOND_FACTOR_CHALLENGE_EXPIRED"`), a wrong code (`cause:"SECOND_FACTOR_INCORRECT"`), and an unknown or spent recovery code (`cause:"RECOVERY_CODE_UNKNOWN"`, `cause:"RECOVERY_CODE_SPENT"`). `FORBIDDEN_ROLE` with `cause:"STAFF_INACTIVE"` for a credential whose account is not active, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls a staff operation. `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_NOT_ENROLLED"` and `meta.recoveryPath:"/admin/enrol"` when verification is attempted before enrolment, and with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` when enrolment is begun or confirmed on an enrolled credential, which is also the answer to a repeated confirmation and carries `meta.recoveryPath:"/admin"`. `RATE_LIMITED` with `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds`, and for the per-address cap. `SERVICE_DEGRADED` with `cause:"SESSION_STORE_UNAVAILABLE"` when the session cannot be read or written, and with `cause:"CREDENTIAL_STORE_UNAVAILABLE"` when the credential cannot be read; either refusal admits nobody and leaves an existing session untouched. No operation in this entry answers `NOT_FOUND`, because an unknown username, an unknown recovery code and a wrong one are deliberately indistinguishable.
 
 ---
 
