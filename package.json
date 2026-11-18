@@ -13,11 +13,14 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "start": "turbo run start",
-    "lint": "turbo run lint",
+    "lint": "eslint --max-warnings 0 eslint.config.mjs && turbo run lint typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "test:a11y": "turbo run test:a11y",
+    "test:integration": "pnpm --filter @odp/platform run test:integration && pnpm --filter @odp/db run test:integration",
     "test:load": "turbo run test:load",
     "db:generate": "pnpm --filter @odp/db run db:generate",
     "db:check": "pnpm --filter @odp/db run db:check",
@@ -26,8 +29,17 @@
     "eval": "pnpm --filter @odp/inference run eval"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "catalog:",
+    "@eslint/js": "catalog:",
     "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-import-x": "catalog:",
+    "eslint-plugin-jsx-a11y": "catalog:",
+    "globals": "catalog:",
+    "prettier": "catalog:",
     "turbo": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
   }
 }

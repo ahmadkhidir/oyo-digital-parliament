@@ -16,21 +16,21 @@ catalog:
   # Toolchain (AGENTS.md Stack: TypeScript 5.x strict, Node 24 LTS, Turborepo).
   typescript: 5.9.3
   turbo: 2.11.12
-  "@types/node": 24.19.2
+  '@types/node': 24.19.2
 
   # Application: one deployable Next.js App Router application (AGENTS.md Stack).
   next: 16.4.6
   react: 19.3.1
   react-dom: 19.3.1
-  "@types/react": 19.3.0
-  "@types/react-dom": 19.3.0
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0
   tailwindcss: 4.3.5
 
   # PostgreSQL 16 through Drizzle ORM and drizzle-kit (AGENTS.md Stack).
   drizzle-orm: 0.45.4
   drizzle-kit: 0.31.11
   pg: 8.23.1
-  "@types/pg": 8.23.1
+  '@types/pg': 8.23.1
 
   # Redis 7 client for the read cache, sessions and rate-limit counters.
   redis: 6.3.1
@@ -40,8 +40,20 @@ catalog:
   # jsdom 30 and 31 require Node ^24.15; the workspace floor is Node 24.0 (`engines`), so the client
   # test environment is pinned to the newest major that runs on every permitted 24.x release.
   jsdom: 29.1.1
-  "@testing-library/react": 16.3.3
-  "@testing-library/jest-dom": 7.0.1
-  "@testing-library/user-event": 14.6.12
-  "@playwright/test": 1.65.1
-  "@axe-core/playwright": 4.14.0
+  '@testing-library/react': 16.3.3
+  '@testing-library/jest-dom': 7.0.1
+  '@testing-library/user-event': 14.6.12
+  '@playwright/test': 1.65.1
+  '@axe-core/playwright': 4.14.0
+
+  # Lint and format: ESLint 9 flat config at the repository root, Prettier for formatting (ADR-003).
+  # Every plugin is pinned here so a rule change is a deliberate version change, not a floating range.
+  eslint: 9.39.5
+  '@eslint/js': 9.39.5
+  typescript-eslint: 8.73.0
+  eslint-plugin-import-x: 4.18.1
+  eslint-plugin-jsx-a11y: 6.10.2
+  '@eslint-community/eslint-plugin-eslint-comments': 4.8.1
+  eslint-config-prettier: 10.1.8
+  globals: 17.14.0
+  prettier: 3.10.1

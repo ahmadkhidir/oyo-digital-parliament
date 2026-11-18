@@ -10,7 +10,7 @@
     "./styles/*": "./src/styles/*"
   },
   "scripts": {
-    "lint": "tsc -p tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters",
+    "lint": "eslint --max-warnings 0 .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
