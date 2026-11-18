@@ -1,0 +1,18 @@
+{
+  // Worker program: the single entry point, the runtime (probe listener, scheduler, shutdown) and
+  // the job directories. Node 24 runs this TypeScript directly — `pnpm --filter @odp/worker start`
+  // is `node src/main.ts`, and the shared base config keeps the source to erasable syntax
+  // (`erasableSyntaxOnly`), which is exactly what the runtime strips without a build step.
+  //
+  // `nodenext` resolution makes the runtime contract a compile-time one: relative imports must carry
+  // their `.ts` extension (`allowImportingTsExtensions`), so a specifier that would resolve under a
+  // bundler and fail under `node` is rejected here instead of at boot.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "package.json"]
+}

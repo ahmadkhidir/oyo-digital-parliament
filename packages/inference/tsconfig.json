@@ -1,0 +1,19 @@
+{
+  // Inference program: the gateway, one directory per capability, the provider adapters and the
+  // evaluation harness. Node globals are in scope because this area is the only outbound model
+  // egress and reads its pinned configuration from the environment (`packages/inference/AGENTS.md`).
+  //
+  // `nodenext` resolution: `pnpm eval` runs the harness as source on Node 24, so relative imports
+  // carry their `.ts` extension and are checked (`allowImportingTsExtensions`).
+  //
+  // `eval/` is included: the harness is a first-class entry point (`pnpm eval` from the root) and is
+  // typechecked with the package rather than treated as a script outside the program.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "eval/**/*.ts", "test/**/*.ts", "package.json"]
+}

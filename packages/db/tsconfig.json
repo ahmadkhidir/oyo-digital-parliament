@@ -1,0 +1,19 @@
+{
+  // Data-area program: schema, repositories, migrations config and the database test suites.
+  // Node globals are in scope here because this area owns the connection pool, the migration
+  // runner and the seeds (`packages/db/AGENTS.md`).
+  //
+  // `nodenext` resolution for the same reason as `packages/domain`: `db:seed` runs this source
+  // directly on Node 24, so relative imports carry their `.ts` extension and are checked.
+  //
+  // `drizzle.config.ts` is included by pattern, not required: it is written by the schema task,
+  // and `include` patterns that match nothing are not an error once any other input exists.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "drizzle.config.ts", "package.json"]
+}

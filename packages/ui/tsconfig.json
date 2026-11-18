@@ -1,0 +1,16 @@
+{
+  // Presentation program: tokens, primitives and record components. The DOM library and the React
+  // JSX transform are what this area renders with; Node globals are intentionally absent so a
+  // component cannot reach for the filesystem, a secret or an environment variable
+  // (`packages/ui/AGENTS.md`: token source is the only file holding a literal design value).
+  //
+  // Bundler resolution is correct here: this area is only ever compiled by Next or by Vite in the
+  // tests, never started by `node`, so extensionless relative imports are safe.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
+    "jsx": "react-jsx",
+    "types": []
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tailwind.preset.ts", "package.json"]
+}

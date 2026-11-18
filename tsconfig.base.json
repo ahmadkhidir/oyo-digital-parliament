@@ -1,0 +1,42 @@
+{
+  // Shared compiler configuration for every area (`AGENTS.md` Stack: TypeScript 5.x, `strict`).
+  // Each area extends this file and narrows only what its runtime needs: `apps/web` and
+  // `packages/ui` add the DOM library and the JSX transform, and the areas Node runs directly
+  // switch module resolution to `nodenext` so their import specifiers are runtime-correct.
+  //
+  // Two groups of settings are load-bearing rather than taste:
+  //
+  // - `erasableSyntaxOnly` keeps the source runnable by Node 24 without a build step, which is how
+  //   the worker, the seeds and the evaluation harness start (`node src/main.ts`). It rejects
+  //   `enum`, `namespace`, parameter properties and `import =`, the constructs a type-stripping
+  //   runtime cannot execute.
+  // - `verbatimModuleSyntax` + `isolatedModules` make every file compile on its own, which is what
+  //   Turbopack, Vite/Vitest and Node's type stripping all assume. A type-only import must say so.
+  //
+  // Nothing is emitted from this configuration: the deployable is built by Next and the other areas
+  // are consumed as source, so `noEmit` is part of the base rather than an override.
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "incremental": true
+  }
+}

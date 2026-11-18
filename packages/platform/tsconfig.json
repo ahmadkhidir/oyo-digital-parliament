@@ -1,0 +1,19 @@
+{
+  // Platform program: configuration validation, the SMS adapter, the object-storage adapter, the
+  // Redis cache adapter, the clock and the identifier generator. Node globals are in scope because
+  // every file here is an adapter over a process-level resource; secrets are read from the
+  // environment here and nowhere else, and never logged (`NFR-024`).
+  //
+  // `nodenext` resolution: the worker imports this package's source with no build step, so relative
+  // imports carry their `.ts` extension and are checked (`allowImportingTsExtensions`).
+  //
+  // `package.json` is an input so the program is provable before `src` exists (TS18003 otherwise).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "package.json"]
+}

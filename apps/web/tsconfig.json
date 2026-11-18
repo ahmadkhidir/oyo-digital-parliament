@@ -1,0 +1,29 @@
+{
+  // The application program: routes, server actions, route handlers, library code and the browser
+  // flows. `pnpm --filter @odp/web typecheck` and `... lint` both compile this project, and
+  // `next build` runs the same compiler over the route tree.
+  //
+  // `package.json` is an input so the program is provable before the route tree exists: TypeScript
+  // refuses a project with no input files (TS18003), and Phase 0 scaffolds every area before the
+  // tasks that write its source land. It stays a harmless manifest in the program afterwards.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
+    "jsx": "preserve",
+    "allowJs": true,
+    "incremental": true,
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "plugins": [{ "name": "next" }],
+    "types": ["node"]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "package.json"
+  ],
+  "exclude": ["node_modules", ".next", "out"]
+}

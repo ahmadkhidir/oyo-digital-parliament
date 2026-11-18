@@ -1,0 +1,33 @@
+{
+  "name": "oyo-digital-parliament",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oyo Digital Parliament: ward proposals on a public record, answered with dated commitments and tracked in the open.",
+  "type": "module",
+  "packageManager": "pnpm@10.32.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=10.32.0 <11"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "test:a11y": "turbo run test:a11y",
+    "test:load": "turbo run test:load",
+    "db:generate": "pnpm --filter @odp/db run db:generate",
+    "db:check": "pnpm --filter @odp/db run db:check",
+    "db:migrate": "pnpm --filter @odp/db run db:migrate",
+    "db:seed": "pnpm --filter @odp/db run db:seed",
+    "eval": "pnpm --filter @odp/inference run eval"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  }
+}

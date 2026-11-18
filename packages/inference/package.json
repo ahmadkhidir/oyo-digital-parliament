@@ -1,0 +1,24 @@
+{
+  "name": "@odp/inference",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The only model egress: provider-agnostic capabilities, de-identification, cost accounting and the evaluation harness.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "eval": "node eval/run.ts",
+    "lint": "tsc -p tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@odp/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

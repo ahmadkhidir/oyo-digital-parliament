@@ -1,0 +1,47 @@
+# pnpm workspace for Oyo Digital Parliament.
+#
+# Every version the workspace resolves is pinned once in `catalog` below and referenced from an
+# area manifest as "catalog:" (NFR-029: pinned versions, maintained bill of materials). No area
+# manifest carries a semver range, and the committed `pnpm-lock.yaml` is the resolved record.
+#
+# Catalogs are declared but not installed until an area manifest references an entry, so an entry
+# exists here ahead of the task that first needs it (packages/platform, packages/db and
+# services/worker are all scaffolded before their sources land).
+packages:
+  - apps/*
+  - packages/*
+  - services/*
+
+catalog:
+  # Toolchain (AGENTS.md Stack: TypeScript 5.x strict, Node 24 LTS, Turborepo).
+  typescript: 5.9.3
+  turbo: 2.11.12
+  "@types/node": 24.19.2
+
+  # Application: one deployable Next.js App Router application (AGENTS.md Stack).
+  next: 16.4.6
+  react: 19.3.1
+  react-dom: 19.3.1
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  tailwindcss: 4.3.5
+
+  # PostgreSQL 16 through Drizzle ORM and drizzle-kit (AGENTS.md Stack).
+  drizzle-orm: 0.45.4
+  drizzle-kit: 0.31.11
+  pg: 8.23.1
+  "@types/pg": 8.23.1
+
+  # Redis 7 client for the read cache, sessions and rate-limit counters.
+  redis: 6.3.1
+
+  # Tests: Vitest, Testing Library, Playwright, axe (AGENTS.md Stack).
+  vitest: 5.1.0
+  # jsdom 30 and 31 require Node ^24.15; the workspace floor is Node 24.0 (`engines`), so the client
+  # test environment is pinned to the newest major that runs on every permitted 24.x release.
+  jsdom: 29.1.1
+  "@testing-library/react": 16.3.3
+  "@testing-library/jest-dom": 7.0.1
+  "@testing-library/user-event": 14.6.12
+  "@playwright/test": 1.65.1
+  "@axe-core/playwright": 4.14.0
