@@ -14,7 +14,9 @@ never a machine that decides.
 
 The specification is `docs/OyoDigitalParliament/`, mounted at `docs/` as a git submodule from
 `https://github.com/ahmadkhidir/oyo-digital-parliament-docs`. The specification repository is
-authoritative; this repository consumes it.
+authoritative; this repository consumes it. This application repository is public; the specification
+repository is private and access-controlled, so a public clone fetches the code but not the
+specification unless the cloner has been granted access.
 
 A build task never edits the specification. A gap in it becomes a `doc-gap` issue, not an assumption and
 not a silent change. A missing field, an unhandled edge case, or a contradiction is a stop-and-report,
@@ -377,6 +379,10 @@ The canonical commands are created and verified in Phase 0. Until then, only the
 ## Git and GitHub
 
 - `main` is protected. Work on a short-lived branch and open a PR.
+- **This repository is public; issue, PR and commit text is public.** The specification is private.
+  Never quote specification text, personal data, or unpublished campaign detail into an issue, a PR
+  body, a commit message, or a code comment. Cite the permanent anchor (`FEAT-###`, `NFR-###`,
+  `EVT-###`, `C-###`) and let the reader with access follow it.
 - Branch naming: `<class>/<issue-number>-<slug>` where `<class>` matches the task class — `implement`,
   `fix`, `verify`, `spec`, or `chore` — `<issue-number>` is the GitHub issue number without `#`, and
   `<slug>` is a short kebab-case description or spec anchor (for example
@@ -395,6 +401,8 @@ The canonical commands are created and verified in Phase 0. Until then, only the
 ## Boundaries
 
 - Never write under `docs/` from an implementation task. A missing answer is a doc gap.
+- Never quote private specification text or personal data into a public issue, pull request, commit
+  message, or code comment. This repository is public; the specification repository is not.
 - Never log or commit secrets, tokens, or unmasked identity. Credentials live in the secret store.
 - Never place a member's real name, telephone number, member identifier, ward description, or free text
   in a log, a cache key, a URL, an analytics event, or an outbound model payload.

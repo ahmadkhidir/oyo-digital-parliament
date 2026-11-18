@@ -35,7 +35,11 @@ docs/                   Specification, mounted as a git submodule
 
 ## Specification submodule
 
-The specification is its own repository and is mounted at `docs/` as a submodule:
+The specification is its own repository and is mounted at `docs/` as a submodule. The application
+repository is public; the specification repository is private and access-controlled, because it contains
+campaign strategy, regulatory analysis, and unpublished positioning. Cloning with `--recurse-submodules`
+therefore requires access to `oyo-digital-parliament-docs`. Without that access, clone the application
+code only; no runtime path depends on the specification being present.
 
 ```bash
 git clone --recurse-submodules https://github.com/ahmadkhidir/oyo-digital-parliament.git
