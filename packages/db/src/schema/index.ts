@@ -42,4 +42,5 @@ export * from './audit-event.ts';
 export * from './model-evaluation.ts';
 
 export * from './idempotency-record.ts';
+export * from './outbound-notification.ts';
 export * from './search-document.ts';

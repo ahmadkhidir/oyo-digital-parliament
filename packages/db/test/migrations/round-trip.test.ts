@@ -26,6 +26,9 @@ import {
 /** The second migration: the staff credential and the nullable member identifiers. */
 const CREDENTIAL_MIGRATION = '0001_staff_credential_and_nullable_member_identifiers';
 
+/** The third migration: the durable outbound notification queue (`C-076`). */
+const QUEUE_MIGRATION = '0002_outbound_notification_queue';
+
 describe('initial migration', () => {
   it('builds every table, then drops them all through the down path and builds again', async () => {
     const database = await createTestDatabase();
@@ -34,10 +37,15 @@ describe('initial migration', () => {
         "select tablename from pg_tables where schemaname = 'public' order by tablename",
       );
       expect(tablesBefore.rows.map((row) => row.tablename)).toContain('ward');
-      expect(tablesBefore.rows).toHaveLength(33);
+      expect(tablesBefore.rows).toHaveLength(34);
 
       const downCredential = await readDownMigration(CREDENTIAL_MIGRATION);
       await database.pool.query(downCredential);
+
+      // Each down path must run before the one it built on: the outbound queue is dropped first, then
+      // the credential, then the initial schema.
+      const downQueue = await readDownMigration(QUEUE_MIGRATION);
+      await database.pool.query(downQueue);
 
       const down = await readDownMigration('0000_initial');
       await database.pool.query(down);
@@ -59,7 +67,7 @@ describe('initial migration', () => {
       const tablesRebuilt = await database.pool.query<{ tablename: string }>(
         "select tablename from pg_tables where schemaname = 'public'",
       );
-      expect(tablesRebuilt.rows).toHaveLength(33);
+      expect(tablesRebuilt.rows).toHaveLength(34);
     } finally {
       await database.dispose();
     }

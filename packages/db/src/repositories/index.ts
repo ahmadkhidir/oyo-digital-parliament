@@ -17,6 +17,10 @@ export {
 } from './data-request.repository.ts';
 export { createMemberRepository, type MemberRepository } from './member.repository.ts';
 export {
+  createOutboundNotificationRepository,
+  type OutboundNotificationRepository,
+} from './outbound-notification.repository.ts';
+export {
   createPendingRegistrationRepository,
   type PendingRegistrationRepository,
 } from './pending-registration.repository.ts';

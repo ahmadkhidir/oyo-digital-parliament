@@ -15,6 +15,13 @@
       "when": 1795009660544,
       "tag": "0001_staff_credential_and_nullable_member_identifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795015794600,
+      "tag": "0002_outbound_notification_queue",
+      "breakpoints": true
     }
   ]
 }
