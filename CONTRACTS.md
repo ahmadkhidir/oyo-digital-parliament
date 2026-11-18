@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.0.0
+**Contract version:** 1.1.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -13,9 +13,18 @@ Every entry below is **Frozen**. An entry states the wire shape, who may call it
 Four surfaces exist, and every entry names one:
 
 - **Server action** — a Next.js server action invoked from the route named in the entry. Returns the action result envelope in `C-001`.
-- **Route handler** — `GET`/`POST`/`PUT`/`PATCH`/`DELETE` under `/api`, returning the HTTP response envelope in `C-001`.
+- **Route handler** — `GET`/`POST`/`PUT`/`PATCH`/`DELETE` under `/api`, returning the HTTP response envelope in `C-001`. The two operational probes in `C-091` are route handlers outside `/api`; they return the constant body that entry fixes and never the envelope, because the envelope carries a request identifier and a timestamp and a probe must be free of both.
 - **Internal RPC** — a call between modules of the same deployable or between the deployable and a worker/gateway. Not reachable from a browser.
 - **Worker secret** — a scheduled invocation authenticated with the worker credential; never reachable from a browser.
+
+## Version History
+
+Append-only. Each row records what that version changed; an accepted version is never rewritten, and a later correction is a new row rather than an edit to an older one.
+
+| Version | Change |
+|---|---|
+| 1.0.0 | First frozen set, `C-001` to `C-090`. |
+| 1.1.0 | Adds `C-091` operational health probes. Reconciles the `C-001` identifier pattern with the identifiers this document prints. Aligns `C-077` with `C-089` and `C-090`: one event-name spelling, one audit result shape, and the correlation identifier carried beside the audit entity rather than on it. Defines the two result shapes `C-077` left open. Replaces the last abbreviated value in `C-011` with a timestamp. |
 
 ## Contract Index
 
@@ -111,6 +120,7 @@ Four surfaces exist, and every entry names one:
 | C-088 | Handover and archive job | Worker secret | Scheduled job | FEAT-013, FEAT-012 |
 | C-089 | Analytics event envelope | Internal only | Internal RPC | EVT-001–EVT-048, `analytics.md` |
 | C-090 | Audit event envelope | Internal only | Internal RPC | NFR-028, `schema.md` AuditEvent |
+| C-091 | Operational health probes | Monitor only | Route handler `GET /healthz`, `GET /readyz` | NFR-010, NFR-011, `operations.md` Incident & Escalation, `architecture.md` Logging & Monitoring |
 
 ---
 
@@ -133,7 +143,7 @@ Four surfaces exist, and every entry names one:
 {
   "headers": {
     "Idempotency-Key": "UUIDv4, required on every state-changing call",
-    "X-Correlation-Id": "optional opaque string; server-generated when absent and echoed",
+    "X-Correlation-Id": "optional; when supplied it must match ^req_[0-9A-Z]{4,32}$ and is echoed unchanged; generated in that form when absent",
     "Origin": "required on browser writes; cross-origin values are refused",
     "Cookie": "odp_session=opaque; HttpOnly; SameSite=Lax; Secure"
   },
@@ -145,7 +155,8 @@ Four surfaces exist, and every entry names one:
   "conventions": {
     "timestamps": "RFC 3339, UTC, second precision, suffix Z; e.g. 2026-11-18T09:14:00Z",
     "calendar dates": "YYYY-MM-DD interpreted in Africa/Lagos (UTC+01:00)",
-    "identifiers": "opaque, pattern ^[a-z]{3}_[0-9A-HJKMNP-TV-Z]{26}$, e.g. sub_01J9Z6K4Q3W8R2T5Y7B1C0D9EF",
+    "identifiers": "opaque, pattern ^[a-z]{3}_[0-9A-Z]{4,26}$, e.g. sub_01J9Z6K4Q3W8R2T5Y7B1C0D9EF; three lower-case prefix letters naming the entity type, an underscore, then an upper-case alphanumeric body",
+    "correlation identifier": "pattern ^req_[0-9A-Z]{4,32}$; names a request rather than a record, so its body may run six characters longer than a record body",
     "public reference": "pattern ^ODP-[0-9]{6}$",
     "money": "integer naira, no decimals, field names ending in Amount",
     "locale": "en-NG or yo-NG, read from Member.locale; Accept-Language never overrides it",
@@ -155,6 +166,8 @@ Four surfaces exist, and every entry names one:
   }
 }
 ```
+
+**Identifier form.** The prefix names the entity type (`sub_`, `mbr_`, `stf_`, `cmt_`, `wdr_`, `aud_`, `evt_` and so on); the body is upper-case alphanumeric and the prefix is the only lower-case part, so the two halves never blur into one another. The value is opaque to every caller and is never parsed for meaning. The body range is four to twenty-six characters rather than a fixed twenty-six, because this document prints identifiers from seven to twenty-six characters long and several of them contain an `L` that the Crockford alphabet excludes; a fixed-length Crockford pattern would refuse values the contract itself prints, which is the worse error. A newly minted record identifier uses the twenty-six-character form shown above; the wider pattern keeps stored and already-printed identifiers valid. The correlation identifier is the one exception: it names a request rather than a record, so a supplied `X-Correlation-Id` may carry a body of up to 32 characters, and a value outside `^req_[0-9A-Z]{4,32}$` is refused rather than echoed.
 
 **Response 200 (read envelope):**
 ```json
@@ -226,11 +239,11 @@ A queued write is durable before the response returns. The submitted text is nev
 
 **Rate-limit signalling:** every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` (epoch seconds). A refusal carries `RATE_LIMITED` with `retryAfterSeconds`. Caps are per account and per ward as required by `NFR-027`; the numeric caps are operator configuration, except the values the specification fixes: forty assisted submissions per ward per day, three wrong code attempts before a cooldown, and the backing-concentration rule in `C-085`.
 
-**Audit correlation:** every state change appends exactly one AuditEvent (`C-090`) before the response returns, carrying the same `correlationId`. A queued write appends its AuditEvent at replay, with the original `Idempotency-Key` retained on the record.
+**Audit correlation:** every state change appends exactly one AuditEvent (`C-090`) before the response returns, recorded with the same `correlationId`. `correlationId` is a transport property, not an `AuditEvent` property: `schema.md` gives the entity no such field, so the append carries the correlation beside the record and the log indexes it there. The stored entity keeps exactly the fields `schema.md` declares, and no read invents the field back onto it. A queued write appends its AuditEvent at replay, with the original `Idempotency-Key` retained on the record.
 
 **Locale:** a member's `locale` is authoritative for every rendered and generated string. An anonymous visitor's choice is held in the session and applied to the PendingRegistration at `C-002`.
 
-**Errors:** `VALIDATION_FAILED` for a missing `Idempotency-Key` on a state-changing call (`fields: {"Idempotency-Key": "REQUIRED"}`), and for a reused key with a different payload (`fields: {"Idempotency-Key": "REUSED_WITH_DIFFERENT_PAYLOAD"}`).
+**Errors:** `VALIDATION_FAILED` for a missing `Idempotency-Key` on a state-changing call (`fields: {"Idempotency-Key": "REQUIRED"}`), for a reused key with a different payload (`fields: {"Idempotency-Key": "REUSED_WITH_DIFFERENT_PAYLOAD"}`), and for a supplied `X-Correlation-Id` outside the correlation form (`fields: {"X-Correlation-Id": "PATTERN_MISMATCH"}`), which is refused rather than echoed.
 
 ---
 
@@ -643,7 +656,7 @@ When the capability is off or the gateway returns nothing, the response is `200`
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:20:00Z" }
 }
 ```
-The unresolved branch returns `200` with `member.wardStatus:"unresolved"`, `member.wardId` absent, and `wardDescriptionReview: { "id": "wdr_01J9Z7A3B5C7D9E1F3G5H7J9KM", "status": "queued", "createdAt": "..." }`.
+The unresolved branch returns `200` with `member.wardStatus:"unresolved"`, `member.wardId` absent, and `wardDescriptionReview: { "id": "wdr_01J9Z7A3B5C7D9E1F3G5H7J9KM", "status": "queued", "createdAt": "2026-11-18T09:20:00Z" }`.
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"description":["REQUIRED","TOO_LONG"],"localGovernmentArea":"REQUIRED"}` when the local government area is required to disambiguate two wards with one name. `FORBIDDEN_ROLE` when `memberId` is not the session's member. `NOT_FOUND` when `confirmedWardId` does not exist. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`; the free-text description alone is then accepted and queued.
 
@@ -3571,12 +3584,14 @@ A `dedupeKey` already present returns the existing notification with `state` unc
 
 **Spec anchors:** NFR-028, NFR-040, `analytics.md` Analytics Data Governance, `operations.md` Admin & Governance
 
-**Authority:** Appends audit events and emits product events. The audit log is append-only: no update or delete operation exists on this boundary. Analytics events carry a pseudonymous `user_id` and never a name, telephone number, ward description or free text. The external reviewer may read the access log but never event content.
+**Authority:** Appends audit events and emits product events. The audit log is append-only: no update and no delete operation exists on this boundary, so `audit.append` is the only verb that writes it. Analytics events carry a pseudonymous `user_id` and never a name, telephone number, ward description or free text. The external reviewer may read the access log but never event content. The caller is the authenticated service credential and never a component named inside `args`; the permitted emitter list is operator configuration, not a value a caller may assert.
 
-**Request:**
+**Request:** four operations, each with its own argument shape. `args` carries only what the named operation needs, and an undeclared key is refused rather than ignored.
+
+`audit.append` — `args` is exactly the `C-090` request, with `correlationId` travelling beside the entity rather than on it:
 ```json
 {
-  "operation": "audit.append | analytics.emit | audit.readAccessLog | analytics.replaceUserToken",
+  "operation": "audit.append",
   "args": {
     "actorId": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP",
     "actorRole": "response_staff",
@@ -3585,27 +3600,88 @@ A `dedupeKey` already present returns the existing notification with `state` unc
     "entityId": "dec_01J9ZB1C3D5E7F9G1H3J5K7LMP",
     "reason": "Commit published against ODP-004821.",
     "occurredAt": "2026-11-25T12:00:00Z",
-    "eventName": "decision_published",
-    "properties": { "decision_type": "commit", "days_since_submission": 7, "version": 1 },
     "correlationId": "req_01J9Z6M2V4"
   }
 }
 ```
 
-**Response 201:**
+`analytics.emit` — `args` is exactly the `C-089` envelope, in `C-089`'s own spelling:
 ```json
 {
-  "operation": "audit.append",
-  "result": {
-    "auditEventId": "aud_01J9ZN2Q4R6S8T1V3W5X7Y9ZA",
-    "appended": true,
-    "sequence": 184223,
-    "personalDataPresent": false
+  "operation": "analytics.emit",
+  "args": {
+    "event_name": "decision_published",
+    "event_id": "evt_01J9ZQ1R3S5T7V9W1X3Y5Z7AB",
+    "occurred_at": "2026-11-25T12:00:00Z",
+    "user_id": "usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA",
+    "anonymous_id": null,
+    "session_id": "ses_01J9ZQ2S4T6V8W1X3Y5Z7AB",
+    "platform": "web",
+    "app_version": "2026.11.3",
+    "locale": "en-NG",
+    "correlation_id": "req_01J9Z6M2V4",
+    "properties": { "decision_type": "commit", "days_since_submission": 7, "version": 1 }
   }
 }
 ```
+The event name is always `event_name`, spelled as `analytics.md` tabulates it; `eventName` is not an accepted spelling and this boundary keeps no camel-case alias. The split is by owner, not by operation: an audit property keeps the `schema.md` spelling (`actorId`, `correlationId`) and an analytics property keeps the `analytics.md` spelling (`event_name`, `correlation_id`).
 
-**Errors:** `VALIDATION_FAILED` for a missing `actorId`, `actorRole`, `action`, `entityType`, `entityId` or `occurredAt`, or an `actorRole` outside the AuditEvent enum. `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_EVENT"` when a property carries a name, telephone number, ward description or free-text field; the event is rejected, not redacted. `FORBIDDEN_ROLE` for an `analytics.emit` from a component not on the permitted list. `SERVICE_DEGRADED`; a failed audit append fails the originating write, because an unaudited state change is not permitted.
+`audit.readAccessLog`:
+```json
+{ "operation": "audit.readAccessLog", "args": { "since": "2026-11-01T00:00:00Z", "limit": 20 } }
+```
+`since` is optional and inclusive; `limit` defaults to 20 and is refused outside 1–50, per the `C-001` pagination convention.
+
+`analytics.replaceUserToken`:
+```json
+{ "operation": "analytics.replaceUserToken", "args": { "userId": "usr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA" } }
+```
+
+**Response 201 (`audit.append`, `analytics.emit`) and 200 (`audit.readAccessLog`, `analytics.replaceUserToken`):** the answer frames the operation's own result, and each operation returns one shape and only that shape.
+
+```json
+{
+  "ok": true,
+  "operation": "audit.append",
+  "result": { "ok": true, "id": "aud_01J9ZN2Q4R6S8T1V3W5X7Y9ZA", "appended": true, "sequence": 184223, "occurredAt": "2026-11-25T12:00:00Z" }
+}
+```
+The `audit.append` result is the `C-090` response: the identifier field is `id`, there is no `auditEventId` spelling on either surface, and there is no `personalDataPresent` flag because an event carrying personal data is refused rather than accepted with a marker.
+
+```json
+{
+  "ok": true,
+  "operation": "analytics.emit",
+  "result": { "ok": true, "accepted": true, "event_id": "evt_01J9ZQ1R3S5T7V9W1X3Y5Z7AB", "storedAt": "2026-11-25T12:00:00Z" }
+}
+```
+The `analytics.emit` result is the `C-089` response: `accepted`, `event_id` and `storedAt`, with the boundary's `ok` carried with it. `ok` appears at both levels on every successful answer because the outer flag answers the call and the inner one is the operation's own value; a caller may read either.
+
+```json
+{
+  "ok": true,
+  "operation": "audit.readAccessLog",
+  "result": {
+    "ok": true,
+    "entries": [
+      { "auditEventId": "aud_01J9ZN2Q4R6S8T1V3W5X7Y9ZA", "actorId": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP", "actorRole": "operator", "action": "member_data.read", "occurredAt": "2026-11-25T11:40:00Z" }
+    ],
+    "nextCursor": null
+  }
+}
+```
+One entry per recorded read, export or refusal; `auditEventId` names the entry being read, so it is the one place where the access-log field name differs from `C-090`'s response `id`. `reason` and `entityId` are deliberately absent, because the reason can quote the text of a held item and the target can name a submission whose author asked for deletion. `nextCursor` is `null` on the last page, per `C-001`.
+
+```json
+{
+  "ok": true,
+  "operation": "analytics.replaceUserToken",
+  "result": { "ok": true, "userIdToken": "tok_01J9ZR3S5T7V9W1X3Y5Z7AB2C", "replacedEvents": 412 }
+}
+```
+`userIdToken` is the non-reversible token now stored in place of the identifier, and `replacedEvents` is how many stored events it replaced. The operation is idempotent: the same `userId` derives the same token on every attempt, so a retry reports the replacement rather than issuing a second token. The caller appends `member_data.deleted` (`C-090`) after this returns; `analytics.md` makes the deletion complete only when the analytics store and the audit log both confirm.
+
+**Errors:** one taxonomy across the four operations. `VALIDATION_FAILED` with `cause:"OPERATION_UNKNOWN"` and `fields:{"operation":"ENUM_MISMATCH"}` for any operation outside the four, including `audit.update` and `audit.delete`, because neither operation exists; `cause:"ARGS_MALFORMED"` with `fields:{"args":"REQUIRED"}` when `args` is not an object; and `cause:"AUDIT_EVENT_INVALID"` or `cause:"EVENT_ENVELOPE_INVALID"` with the field map from `C-090` or `C-089` when a property is missing, mistyped or outside its declared range. `VALIDATION_FAILED` with `cause:"ACCESS_LOG_LIMIT_OUT_OF_BAND"` and `fields:{"limit":"OUT_OF_BAND"}` when `limit` is outside 1–50, and with `cause:"USER_ID_INVALID"` and `fields:{"userId":"REQUIRED"}` or `"PATTERN_MISMATCH"` when `userId` is absent or not in the `C-001` form. `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_AUDIT_REASON"` or `cause:"PERSONAL_DATA_IN_EVENT"` when a property carries a name, telephone number, ward description or free text; the record is rejected, not redacted. `FORBIDDEN_ROLE` with `cause:"COMPONENT_NOT_PERMITTED"` when the authenticated component is not on the analytics emitter list. `SERVICE_DEGRADED` with `cause:"AUDIT_APPEND_FAILED"`, `cause:"ANALYTICS_STORE_UNAVAILABLE"` or `cause:"ACCESS_LOG_UNAVAILABLE"`; a failed audit append fails the originating write, because an unaudited state change is not permitted, while a failed emit is buffered and retried by its caller and never fails the write that produced it.
 
 ---
 
@@ -4102,7 +4178,7 @@ The job writes the handover snapshot to object storage, publishes the public not
   "properties": { "decision_type": "commit", "days_since_submission": 7, "version": 1 }
 }
 ```
-Common properties on every event are exactly `event_id`, `occurred_at`, `user_id`, `anonymous_id`, `session_id`, `platform`, `app_version`, `locale`, with `correlation_id` required on the four model events and on any failure event. Each `event_name` is one of the EVT-### names and carries only the key properties tabulated for it in `analytics.md`.
+Common properties on every event are exactly `event_id`, `occurred_at`, `user_id`, `anonymous_id`, `session_id`, `platform`, `app_version`, `locale`, with `correlation_id` required on the four model events and on any failure event. Each `event_name` is one of the EVT-### names and carries only the key properties tabulated for it in `analytics.md`. Field names here are the `analytics.md` spelling in lower snake case throughout: `event_name`, `correlation_id`, `user_id`. `C-077`, the boundary that carries this envelope, accepts no other spelling and keeps no camel-case alias, so the tabulated name is the only name an emitter can send.
 
 **Response 201:**
 ```json
@@ -4112,6 +4188,7 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
   "storedAt": "2026-11-25T12:00:00Z"
 }
 ```
+`C-077` returns this shape as its `result` for `analytics.emit`; the two cannot drift apart because the boundary nests the envelope's answer rather than restating it.
 
 **Errors:** `VALIDATION_FAILED` for a missing common property, an unknown `event_name`, or a key property outside the taxonomy (`fields` names each). `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_EVENT"` when a property carries a name, telephone number, ward description, submission text, comment text or extracted budget line; the event is rejected, not redacted. `SERVICE_DEGRADED` when the analytics platform is unreachable: the event is buffered and retried, and the originating write is not failed, because analytics is a low-criticality path.
 
@@ -4145,6 +4222,8 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
 ```
 `actorId` references a Member or StaffUser; `actorRole` is one of `member`, `ward_organiser`, `response_staff`, `moderator`, `external_reviewer`, `legal_reviewer`, `operator`, `system`. `action` is a stable verb such as `member.registered`, `identity_state.changed`, `decision.published`, `decision.revised`, `comment.removed`, `comment.restored`, `legal.takedown`, `member_data.read`, `member_data.read_refused`, `member_data.export`, `member_data.deleted`, `ward.resolved`, `residence.reviewed`, `data_request.completed`, `flag.changed`, `role.changed`, `handover.completed`.
 
+`correlationId` is the request identifier from `C-001` in its `req_` form, not a property of the record: `schema.md` declares no such field on `AuditEvent`, and adding one here would be a schema change rather than a contract change. The append therefore carries it beside the entity, the log stores it with the row, and no read returns it as part of the event. `actorId` and `entityId` take the `C-001` identifier form, each with the prefix of the entity it names (`mbr_`, `stf_`, `dec_`, `sub_`, `cmt_` and so on).
+
 **Response 201:**
 ```json
 {
@@ -4154,6 +4233,55 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
   "occurredAt": "2026-11-25T12:00:00Z"
 }
 ```
+`id` is the identifier of the record just written and `sequence` is its position in the append-only log. `C-077` returns this shape unchanged as its `result` for `audit.append`, so the field is `id` on both surfaces and there is no second spelling of it.
 
-**Errors:** `VALIDATION_FAILED` with `fields` for `actorId`, `actorRole`, `action`, `entityType`, `entityId` or `occurredAt` when missing or malformed. `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_AUDIT_REASON"` when `reason` reproduces a name, telephone number or the text of a held item; the append is refused so the log cannot become a second copy of the data it protects. `FORBIDDEN_ROLE` for an update or delete attempt, because neither operation exists. `SERVICE_DEGRADED`; a failed append fails the originating state change, and the change is not committed.
+**Errors:** `VALIDATION_FAILED` with `fields` for `id`, `actorId`, `actorRole`, `action`, `entityType`, `entityId`, `occurredAt` or `correlationId` when missing or malformed, and for any key the envelope does not declare (`UNKNOWN_FIELD`). `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_AUDIT_REASON"` when `reason` reproduces a name, telephone number or the text of a held item; the append is refused so the log cannot become a second copy of the data it protects. There is no update and no delete operation: a caller that names one is refused at the boundary with `VALIDATION_FAILED` and `cause:"OPERATION_UNKNOWN"` (`C-077`), because no second verb exists to serve it. `SERVICE_DEGRADED`; a failed append fails the originating state change, and the change is not committed.
+
+---
+
+## Domain 8 — Operational Probes
+
+### C-091: Operational health probes
+
+**Status:** Frozen
+
+**Auth:** Monitor only
+
+**Surface:** Route handlers `GET /healthz` and `GET /readyz` on the web deployable, and the same two paths on the worker's own listener
+
+**Spec anchors:** NFR-010, NFR-011, `operations.md` Incident & Escalation, `architecture.md` Logging & Monitoring, `nfr.md` Availability & Reliability
+
+**Authority:** Reports whether the process is alive and whether it can serve traffic. The probes answer for the process only: they read no record, write nothing, create no session, take no cache entry and change no state. They are the origin of no audit event and no analytics event, because neither a liveness check nor a readiness check is a state change. The reverse proxy, not the application, is the access boundary: both paths are admitted only from the uptime monitor's address, and the application itself requires no credential. Recorded here because the contract set predates the probes; ADR-001 platform decision 9 establishes them.
+
+**Request:**
+```json
+{ "method": "GET", "path": "/healthz", "query": {}, "headers": {}, "body": null }
+```
+```json
+{ "method": "GET", "path": "/readyz", "query": {}, "headers": {}, "body": null }
+```
+Both take no query parameter, no request body, no cookie and no header. A request carrying a body is answered identically rather than refused, because the monitor sends none and a probe that parses input is a probe that can be made to fail. Any method other than `GET` is refused with `405` and `Allow: GET`.
+
+**Response 200 (liveness):**
+```json
+{ "status": "alive" }
+```
+`/healthz` answers `200` whenever the process can answer at all. It consults no dependency, because a liveness probe that fails on a database outage restarts a healthy process and turns one degraded dependency into an outage. When the process cannot answer, the connection fails and the orchestrator observes that directly; there is no failure body to define.
+
+**Response 200 (readiness):**
+```json
+{ "status": "ready" }
+```
+
+**Response 503 (not ready):**
+```json
+{ "status": "not_ready" }
+```
+`/readyz` answers `200` only when the process can accept traffic. The readiness decision is the process's own shutdown state plus one non-recording round trip against the store the process cannot serve without: the primary datastore for the web deployable, and the same store for the worker. The check confirms the process can serve and has not begun draining. It reads no record, names no dependency, and reports no reason — the body is constant, because a probe reachable from outside the hosting environment must not disclose the topology, the dependency that failed, a version or a hostname to whoever reaches it. During a graceful shutdown the answer turns `503` before the listener closes, so the proxy stops routing before the process stops serving, and an in-flight batch on the worker is allowed to finish. On the worker the same two paths report the worker's own process, and readiness there means the next scheduled batch can be taken.
+
+**Probe response rules:** every probe response carries `Content-Type: application/json` and `Cache-Control: no-store`, and the body is byte-identical on every answer of the same status. A probe response carries no `meta`, no `correlationId`, no `asAt`, no rate-limit headers, no build identifier and no timestamp: the `C-001` envelope and its `RateLimit-*` headers apply to the `/api` surfaces, and a probe stays outside them deliberately. The probes are not rate-limited, because the limiter is state and a probe must add none. `/healthz` answers from memory alone. `/readyz`'s single datastore round trip is bounded by a fixed timeout shorter than the monitor's sampling interval, so a datastore that hangs produces `503` rather than a hanging probe, and neither path consults the cache, so a cache outage changes neither answer.
+
+**Monitoring use:** the external uptime monitor samples `/readyz` once a minute from outside the hosting environment, which is how `NFR-010` is measured, and the same check runs against the archive address after handover for `NFR-011`. The container orchestrator uses `/healthz` for liveness and `/readyz` before it routes traffic to an instance. An alert fires at eighty percent of the monthly error budget consumed, per `operations.md` Incident & Escalation.
+
+**Errors:** no `C-001` error envelope is used on either path. `/readyz` answers `503` with `{"status":"not_ready"}` and `/healthz` answers nothing when it cannot answer. A caller outside the monitor allowlist is refused at the reverse proxy before the request reaches the application; the deployment requirement is that both paths are reachable only from the monitor, and a test exercises that refusal. A `405` on a non-`GET` method is the only application-level refusal either path produces.
 
