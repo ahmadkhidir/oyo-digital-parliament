@@ -35,9 +35,12 @@ export type FetchLike = (
 /**
  * Create the HTTP transport.
  *
- * @param fetchImpl - The fetch implementation. Defaults to the runtime's global `fetch`.
+ * @param fetchImpl - The fetch implementation. Defaults to the runtime's global `fetch`, narrowed
+ *   here because the adapter's {@link FetchLike} states the subset it uses; the DOM and undici
+ *   global declarations disagree about the `init` payload's body union, and the adapter consumes
+ *   what it names and nothing else.
  */
-export function createFetchHttpClient(fetchImpl: FetchLike = fetch): HttpClient {
+export function createFetchHttpClient(fetchImpl: FetchLike = fetch as FetchLike): HttpClient {
   return {
     async send(request: HttpRequest): Promise<HttpResponse> {
       const headers: Record<string, string> = {};

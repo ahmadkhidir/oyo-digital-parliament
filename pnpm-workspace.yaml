@@ -25,6 +25,7 @@ catalog:
   '@types/react': 19.3.0
   '@types/react-dom': 19.3.0
   tailwindcss: 4.3.5
+  '@tailwindcss/postcss': 4.3.5
 
   # PostgreSQL 16 through Drizzle ORM and drizzle-kit (AGENTS.md Stack).
   drizzle-orm: 0.45.4
