@@ -12,7 +12,7 @@ import {
 } from '../entities.ts';
 import { isPast, resendAvailableAt, resendCooldownRemaining, toIsoSeconds } from '../policies.ts';
 import type { IdentityPorts } from '../ports.ts';
-import { consumeRateLimit } from './support.ts';
+import { rateLimitHeaders, type RateLimitOutcome } from '../../ports/session.ts';
 
 /** The `C-004` request. */
 export interface ResendRegistrationCodeInput {
@@ -100,7 +100,7 @@ export async function resendRegistrationCode(
     );
   }
 
-  const limited = await consumeRateLimit(deps, {
+  const limited = await consultLimiter(deps, {
     bucket: 'registration_resend',
     subject: { kind: 'number', value: pending.telephoneNumber },
   });
@@ -111,13 +111,19 @@ export async function resendRegistrationCode(
       'The request could not be checked. Try again in a moment.',
     );
   }
-  if (!limited.allowed) {
+  if (!limited.outcome.allowed) {
+    // `C-004` names the wait; `C-001` puts the cap, the remainder and the reset on the refusal too, so
+    // the transport prints the headers from this answer rather than from a second consult.
+    const headers = rateLimitHeaders(limited.outcome);
     return identityFailure(
       'RATE_LIMITED',
       'REGISTRATION_RATE_LIMITED',
       'Too many codes have been sent to this number. Try again shortly.',
       {},
-      { retryAfterSeconds: limited.retryAfterSeconds },
+      {
+        retryAfterSeconds: limited.outcome.retryAfterSeconds,
+        ...(headers === null ? {} : { rateLimit: headers }),
+      },
     );
   }
 
@@ -157,4 +163,17 @@ export async function resendRegistrationCode(
     resendAvailableAt: resendAvailableAt(now),
     codeDelivery: { status: 'sent', channel: 'sms' },
   };
+}
+
+/** One limiter consult that keeps the whole answer, with a store failure kept apart from a refusal. */
+async function consultLimiter(
+  deps: Pick<IdentityPorts, 'rateLimits'>,
+  input: Parameters<IdentityPorts['rateLimits']['consume']>[0],
+): Promise<{ readonly ok: true; readonly outcome: RateLimitOutcome } | { readonly ok: false }> {
+  try {
+    return { ok: true, outcome: await deps.rateLimits.consume(input) };
+  } catch {
+    // A limiter that cannot answer must not become an unhandled exception or a silent admission.
+    return { ok: false };
+  }
 }

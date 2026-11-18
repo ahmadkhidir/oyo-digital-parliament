@@ -263,9 +263,10 @@ export interface RateLimitHeaders {
 /**
  * Read the `C-001` headers out of a limiter answer.
  *
- * The identity port promises only the decision and the wait, so a limiter that answers with the wider
- * {@link RateLimitOutcome} is read defensively: a value that is missing or not a whole non-negative
- * number yields `null`, and the transport then emits no headers rather than a malformed one.
+ * The limiter port promises the whole {@link RateLimitOutcome}, so in practice a refusal carries its
+ * own values and the transport prints them without a second consult. The read stays defensive anyway:
+ * an answer that predates the widened port, or a double that reports only its decision, yields `null`,
+ * and the transport then emits no headers rather than a malformed one.
  *
  * @param outcome - The limiter's answer, as the use case received it.
  */

@@ -19,7 +19,8 @@ import {
   toIsoSeconds,
 } from '../policies.ts';
 import type { IdentityPorts } from '../ports.ts';
-import { consumeRateLimit, emitIdentityAnalytics } from './support.ts';
+import { rateLimitHeaders, type RateLimitOutcome } from '../../ports/session.ts';
+import { emitIdentityAnalytics } from './support.ts';
 
 /** The `C-005` request. */
 export interface RequestSignInCodeInput {
@@ -77,7 +78,7 @@ export async function requestSignInCode(
     );
   }
 
-  const limited = await consumeRateLimit(deps, {
+  const limited = await consultLimiter(deps, {
     bucket: 'sign_in',
     subject: { kind: 'number', value: telephoneNumber.value },
   });
@@ -88,13 +89,19 @@ export async function requestSignInCode(
       'The request could not be checked. Try again in a moment.',
     );
   }
-  if (!limited.allowed) {
+  if (!limited.outcome.allowed) {
+    // `C-005` names the wait; `C-001` puts the cap, the remainder and the reset on the refusal as well,
+    // so the transport prints the headers from this answer instead of consulting the limiter again.
+    const headers = rateLimitHeaders(limited.outcome);
     return identityFailure(
       'RATE_LIMITED',
       'SIGN_IN_RATE_LIMITED',
       'Too many sign-in attempts from this number. Try again shortly.',
       {},
-      { retryAfterSeconds: limited.retryAfterSeconds },
+      {
+        retryAfterSeconds: limited.outcome.retryAfterSeconds,
+        ...(headers === null ? {} : { rateLimit: headers }),
+      },
     );
   }
 
@@ -171,4 +178,18 @@ export async function requestSignInCode(
     },
     expiresAt,
   };
+}
+
+/** One limiter consult that keeps the whole answer, with a store failure kept apart from a refusal. */
+async function consultLimiter(
+  deps: Pick<IdentityPorts, 'rateLimits'>,
+  input: Parameters<IdentityPorts['rateLimits']['consume']>[0],
+): Promise<{ readonly ok: true; readonly outcome: RateLimitOutcome } | { readonly ok: false }> {
+  try {
+    return { ok: true, outcome: await deps.rateLimits.consume(input) };
+  } catch {
+    // `NFR-027` puts the limiter in front of every sign-in; one that cannot answer neither admits the
+    // call nor becomes an unhandled exception, and the caller answers `SERVICE_DEGRADED`.
+    return { ok: false };
+  }
 }
