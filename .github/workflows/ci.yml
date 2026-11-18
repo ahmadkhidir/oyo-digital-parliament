@@ -225,12 +225,19 @@ jobs:
             turbo-${{ runner.os }}-${{ github.job }}-
       - name: Install from the committed lockfile
         run: pnpm install --frozen-lockfile
-      # The build evaluates the same validated configuration the application boots with, from the
-      # example the local stack renders. No service is started: nothing here connects.
+      - name: Start the disposable services
+        run: node scripts/dev/services.mjs up
+      # The build and the boot check evaluate the same validated configuration the application boots
+      # with. The stack is up, so the boot check can assert PostgreSQL and Redis reachability.
       - name: Export the validated environment
-        run: node scripts/ci/export-env.mjs --from .env.example
+        run: node scripts/ci/export-env.mjs
       - name: Build the deployable
         run: pnpm build
+      - name: Boot the built application and the worker
+        run: node scripts/verify/boot-check.mjs
+      - name: Stop the disposable services
+        if: always()
+        run: node scripts/dev/services.mjs down
 
   # The migration journal and the schema drift check (`db:check`). Skipped until the data area has a
   # drizzle configuration; applying and reversing the migrations themselves belongs to the gate.
