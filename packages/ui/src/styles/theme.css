@@ -1,0 +1,350 @@
+/* GENERATED from packages/ui/src/tokens/source.ts by src/tokens/generate.ts — the transcription
+   of docs/OyoDigitalParliament/branding.md. Never hand-edit; regenerate with
+   `node src/tokens/generate.ts` from packages/ui. */
+
+/* Consumed as: @import "@odp/ui/styles/theme.css"; after @import "tailwindcss";
+   Mode selection: the light column is the root; prefers-color-scheme: dark switches to the
+   dark column, overridable in both directions with data-theme="light"/"dark" on <html>.
+   Device values: mobile is the base; tablet and desktop override at the branding breakpoints. */
+
+:root {
+  color-scheme: light;
+
+  /* Colour palette — light column (branding.md, Color Palette). */
+  --odp-color-primary-900: #2E1108;
+  --odp-color-primary-700: #5E2814;
+  --odp-color-primary-500: #9A4A26;
+  --odp-color-primary-300: #DCAE95;
+  --odp-color-primary-100: #FAEDE4;
+  --odp-color-neutral-900: #1B1815;
+  --odp-color-neutral-700: #3D3733;
+  --odp-color-neutral-500: #6B635C;
+  --odp-color-neutral-300: #DCD5CE;
+  --odp-color-neutral-100: #F5F2EE;
+  --odp-color-success-900: #1E2C13;
+  --odp-color-success-700: #3F5A28;
+  --odp-color-success-500: #5F7F3E;
+  --odp-color-success-300: #A9C086;
+  --odp-color-success-100: #EDF3E2;
+  --odp-color-warning-900: #3A2504;
+  --odp-color-warning-700: #6E4A0A;
+  --odp-color-warning-500: #A8700F;
+  --odp-color-warning-300: #D9B268;
+  --odp-color-warning-100: #FDF3DE;
+  --odp-color-error-900: #3D0B0B;
+  --odp-color-error-700: #7A1717;
+  --odp-color-error-500: #B32626;
+  --odp-color-error-300: #E39A9A;
+  --odp-color-error-100: #FCEAEA;
+  --odp-color-info-900: #122334;
+  --odp-color-info-700: #244A68;
+  --odp-color-info-500: #36648B;
+  --odp-color-info-300: #8FB4D0;
+  --odp-color-info-100: #E9F1F8;
+
+  /* Structural role mappings (branding.md) — resolved by reference, so both columns hold. */
+  --odp-surface: var(--odp-color-neutral-100);
+  --odp-surface-secondary: var(--odp-color-neutral-300);
+  --odp-text-primary: var(--odp-color-neutral-900);
+  --odp-text-secondary: var(--odp-color-neutral-500);
+  --odp-border: var(--odp-color-neutral-300);
+  --odp-theme-color: var(--odp-color-primary-900);
+
+  /* Typography (branding.md, Font Family and Type Scale). */
+  --odp-font-display: 'Noto Serif', Georgia, serif;
+  --odp-font-body: 'Noto Sans', sans-serif;
+  --odp-font-size-display: 28px;
+  --odp-line-height-display: 1.2;
+  --odp-font-weight-display: 600;
+  --odp-font-size-h1: 24px;
+  --odp-line-height-h1: 1.25;
+  --odp-font-weight-h1: 600;
+  --odp-font-size-h2: 20px;
+  --odp-line-height-h2: 1.3;
+  --odp-font-weight-h2: 600;
+  --odp-font-size-h3: 18px;
+  --odp-line-height-h3: 1.35;
+  --odp-font-weight-h3: 600;
+  --odp-font-size-body: 16px;
+  --odp-line-height-body: 1.6;
+  --odp-font-weight-body: 400;
+  --odp-font-size-body-strong: 16px;
+  --odp-line-height-body-strong: 1.6;
+  --odp-font-weight-body-strong: 600;
+  --odp-font-size-small: 14px;
+  --odp-line-height-small: 1.5;
+  --odp-font-weight-small: 400;
+  --odp-font-size-caption: 12px;
+  --odp-line-height-caption: 1.4;
+  --odp-font-weight-caption: 500;
+
+  /* Spacing (branding.md) — mobile base. */
+  --odp-space-xs: 4px;
+  --odp-space-sm: 8px;
+  --odp-space-md: 12px;
+  --odp-space-lg: 16px;
+  --odp-space-xl: 24px;
+  --odp-space-2xl: 40px;
+
+  /* Interactive sizing (branding.md, Scales by device) — mobile base. */
+  --odp-button-height: 48px;
+  --odp-input-height: 48px;
+  --odp-icon-size: 20px;
+
+  /* Radii, border and focus treatment (branding.md, Sizing: Fixed; Accessibility). */
+  --odp-radius-sm: 2px;
+  --odp-radius-md: 4px;
+  --odp-radius-lg: 8px;
+  --odp-radius-full: 9999px;
+  --odp-border-width: 1px;
+  --odp-focus-ring-color: var(--odp-color-primary-500);
+  --odp-focus-width: 2px;
+  --odp-focus-offset: 2px;
+
+  /* Shadows — light column (branding.md, Shadows). */
+  --odp-shadow-sm: 0 1px 2px rgba(27,24,21,0.06);
+  --odp-shadow-md: 0 4px 12px rgba(27,24,21,0.10);
+  --odp-shadow-lg: 0 12px 32px rgba(27,24,21,0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* Colour palette — dark column. */
+    --odp-color-primary-900: #F6D9C9;
+    --odp-color-primary-700: #E7B49C;
+    --odp-color-primary-500: #C67C55;
+    --odp-color-primary-300: #6E3520;
+    --odp-color-primary-100: #241009;
+    --odp-color-neutral-900: #F3F0EC;
+    --odp-color-neutral-700: #D8D2CB;
+    --odp-color-neutral-500: #A79E96;
+    --odp-color-neutral-300: #4A443F;
+    --odp-color-neutral-100: #221E1B;
+    --odp-color-success-900: #DDE7C8;
+    --odp-color-success-700: #B4C99A;
+    --odp-color-success-500: #8FAE6A;
+    --odp-color-success-300: #4E6A34;
+    --odp-color-success-100: #1E2A12;
+    --odp-color-warning-900: #FBE3B0;
+    --odp-color-warning-700: #EFC97A;
+    --odp-color-warning-500: #E0A93C;
+    --odp-color-warning-300: #7A5410;
+    --odp-color-warning-100: #2E1D04;
+    --odp-color-error-900: #FBC9C9;
+    --odp-color-error-700: #F09A9A;
+    --odp-color-error-500: #E06A6A;
+    --odp-color-error-300: #8A2A2A;
+    --odp-color-error-100: #2A0C0C;
+    --odp-color-info-900: #CFE0F0;
+    --odp-color-info-700: #A6C4DE;
+    --odp-color-info-500: #7BA6C8;
+    --odp-color-info-300: #3B5C78;
+    --odp-color-info-100: #10202E;
+
+    /* Shadows — dark column. */
+    --odp-shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+    --odp-shadow-md: 0 4px 16px rgba(0,0,0,0.6);
+    --odp-shadow-lg: 0 12px 40px rgba(0,0,0,0.7);
+    }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Colour palette — dark column. */
+  --odp-color-primary-900: #F6D9C9;
+  --odp-color-primary-700: #E7B49C;
+  --odp-color-primary-500: #C67C55;
+  --odp-color-primary-300: #6E3520;
+  --odp-color-primary-100: #241009;
+  --odp-color-neutral-900: #F3F0EC;
+  --odp-color-neutral-700: #D8D2CB;
+  --odp-color-neutral-500: #A79E96;
+  --odp-color-neutral-300: #4A443F;
+  --odp-color-neutral-100: #221E1B;
+  --odp-color-success-900: #DDE7C8;
+  --odp-color-success-700: #B4C99A;
+  --odp-color-success-500: #8FAE6A;
+  --odp-color-success-300: #4E6A34;
+  --odp-color-success-100: #1E2A12;
+  --odp-color-warning-900: #FBE3B0;
+  --odp-color-warning-700: #EFC97A;
+  --odp-color-warning-500: #E0A93C;
+  --odp-color-warning-300: #7A5410;
+  --odp-color-warning-100: #2E1D04;
+  --odp-color-error-900: #FBC9C9;
+  --odp-color-error-700: #F09A9A;
+  --odp-color-error-500: #E06A6A;
+  --odp-color-error-300: #8A2A2A;
+  --odp-color-error-100: #2A0C0C;
+  --odp-color-info-900: #CFE0F0;
+  --odp-color-info-700: #A6C4DE;
+  --odp-color-info-500: #7BA6C8;
+  --odp-color-info-300: #3B5C78;
+  --odp-color-info-100: #10202E;
+
+  /* Shadows — dark column. */
+  --odp-shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --odp-shadow-md: 0 4px 16px rgba(0,0,0,0.6);
+  --odp-shadow-lg: 0 12px 40px rgba(0,0,0,0.7);
+  }
+
+@media (min-width: 640px) {
+  :root {
+    /* tablet values (branding.md, Responsive & Device Targets). */
+    --odp-font-size-display: 32px;
+    --odp-font-size-h1: 26px;
+    --odp-font-size-h2: 22px;
+    --odp-font-size-h3: 18px;
+    --odp-font-size-body: 16px;
+    --odp-font-size-body-strong: 16px;
+    --odp-font-size-small: 14px;
+    --odp-font-size-caption: 12px;
+    --odp-space-xs: 4px;
+    --odp-space-sm: 8px;
+    --odp-space-md: 16px;
+    --odp-space-lg: 24px;
+    --odp-space-xl: 32px;
+    --odp-space-2xl: 56px;
+    --odp-button-height: 44px;
+    --odp-input-height: 44px;
+    --odp-icon-size: 22px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    /* desktop values (branding.md, Responsive & Device Targets). */
+    --odp-font-size-display: 36px;
+    --odp-font-size-h1: 28px;
+    --odp-font-size-h2: 24px;
+    --odp-font-size-h3: 20px;
+    --odp-font-size-body: 16px;
+    --odp-font-size-body-strong: 16px;
+    --odp-font-size-small: 14px;
+    --odp-font-size-caption: 12px;
+    --odp-space-xs: 4px;
+    --odp-space-sm: 10px;
+    --odp-space-md: 20px;
+    --odp-space-lg: 28px;
+    --odp-space-xl: 40px;
+    --odp-space-2xl: 64px;
+    --odp-button-height: 40px;
+    --odp-input-height: 40px;
+    --odp-icon-size: 24px;
+  }
+}
+
+/* Tailwind v4 mapping. The `inline` keyword keeps the var() reference inside each utility,
+   so utilities track the light/dark and device values without dark: variants or arbitrary
+   values. Default scale namespaces are reset so only branding tokens resolve. */
+@theme inline {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --spacing-*: initial;
+  --spacing: initial;
+  --breakpoint-*: initial;
+  --container-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --leading-*: initial;
+  --tracking-*: initial;
+  --ease-*: initial;
+
+  /* Breakpoints (branding.md, Responsive & Device Targets); mobile needs no variant. */
+  --breakpoint-tablet: 640px;
+  --breakpoint-desktop: 1024px;
+
+  /* Colour palette. */
+  --color-primary-900: var(--odp-color-primary-900);
+  --color-primary-700: var(--odp-color-primary-700);
+  --color-primary-500: var(--odp-color-primary-500);
+  --color-primary-300: var(--odp-color-primary-300);
+  --color-primary-100: var(--odp-color-primary-100);
+  --color-neutral-900: var(--odp-color-neutral-900);
+  --color-neutral-700: var(--odp-color-neutral-700);
+  --color-neutral-500: var(--odp-color-neutral-500);
+  --color-neutral-300: var(--odp-color-neutral-300);
+  --color-neutral-100: var(--odp-color-neutral-100);
+  --color-success-900: var(--odp-color-success-900);
+  --color-success-700: var(--odp-color-success-700);
+  --color-success-500: var(--odp-color-success-500);
+  --color-success-300: var(--odp-color-success-300);
+  --color-success-100: var(--odp-color-success-100);
+  --color-warning-900: var(--odp-color-warning-900);
+  --color-warning-700: var(--odp-color-warning-700);
+  --color-warning-500: var(--odp-color-warning-500);
+  --color-warning-300: var(--odp-color-warning-300);
+  --color-warning-100: var(--odp-color-warning-100);
+  --color-error-900: var(--odp-color-error-900);
+  --color-error-700: var(--odp-color-error-700);
+  --color-error-500: var(--odp-color-error-500);
+  --color-error-300: var(--odp-color-error-300);
+  --color-error-100: var(--odp-color-error-100);
+  --color-info-900: var(--odp-color-info-900);
+  --color-info-700: var(--odp-color-info-700);
+  --color-info-500: var(--odp-color-info-500);
+  --color-info-300: var(--odp-color-info-300);
+  --color-info-100: var(--odp-color-info-100);
+
+  /* Structural roles. */
+  --color-surface: var(--odp-surface);
+  --color-surface-secondary: var(--odp-surface-secondary);
+  --color-text-primary: var(--odp-text-primary);
+  --color-text-secondary: var(--odp-text-secondary);
+  --color-border: var(--odp-border);
+  --color-theme: var(--odp-theme-color);
+
+  /* Font families; the body family is the preflight default. */
+  --font-display: var(--odp-font-display);
+  --font-body: var(--odp-font-body);
+  --default-font-family: var(--odp-font-body);
+
+  /* Type scale, with its line height and weight attached. */
+  --text-display: var(--odp-font-size-display);
+  --text-display--line-height: var(--odp-line-height-display);
+  --text-display--font-weight: var(--odp-font-weight-display);
+  --text-h1: var(--odp-font-size-h1);
+  --text-h1--line-height: var(--odp-line-height-h1);
+  --text-h1--font-weight: var(--odp-font-weight-h1);
+  --text-h2: var(--odp-font-size-h2);
+  --text-h2--line-height: var(--odp-line-height-h2);
+  --text-h2--font-weight: var(--odp-font-weight-h2);
+  --text-h3: var(--odp-font-size-h3);
+  --text-h3--line-height: var(--odp-line-height-h3);
+  --text-h3--font-weight: var(--odp-font-weight-h3);
+  --text-body: var(--odp-font-size-body);
+  --text-body--line-height: var(--odp-line-height-body);
+  --text-body--font-weight: var(--odp-font-weight-body);
+  --text-body-strong: var(--odp-font-size-body-strong);
+  --text-body-strong--line-height: var(--odp-line-height-body-strong);
+  --text-body-strong--font-weight: var(--odp-font-weight-body-strong);
+  --text-small: var(--odp-font-size-small);
+  --text-small--line-height: var(--odp-line-height-small);
+  --text-small--font-weight: var(--odp-font-weight-small);
+  --text-caption: var(--odp-font-size-caption);
+  --text-caption--line-height: var(--odp-line-height-caption);
+  --text-caption--font-weight: var(--odp-font-weight-caption);
+
+  /* Spacing, plus the interactive heights as spacing names for the h, min-h and size utilities. */
+  --spacing-xs: var(--odp-space-xs);
+  --spacing-sm: var(--odp-space-sm);
+  --spacing-md: var(--odp-space-md);
+  --spacing-lg: var(--odp-space-lg);
+  --spacing-xl: var(--odp-space-xl);
+  --spacing-2xl: var(--odp-space-2xl);
+  --spacing-button: var(--odp-button-height);
+  --spacing-input: var(--odp-input-height);
+  --spacing-icon: var(--odp-icon-size);
+
+  /* Radii and shadows. */
+  --radius-sm: var(--odp-radius-sm);
+  --radius-md: var(--odp-radius-md);
+  --radius-lg: var(--odp-radius-lg);
+  --radius-full: var(--odp-radius-full);
+  --shadow-sm: var(--odp-shadow-sm);
+  --shadow-md: var(--odp-shadow-md);
+  --shadow-lg: var(--odp-shadow-lg);
+}

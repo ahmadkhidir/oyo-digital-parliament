@@ -1,0 +1,28 @@
+/* GENERATED from packages/ui/src/tokens/source.ts by src/tokens/generate.ts — the transcription
+   of docs/OyoDigitalParliament/branding.md. Never hand-edit; regenerate with
+   `node src/tokens/generate.ts` from packages/ui. */
+
+/* Font faces for the two font slots (assets/ASSETS.md, Family: Font — Noto Sans and Noto
+   Serif, variable WOFF2, SIL OFL 1.1). Coverage of Yoruba's sub-dotted vowels and tone marks
+   is the reason these families were chosen, so a subset that drops them is a defect.
+   The deployable serves the slot files at /fonts/ (the assets directory itself is never
+   served directly); a missing slot file is reported, not substituted. */
+
+@font-face {
+  font-family: "Noto Sans";
+  src: url("/fonts/noto-sans-latin-yoruba.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  /* Slot A-042: assets/fonts/noto-sans-latin-yoruba.woff2 */
+}
+
+@font-face {
+  font-family: "Noto Serif";
+  src: url("/fonts/noto-serif-latin-yoruba.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  /* Slot A-043: assets/fonts/noto-serif-latin-yoruba.woff2 */
+}
+
