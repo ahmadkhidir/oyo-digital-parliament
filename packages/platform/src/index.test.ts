@@ -3,11 +3,12 @@
  *
  * One validated environment builds the bundle the app and the worker both use. These tests pin the
  * wiring that has no adapter of its own: an unconfigured SMS provider holds rather than delivers, the
- * flags come from the environment, and closing the bundle releases the Redis connection.
+ * flags come from the environment, the session capability is built from the same configuration, and
+ * closing the bundle releases every connection it opened.
  */
 import { describe, expect, it } from 'vitest';
 
-import { createPlatform } from './index.ts';
+import { createPlatform, type SessionCapability } from './index.ts';
 import { loadConfig } from './config/load.ts';
 import { smsEnvironment, validEnvironment } from './testing/config-fixture.ts';
 
@@ -19,6 +20,32 @@ describe('composition root', () => {
     expect(platform.featureFlags.assisted_intake).toBe(false);
     expect(platform.ids.next('sub')).toMatch(/^sub_[0-9A-Z]{26}$/);
     expect(platform.clock.now()).toBeInstanceOf(Date);
+  });
+
+  it('exposes the session capability and its per-bucket caps', async () => {
+    const platform = createPlatform(loadConfig({ env: validEnvironment() }));
+    const sessions: SessionCapability = platform.sessions;
+
+    expect(typeof sessions.memberSessions.create).toBe('function');
+    expect(typeof sessions.staffSessions.upgrade).toBe('function');
+    expect(typeof sessions.codes.issue).toBe('function');
+    expect(typeof sessions.ping).toBe('function');
+
+    // A bucket with no configured cap is refused before the store is touched, so a call site cannot
+    // ship ahead of its policy; a configured bucket reaches the cap check instead.
+    await expect(
+      sessions.rateLimits.consume({
+        bucket: 'not_a_bucket',
+        subject: { kind: 'member', value: 'mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA' },
+      }),
+    ).rejects.toThrow(/no rate-limit cap/);
+    await expect(
+      sessions.rateLimits.consume({
+        bucket: 'staff_sign_in',
+        subject: { kind: 'address', value: '203.0.113.9' },
+        fixedLimit: 0,
+      }),
+    ).rejects.toThrow(TypeError);
   });
 
   it('holds SMS messages when no gateway is configured', async () => {

@@ -32,6 +32,7 @@ import {
   type StaffProjection,
 } from '../policies.ts';
 import type { IdentityPorts } from '../ports.ts';
+import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import {
   appendIdentityAudit,
   fingerprintOf,
@@ -55,6 +56,12 @@ export interface StaffSignedIn {
   readonly staff: StaffProjection & { readonly secondFactorEnrolled: true };
   readonly session: { readonly expiresAt: string; readonly absoluteExpiresAt: string };
   readonly nextScreen: '/admin';
+  /**
+   * The staff cookie, re-presented with the satisfied session's window (`C-092`, `NFR-026`). The
+   * challenge cookie lasted ten minutes; leaving it there would sign the console out while the record
+   * still says the session is live.
+   */
+  readonly cookie?: SessionCookie;
 }
 
 /** The `C-092` answer, or the refusal that stopped it. */
@@ -372,8 +379,18 @@ export async function verifyStaffSecondFactor(
     session: { expiresAt: window.expiresAt, absoluteExpiresAt: window.absoluteExpiresAt },
     nextScreen: '/admin',
   };
+  // The recorded answer carries no cookie: a replay returns the answer `C-092` recorded, and a session
+  // token belongs in the session store, where it is held as a digest (`NFR-026`).
   await recordAnswer(deps, key.value, fingerprint, result);
-  return result;
+
+  const cookie = liveSessionCookie({
+    namespace: 'staff',
+    token: caller.sessionId,
+    expiresAt: window.expiresAt,
+    absoluteExpiresAt: window.absoluteExpiresAt,
+    now,
+  });
+  return { ...result, ...(cookie === null ? {} : { cookie }) };
 }
 
 /** The one refusal a wrong time-based code produces. */

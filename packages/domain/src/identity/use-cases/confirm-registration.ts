@@ -29,6 +29,7 @@ import {
   type RegistrationMemberProjection,
 } from '../policies.ts';
 import type { CodeAttempts, IdentityPorts } from '../ports.ts';
+import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import { appendIdentityAudit, emitIdentityAnalytics } from './support.ts';
 
 /** The `C-003` request. */
@@ -44,6 +45,11 @@ export type ConfirmRegistrationResult =
       readonly member: RegistrationMemberProjection;
       readonly session: { readonly established: true; readonly expiresAt: string };
       readonly nextScreen: '/join/ward';
+      /**
+       * The cookie the transport must set (`C-003`, `NFR-026`). It is not part of the response body:
+       * the opaque session token reaches the browser in this header and nowhere else.
+       */
+      readonly cookie?: SessionCookie;
     }
   | IdentityFailure;
 
@@ -234,13 +240,14 @@ export async function confirmRegistration(
   }
 
   const expiresAt = memberSessionExpiry(now);
+  let sessionId: string;
   try {
-    await deps.memberSessions.create({
+    ({ sessionId } = await deps.memberSessions.create({
       memberId,
       at: now,
       expiresAt,
       absoluteExpiresAt: expiresAt,
-    });
+    }));
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -250,6 +257,16 @@ export async function confirmRegistration(
       { meta: { recoveryPath: '/sign-in' } },
     );
   }
+
+  // The window is the one the adapter reported, not the one asked for: the adapter may shorten an
+  // idle window, and a cookie must never outlive the session behind it (`NFR-026`).
+  const cookie = liveSessionCookie({
+    namespace: 'member',
+    token: sessionId,
+    expiresAt,
+    absoluteExpiresAt: expiresAt,
+    now,
+  });
 
   const refused = await appendIdentityAudit(deps, {
     actorId: memberId,
@@ -288,5 +305,6 @@ export async function confirmRegistration(
     member: registrationProjection(member),
     session: { established: true, expiresAt },
     nextScreen: '/join/ward',
+    ...(cookie === null ? {} : { cookie }),
   };
 }

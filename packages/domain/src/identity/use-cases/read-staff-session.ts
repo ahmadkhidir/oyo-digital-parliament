@@ -14,6 +14,11 @@ import {
   type StaffProjection,
 } from '../policies.ts';
 import type { IdentityPorts } from '../ports.ts';
+import {
+  clearedSessionCookie,
+  liveSessionCookie,
+  type SessionCookie,
+} from '../../ports/session.ts';
 
 /** The `C-092` session-read request. */
 export interface ReadStaffSessionInput {
@@ -27,6 +32,8 @@ export interface StaffSignedOut {
   readonly staff: null;
   readonly session: null;
   readonly nextScreen: '/admin/sign-in';
+  /** The clearing cookie a stale token earns, so the browser stops presenting it (`NFR-026`). */
+  readonly cookie?: SessionCookie;
 }
 
 /** The signed-in answer, satisfied or not. */
@@ -39,6 +46,8 @@ export interface StaffSessionState {
     readonly absoluteExpiresAt: string;
   };
   readonly nextScreen: '/admin' | '/admin/verify' | '/admin/enrol';
+  /** The renewed cookie, so the browser's lifetime follows the sliding idle window (`NFR-026`). */
+  readonly cookie?: SessionCookie;
 }
 
 /** The `C-092` answer, or the degraded refusal. */
@@ -82,7 +91,9 @@ export async function readStaffSession(
     isPast(session.expiresAt, now) ||
     isPast(session.absoluteExpiresAt, now)
   ) {
-    return signedOut;
+    // `C-092`: a session past its idle or absolute timeout is signed out, and the cookie it arrived
+    // in is cleared so the console does not keep presenting it.
+    return { ...signedOut, cookie: clearedSessionCookie('staff') };
   }
 
   let staff: StaffUser | null;
@@ -95,9 +106,18 @@ export async function readStaffSession(
       'The staff account could not be read, so you are signed out.',
     );
   }
-  if (staff === null || !staff.active) return signedOut;
+  if (staff === null || !staff.active) {
+    return { ...signedOut, cookie: clearedSessionCookie('staff') };
+  }
 
   const secondFactorEnrolled = staff.secondFactorEnrolled;
+  const cookie = liveSessionCookie({
+    namespace: 'staff',
+    token: input.staffSessionToken,
+    expiresAt: session.expiresAt,
+    absoluteExpiresAt: session.absoluteExpiresAt,
+    now,
+  });
   return {
     ok: true,
     signedIn: true,
@@ -116,5 +136,6 @@ export async function readStaffSession(
       secondFactorSatisfied: session.secondFactorSatisfied,
       secondFactorEnrolled,
     }),
+    ...(cookie === null ? {} : { cookie }),
   };
 }

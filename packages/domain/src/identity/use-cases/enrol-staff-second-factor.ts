@@ -37,6 +37,7 @@ import {
   toIsoSeconds,
 } from '../policies.ts';
 import type { IdentityPorts, TotpEnrolment } from '../ports.ts';
+import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import { appendIdentityAudit, refuseStaffSignIn } from './support.ts';
 
 /** The `C-092` enrolment request: `begin` issues the secret, `confirm` proves it. */
@@ -61,6 +62,11 @@ export interface EnrolmentComplete {
   readonly secondFactorEnrolledAt: string;
   readonly recoveryCodes: readonly string[];
   readonly nextScreen: '/admin';
+  /**
+   * The staff cookie, re-presented with the satisfied session's window (`C-092`, `NFR-026`). Enrolment
+   * completes the sign-in, so the ten-minute challenge cookie must be replaced by the session's.
+   */
+  readonly cookie?: SessionCookie;
 }
 
 /** The `C-092` answer, or the refusal that stopped it. */
@@ -283,9 +289,9 @@ export async function enrolStaffSecondFactor(
   }
 
   const enrolledAt = completed.enrolledAt;
+  const window = staffSessionWindow(caller.sessionStartedAt, now);
   try {
     await deps.staffUsers.setSecondFactorEnrolled(staff.id, true, now);
-    const window = staffSessionWindow(caller.sessionStartedAt, now);
     await deps.staffSessions.upgrade(caller.sessionId, {
       secondFactorSatisfied: true,
       at: now,
@@ -311,6 +317,13 @@ export async function enrolStaffSecondFactor(
   });
   if (refused !== null) return refused;
 
+  const cookie = liveSessionCookie({
+    namespace: 'staff',
+    token: caller.sessionId,
+    expiresAt: window.expiresAt,
+    absoluteExpiresAt: window.absoluteExpiresAt,
+    now,
+  });
   return {
     ok: true,
     action: 'confirm',
@@ -318,5 +331,6 @@ export async function enrolStaffSecondFactor(
     secondFactorEnrolledAt: enrolledAt,
     recoveryCodes: completed.recoveryCodes,
     nextScreen: '/admin',
+    ...(cookie === null ? {} : { cookie }),
   };
 }

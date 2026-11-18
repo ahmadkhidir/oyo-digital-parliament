@@ -110,6 +110,61 @@ export function clearedSessionCookie(namespace: SessionNamespace): SessionCookie
 }
 
 /**
+ * Whether a value is one a session cookie may carry: unpadded base64url, long enough to be a secret.
+ *
+ * The check exists before anything enters a header, because a token containing `;` or whitespace could
+ * otherwise append cookie attributes of its own.
+ */
+export function isSessionToken(value: string): boolean {
+  return TOKEN_VALUE.test(value);
+}
+
+/**
+ * Build the cookie for a session that is still live, or report that there is none to present.
+ *
+ * A use case hands the transport a cookie rather than deciding when one may be set: a `Set-Cookie` with
+ * a lifetime the server-side session does not have leaves a browser presenting a token that no longer
+ * resolves for one request longer than the record allows (`NFR-026`).
+ *
+ * The lifetime is the earlier of the two windows, because a renewed idle window never extends past the
+ * absolute one. A session whose window has already closed — the clock stepped past it between the
+ * adapter's read and this call — produces nothing rather than a negative `Max-Age`. So does a handle
+ * that is not an opaque token: a value no browser may carry cannot be written into a header, and a read
+ * path must still answer the request it was given.
+ *
+ * @param input.namespace - Which session namespace the cookie belongs to.
+ * @param input.token - The opaque token the adapter issued.
+ * @param input.expiresAt - The idle expiry the adapter reported.
+ * @param input.absoluteExpiresAt - The absolute expiry, when the session has one.
+ * @param input.now - The instant the use case computed, from the injected clock.
+ * @throws TypeError when either instant is not an instant. That is a programming defect rather than a
+ *   request error.
+ */
+export function liveSessionCookie(input: {
+  readonly namespace: SessionNamespace;
+  readonly token: string;
+  readonly expiresAt: string;
+  readonly absoluteExpiresAt?: string;
+  readonly now: string;
+}): SessionCookie | null {
+  const idleEnds = Date.parse(input.expiresAt);
+  const absoluteEnds =
+    input.absoluteExpiresAt === undefined ? idleEnds : Date.parse(input.absoluteExpiresAt);
+  const nowMs = Date.parse(input.now);
+  if (!Number.isFinite(idleEnds) || !Number.isFinite(absoluteEnds) || !Number.isFinite(nowMs)) {
+    throw new TypeError('a session window must be an instant');
+  }
+  if (!isSessionToken(input.token)) return null;
+  const maxAgeSeconds = Math.ceil((Math.min(idleEnds, absoluteEnds) - nowMs) / 1000);
+  if (maxAgeSeconds < 1) return null;
+  return presentSessionCookie({
+    namespace: input.namespace,
+    token: input.token,
+    maxAgeSeconds,
+  });
+}
+
+/**
  * Read one session token from a request's `Cookie` header.
  *
  * @param cookieHeader - The raw header value, or `null`/`undefined` when the request carried none.
@@ -180,4 +235,76 @@ export interface RateLimitOutcome {
   readonly remaining: number;
   /** When the fixed window resets, as a `C-001` instant, for `RateLimit-Reset`. */
   readonly resetAt: string;
+}
+
+/** The header names `C-001` fixes, so no caller spells them itself. */
+export const RATE_LIMIT_HEADER_NAMES = {
+  limit: 'RateLimit-Limit',
+  remaining: 'RateLimit-Remaining',
+  reset: 'RateLimit-Reset',
+  retryAfter: 'Retry-After',
+} as const;
+
+/**
+ * The rate-limit signals every `C-001` response carries.
+ *
+ * `C-001` prints `RateLimit-Reset` as epoch seconds while the limiter reports an instant, so the
+ * conversion happens once, here, rather than at every call site.
+ */
+export interface RateLimitHeaders {
+  readonly limit: number;
+  readonly remaining: number;
+  /** `RateLimit-Reset`, in epoch seconds as `C-001` specifies. */
+  readonly resetSeconds: number;
+  /** `Retry-After`, on a refusal only. */
+  readonly retryAfterSeconds?: number;
+}
+
+/**
+ * Read the `C-001` headers out of a limiter answer.
+ *
+ * The identity port promises only the decision and the wait, so a limiter that answers with the wider
+ * {@link RateLimitOutcome} is read defensively: a value that is missing or not a whole non-negative
+ * number yields `null`, and the transport then emits no headers rather than a malformed one.
+ *
+ * @param outcome - The limiter's answer, as the use case received it.
+ */
+export function rateLimitHeaders(outcome: {
+  readonly allowed: boolean;
+  readonly retryAfterSeconds: number;
+}): RateLimitHeaders | null {
+  if (!('limit' in outcome) || !('remaining' in outcome) || !('resetAt' in outcome)) return null;
+  const { limit, remaining, resetAt } = outcome;
+  if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 0) return null;
+  if (typeof remaining !== 'number' || !Number.isSafeInteger(remaining) || remaining < 0) {
+    return null;
+  }
+  if (typeof resetAt !== 'string') return null;
+  const resetMs = Date.parse(resetAt);
+  if (!Number.isFinite(resetMs)) return null;
+  const retryAfterSeconds = outcome.retryAfterSeconds;
+  return {
+    limit,
+    remaining,
+    resetSeconds: Math.ceil(resetMs / 1000),
+    ...(retryAfterSeconds > 0 ? { retryAfterSeconds } : {}),
+  };
+}
+
+/**
+ * Render {@link RateLimitHeaders} as the header name/value pairs a response carries.
+ *
+ * @param headers - The triple read from one limiter answer.
+ */
+export function renderRateLimitHeaders(
+  headers: RateLimitHeaders,
+): Readonly<Record<string, string>> {
+  return {
+    [RATE_LIMIT_HEADER_NAMES.limit]: String(headers.limit),
+    [RATE_LIMIT_HEADER_NAMES.remaining]: String(headers.remaining),
+    [RATE_LIMIT_HEADER_NAMES.reset]: String(headers.resetSeconds),
+    ...(headers.retryAfterSeconds === undefined
+      ? {}
+      : { [RATE_LIMIT_HEADER_NAMES.retryAfter]: String(headers.retryAfterSeconds) }),
+  };
 }

@@ -26,6 +26,7 @@ import {
   type SessionMemberProjection,
 } from '../policies.ts';
 import type { CodeAttempts, IdentityPorts } from '../ports.ts';
+import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import { appendIdentityAudit } from './support.ts';
 
 /** The `C-006` request. `memberId` is required when the number has more than one account. */
@@ -44,6 +45,11 @@ export type CompleteSignInResult =
       readonly member: SessionMemberProjection;
       readonly session: { readonly established: true; readonly expiresAt: string };
       readonly returnTo: string;
+      /**
+       * The cookie the transport must set (`C-006`, `NFR-026`). It is not part of the response body:
+       * the opaque session token reaches the browser in this header and nowhere else.
+       */
+      readonly cookie?: SessionCookie;
     }
   | IdentityFailure;
 
@@ -255,13 +261,14 @@ export async function completeSignIn(
   }
 
   const expiresAt = memberSessionExpiry(now);
+  let sessionId: string;
   try {
-    await deps.memberSessions.create({
+    ({ sessionId } = await deps.memberSessions.create({
       memberId: member.id,
       at: now,
       expiresAt,
       absoluteExpiresAt: expiresAt,
-    });
+    }));
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -269,6 +276,16 @@ export async function completeSignIn(
       'The session could not be opened. Try again in a moment.',
     );
   }
+
+  // A cookie never outlives the session behind it, so its lifetime comes from the window the adapter
+  // stored rather than from the one this use case asked for (`NFR-026`).
+  const cookie = liveSessionCookie({
+    namespace: 'member',
+    token: sessionId,
+    expiresAt,
+    absoluteExpiresAt: expiresAt,
+    now,
+  });
 
   const refused = await appendIdentityAudit(deps, {
     actorId: member.id,
@@ -287,5 +304,6 @@ export async function completeSignIn(
     member: sessionMemberProjection(member),
     session: { established: true, expiresAt },
     returnTo: returnTo.value,
+    ...(cookie === null ? {} : { cookie }),
   };
 }
