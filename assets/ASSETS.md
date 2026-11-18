@@ -5,49 +5,49 @@ The asset ledger. One row per slot (`A-###`). The user is the sole authority on 
 
 | Slot | File | Family / Variant | Status |
 |---|---|---|---|
-| A-001 | assets/brand/mark.svg | Brand mark / Master, mark only, transparent | Pending |
-| A-002 | assets/brand/mark-one-colour.svg | Brand mark / One-colour | Pending |
-| A-003 | assets/brand/mark-knockout.svg | Brand mark / Knockout | Pending |
-| A-004 | assets/brand/lockup-horizontal.svg | Brand mark / Horizontal lockup | Pending |
-| A-005 | assets/brand/favicon-16.png | Brand mark / Favicon 16 | Pending |
-| A-006 | assets/brand/favicon-32.png | Brand mark / Favicon 32 | Pending |
-| A-007 | assets/brand/app-icon-192.png | Brand mark / App icon 192 | Pending |
-| A-008 | assets/brand/app-icon-512.png | Brand mark / App icon 512 | Pending |
-| A-009 | assets/brand/app-icon-maskable-512.png | Brand mark / App icon maskable 512 | Pending |
-| A-010 | assets/brand/apple-touch-icon-180.png | Brand mark / Apple touch icon 180 | Pending |
-| A-011 | assets/icons/pillars/local-government-autonomy.svg | Pillar icon / Local government autonomy | Pending |
-| A-012 | assets/icons/pillars/infrastructure.svg | Pillar icon / Infrastructure | Pending |
-| A-013 | assets/icons/pillars/health.svg | Pillar icon / Health | Pending |
-| A-014 | assets/icons/pillars/education.svg | Pillar icon / Education | Pending |
-| A-015 | assets/icons/pillars/economy-and-jobs.svg | Pillar icon / Economy and jobs | Pending |
-| A-016 | assets/icons/pillars/agriculture-and-minerals.svg | Pillar icon / Agriculture and minerals | Pending |
-| A-017 | assets/icons/pillars/security.svg | Pillar icon / Security | Pending |
-| A-018 | assets/icons/ui/menu.svg | Interface icon / Menu | Pending |
-| A-019 | assets/icons/ui/chevron-down.svg | Interface icon / Chevron down | Pending |
-| A-020 | assets/icons/ui/chevron-left.svg | Interface icon / Chevron left | Pending |
-| A-021 | assets/icons/ui/chevron-right.svg | Interface icon / Chevron right | Pending |
-| A-022 | assets/icons/ui/x.svg | Interface icon / Close | Pending |
-| A-023 | assets/icons/ui/refresh.svg | Interface icon / Retry | Pending |
-| A-024 | assets/icons/ui/wifi-off.svg | Interface icon / Offline | Pending |
-| A-025 | assets/icons/ui/loader-2.svg | Interface icon / Pending work | Pending |
-| A-026 | assets/icons/ui/download.svg | Interface icon / Download | Pending |
-| A-027 | assets/icons/ui/trash.svg | Interface icon / Delete | Pending |
-| A-028 | assets/icons/ui/logout.svg | Interface icon / Sign out | Pending |
-| A-029 | assets/icons/ui/external-link.svg | Interface icon / Leaves the record | Pending |
-| A-030 | assets/status/marker-awaiting-decision.svg | Status marker / Awaiting decision | Pending |
-| A-031 | assets/status/marker-overdue.svg | Status marker / Overdue | Pending |
-| A-032 | assets/status/marker-committed.svg | Status marker / Committed | Pending |
-| A-033 | assets/status/marker-referred.svg | Status marker / Referred | Pending |
-| A-034 | assets/status/marker-delivered.svg | Status marker / Delivered | Pending |
-| A-035 | assets/status/marker-slipped.svg | Status marker / Slipped | Pending |
-| A-036 | assets/status/marker-dropped.svg | Status marker / Dropped | Pending |
-| A-037 | assets/status/marker-declined.svg | Status marker / Declined | Pending |
-| A-038 | assets/status/marker-withdrawn.svg | Status marker / Withdrawn | Pending |
-| A-039 | assets/status/marker-withheld.svg | Status marker / Withheld | Pending |
+| A-001 | assets/brand/mark.svg | Brand mark / Master, mark only, transparent | Done |
+| A-002 | assets/brand/mark-one-colour.svg | Brand mark / One-colour | Done |
+| A-003 | assets/brand/mark-knockout.svg | Brand mark / Knockout | Done |
+| A-004 | assets/brand/lockup-horizontal.svg | Brand mark / Horizontal lockup | Done |
+| A-005 | assets/brand/favicon-16.png | Brand mark / Favicon 16 | Done |
+| A-006 | assets/brand/favicon-32.png | Brand mark / Favicon 32 | Done |
+| A-007 | assets/brand/app-icon-192.png | Brand mark / App icon 192 | Done |
+| A-008 | assets/brand/app-icon-512.png | Brand mark / App icon 512 | Done |
+| A-009 | assets/brand/app-icon-maskable-512.png | Brand mark / App icon maskable 512 | Done |
+| A-010 | assets/brand/apple-touch-icon-180.png | Brand mark / Apple touch icon 180 | Done |
+| A-011 | assets/icons/pillars/local-government-autonomy.svg | Pillar icon / Local government autonomy | Done |
+| A-012 | assets/icons/pillars/infrastructure.svg | Pillar icon / Infrastructure | Done |
+| A-013 | assets/icons/pillars/health.svg | Pillar icon / Health | Done |
+| A-014 | assets/icons/pillars/education.svg | Pillar icon / Education | Done |
+| A-015 | assets/icons/pillars/economy-and-jobs.svg | Pillar icon / Economy and jobs | Done |
+| A-016 | assets/icons/pillars/agriculture-and-minerals.svg | Pillar icon / Agriculture and minerals | Done |
+| A-017 | assets/icons/pillars/security.svg | Pillar icon / Security | Done |
+| A-018 | assets/icons/ui/menu.svg | Interface icon / Menu | Done |
+| A-019 | assets/icons/ui/chevron-down.svg | Interface icon / Chevron down | Done |
+| A-020 | assets/icons/ui/chevron-left.svg | Interface icon / Chevron left | Done |
+| A-021 | assets/icons/ui/chevron-right.svg | Interface icon / Chevron right | Done |
+| A-022 | assets/icons/ui/x.svg | Interface icon / Close | Done |
+| A-023 | assets/icons/ui/refresh.svg | Interface icon / Retry | Done |
+| A-024 | assets/icons/ui/wifi-off.svg | Interface icon / Offline | Done |
+| A-025 | assets/icons/ui/loader-2.svg | Interface icon / Pending work | Done |
+| A-026 | assets/icons/ui/download.svg | Interface icon / Download | Done |
+| A-027 | assets/icons/ui/trash.svg | Interface icon / Delete | Done |
+| A-028 | assets/icons/ui/logout.svg | Interface icon / Sign out | Done |
+| A-029 | assets/icons/ui/external-link.svg | Interface icon / Leaves the record | Done |
+| A-030 | assets/status/marker-awaiting-decision.svg | Status marker / Awaiting decision | Done |
+| A-031 | assets/status/marker-overdue.svg | Status marker / Overdue | Done |
+| A-032 | assets/status/marker-committed.svg | Status marker / Committed | Done |
+| A-033 | assets/status/marker-referred.svg | Status marker / Referred | Done |
+| A-034 | assets/status/marker-delivered.svg | Status marker / Delivered | Done |
+| A-035 | assets/status/marker-slipped.svg | Status marker / Slipped | Done |
+| A-036 | assets/status/marker-dropped.svg | Status marker / Dropped | Done |
+| A-037 | assets/status/marker-declined.svg | Status marker / Declined | Done |
+| A-038 | assets/status/marker-withdrawn.svg | Status marker / Withdrawn | Done |
+| A-039 | assets/status/marker-withheld.svg | Status marker / Withheld | Done |
 | A-040 | assets/social/share-card-1200x630.png | Social share card / Landscape | Pending |
 | A-041 | assets/social/share-card-1200x1200.png | Social share card / Square | Pending |
-| A-042 | assets/fonts/noto-sans-latin-yoruba.woff2 | Font / Noto Sans | Pending |
-| A-043 | assets/fonts/noto-serif-latin-yoruba.woff2 | Font / Noto Serif | Pending |
+| A-042 | assets/fonts/noto-sans-latin-yoruba.woff2 | Font / Noto Sans | Done |
+| A-043 | assets/fonts/noto-serif-latin-yoruba.woff2 | Font / Noto Serif | Done |
 
 ## Family blocks
 
