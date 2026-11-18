@@ -195,7 +195,7 @@ describe('member sessions', () => {
         absoluteExpiresAt: iso(clock, 600),
       }),
     ).rejects.toBeInstanceOf(SessionStoreUnavailableError);
-    await expect(member.read('9Wq3m0Zk1yV8sR2tB6cN4fH7jL5pX0aD3eG1kM9uQ2w')).rejects.toBeInstanceOf(
+    await expect(member.read('test-token-not-a-secret-0123456789abcdef012')).rejects.toBeInstanceOf(
       SessionStoreUnavailableError,
     );
   });
