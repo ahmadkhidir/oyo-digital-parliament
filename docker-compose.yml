@@ -1,0 +1,128 @@
+# Local development services for Oyo Digital Parliament.
+#
+# The three data stores the system is built on (`docs/OyoDigitalParliament/architecture.md`, Data
+# Architecture): PostgreSQL 16 as the Primary Database, Redis 7 for the read cache, sessions and
+# rate-limit counters, and an S3-compatible object store for exports, report cards, the handover
+# snapshot and evaluation artefacts. They are disposable: the Development environment holds synthetic
+# data and "resets freely" (`architecture.md` Environments, `nfr.md` Data lifecycle).
+#
+# Drive it through `node scripts/dev/services.mjs up|down|reset|status|logs`. That script creates
+# `.env` from `.env.example` on first use, validates it through `infra/local/environment.mjs`, then
+# calls this file. Every value here is interpolated from `.env`: this file carries no credential, no
+# default password and no fallback literal (`NFR-024`). The `up` service (not this file) is what a
+# developer starts; a bare `docker compose up` fails loudly, naming the variable it is missing.
+#
+# `name:` is the Compose project the reset command targets. With the project name passed explicitly
+# on every call, `down --volumes` can only remove this stack's containers and its three named volumes.
+
+name: odp-local
+
+services:
+  postgres:
+    image: postgres:16.16-alpine
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is not set; run node scripts/dev/services.mjs up}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set; run node scripts/dev/services.mjs up}"
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is not set; run node scripts/dev/services.mjs up}"
+      TZ: UTC
+    ports:
+      # Loopback only: a disposable local database is never reachable from the network.
+      - "127.0.0.1:${POSTGRES_PORT:?POSTGRES_PORT is not set; run node scripts/dev/services.mjs up}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # A real connection attempt as the configured role and database, not just an open port.
+      # `$$` defers expansion to the container's own environment so the credential is not interpolated
+      # into this file or into `docker inspect` output at parse time.
+      test:
+        [
+          "CMD-SHELL",
+          'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: redis:7.4.12-alpine
+    # AOF is on only so a container restart does not discard the cached public pages and the
+    # rate-limit counters mid-run; snapshots are off. Redis is never the record: `packages/platform`
+    # treats every cached value as a copy with an expiry and reads PostgreSQL on a miss.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - ""
+      # The container's interface is reachable only through the loopback host mapping above.
+      - --protected-mode
+      - "no"
+    ports:
+      - "127.0.0.1:${REDIS_PORT:?REDIS_PORT is not set; run node scripts/dev/services.mjs up}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  object-storage:
+    # VersityGW serves the S3 API over a POSIX directory: a private bucket, SigV4 authentication and
+    # short-lived presigned reads, which is what `C-036` requires. No web console, no public bucket.
+    image: versity/versitygw:v1.11.0
+    command: ["--port", ":7070", "posix", "/data"]
+    environment:
+      ROOT_ACCESS_KEY: "${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is not set; run node scripts/dev/services.mjs up}"
+      ROOT_SECRET_KEY: "${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is not set; run node scripts/dev/services.mjs up}"
+    ports:
+      - "127.0.0.1:${S3_PORT:?S3_PORT is not set; run node scripts/dev/services.mjs up}:7070"
+    volumes:
+      - object-storage-data:/data
+    healthcheck:
+      # An anonymous request must be refused with 403: that is the healthy state, and it proves both
+      # that the S3 handler is serving and that the bucket is not public. Any HTTP status counts.
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -S -O /dev/null http://127.0.0.1:7070/ 2>&1 | grep -q 'HTTP/1.1'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  object-storage-init:
+    # One-shot bucket bootstrap, run by `services.mjs up` after the stack is healthy and kept behind a
+    # profile so `up --wait` never waits on a container that exits by design. It talks to the service
+    # by its in-network name; the host endpoint in `.env` would be wrong from inside the network.
+    # Creating the bucket twice is harmless: the script checks with `head-bucket` first.
+    image: amazon/aws-cli:2.31.5
+    profiles: ["init"]
+    depends_on:
+      object-storage:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is not set; run node scripts/dev/services.mjs up}"
+      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is not set; run node scripts/dev/services.mjs up}"
+      AWS_DEFAULT_REGION: "${S3_REGION:?S3_REGION is not set; run node scripts/dev/services.mjs up}"
+      AWS_EC2_METADATA_DISABLED: "true"
+      S3_BUCKET: "${S3_BUCKET:?S3_BUCKET is not set; run node scripts/dev/services.mjs up}"
+      S3_INTERNAL_ENDPOINT: "http://object-storage:7070"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        if aws --endpoint-url "$$S3_INTERNAL_ENDPOINT" s3api head-bucket --bucket "$$S3_BUCKET" >/dev/null 2>&1; then
+          echo "object storage: bucket $$S3_BUCKET already present"
+        else
+          aws --endpoint-url "$$S3_INTERNAL_ENDPOINT" s3api create-bucket --bucket "$$S3_BUCKET" >/dev/null
+          echo "object storage: bucket $$S3_BUCKET created"
+        fi
+
+volumes:
+  postgres-data:
+  redis-data:
+  object-storage-data:
