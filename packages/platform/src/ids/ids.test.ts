@@ -10,10 +10,12 @@ import { createFixedClock } from '../testing/fixed-clock.ts';
 import { createDeterministicIds } from '../testing/deterministic-ids.ts';
 import { describeIdentifierContract } from '../testing/contracts.ts';
 import {
+  CONTRACT_PREFIXES,
   createIdFactory,
   ENTITY_PREFIXES,
   IDENTIFIER_PATTERN,
   isIdentifier,
+  TOKEN_PREFIXES,
   type EntityKind,
 } from './ids.ts';
 
@@ -66,10 +68,76 @@ describe('identifier factory', () => {
     expect(second > first).toBe(true);
   });
 
-  it('declares a distinct three-letter prefix for every entity kind', () => {
-    const prefixes = Object.values(ENTITY_PREFIXES);
-    expect(prefixes).toHaveLength(new Set(prefixes).size);
-    for (const prefix of prefixes) expect(prefix).toMatch(/^[a-z]{3}$/);
+  it('records one three-letter prefix per kind and never the same prefix twice', () => {
+    const recorded = Object.values(CONTRACT_PREFIXES);
+    expect(new Set(recorded).size).toBe(recorded.length);
+    for (const prefix of recorded) expect(prefix).toMatch(/^[a-z]{3}$/);
+  });
+
+  it('holds the complete prefix record C-001 prints', () => {
+    // Every row of the `C-001` prefix table, so a prefix added to one side and not the other fails here.
+    expect([...Object.values(CONTRACT_PREFIXES)].sort()).toEqual([
+      'apl',
+      'aud',
+      'bkg',
+      'blm',
+      'cmt',
+      'cns',
+      'com',
+      'csc',
+      'cur',
+      'cus',
+      'ddr',
+      'dec',
+      'dev',
+      'drq',
+      'evt',
+      'lrv',
+      'mbr',
+      'mda',
+      'mev',
+      'ntc',
+      'ntf',
+      'prg',
+      'qwr',
+      'rcd',
+      'req',
+      'rsv',
+      'rul',
+      'rvd',
+      'sdr',
+      'ses',
+      'sic',
+      'sqt',
+      'stf',
+      'sub',
+      'tok',
+      'usr',
+      'wdr',
+      'wps',
+      'wrd',
+      'wrs',
+    ]);
+  });
+
+  it('mints every recorded prefix in the C-001 form', () => {
+    const factory = createIdFactory({ clock: createFixedClock(), random: bytes(6, 7) });
+    for (const prefix of Object.values(CONTRACT_PREFIXES)) {
+      const value = factory.next(prefix);
+      expect(value).toMatch(IDENTIFIER_PATTERN);
+      expect(value.startsWith(`${prefix}_`)).toBe(true);
+    }
+  });
+
+  it('keeps the kinds a reader could confuse with one another apart', () => {
+    expect(CONTRACT_PREFIXES.comment).toBe('cmt');
+    expect(CONTRACT_PREFIXES.commitment).toBe('com');
+    expect(CONTRACT_PREFIXES.reservation).toBe('rsv');
+    expect(CONTRACT_PREFIXES.residenceReview).toBe('rvd');
+    expect(CONTRACT_PREFIXES.ward).toBe('wrd');
+    expect(CONTRACT_PREFIXES.wardReview).toBe('wdr');
+    expect(CONTRACT_PREFIXES.analyticsEvent).toBe(TOKEN_PREFIXES.analyticsEvent);
+    expect(CONTRACT_PREFIXES.pageCursor).toBe(TOKEN_PREFIXES.pageCursor);
   });
 
   it('names every entity kind in the factory', () => {

@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.1.0
+**Contract version:** 1.2.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -25,6 +25,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 |---|---|
 | 1.0.0 | First frozen set, `C-001` to `C-090`. |
 | 1.1.0 | Adds `C-091` operational health probes. Reconciles the `C-001` identifier pattern with the identifiers this document prints. Aligns `C-077` with `C-089` and `C-090`: one event-name spelling, one audit result shape, and the correlation identifier carried beside the audit entity rather than on it. Defines the two result shapes `C-077` left open. Replaces the last abbreviated value in `C-011` with a timestamp. |
+| 1.2.0 | Settles the identifier prefix record under `C-001`. `C-063` prints `sqt_` for a SessionQuestion and `C-001` prints `qwr_` and `cur_`, so every printed identifier has a three-letter prefix. `C-019` keeps `cmt_` for the Comment and the `C-043` family prints `com_` for the Commitment; `C-057` prints `rvd_` so the ResidenceReview no longer shares `rsv_` with the Reservation; the `C-027` family prints `rcd_` for the ReportCard. Adds the complete prefix table to `C-001`, against which the platform identifier factory is asserted. |
 
 ## Contract Index
 
@@ -155,7 +156,7 @@ Append-only. Each row records what that version changed; an accepted version is 
   "conventions": {
     "timestamps": "RFC 3339, UTC, second precision, suffix Z; e.g. 2026-11-18T09:14:00Z",
     "calendar dates": "YYYY-MM-DD interpreted in Africa/Lagos (UTC+01:00)",
-    "identifiers": "opaque, pattern ^[a-z]{3}_[0-9A-Z]{4,26}$, e.g. sub_01J9Z6K4Q3W8R2T5Y7B1C0D9EF; three lower-case prefix letters naming the entity type, an underscore, then an upper-case alphanumeric body",
+    "identifiers": "opaque, pattern ^[a-z]{3}_[0-9A-Z]{4,26}$, e.g. sub_01J9Z6K4Q3W8R2T5Y7B1C0D9EF; three lower-case prefix letters naming the entity type or identifier kind, an underscore, then an upper-case alphanumeric body; the prefix is chosen from the record under Identifier prefixes below",
     "correlation identifier": "pattern ^req_[0-9A-Z]{4,32}$; names a request rather than a record, so its body may run six characters longer than a record body",
     "public reference": "pattern ^ODP-[0-9]{6}$",
     "money": "integer naira, no decimals, field names ending in Amount",
@@ -167,7 +168,28 @@ Append-only. Each row records what that version changed; an accepted version is 
 }
 ```
 
-**Identifier form.** The prefix names the entity type (`sub_`, `mbr_`, `stf_`, `cmt_`, `wdr_`, `aud_`, `evt_` and so on); the body is upper-case alphanumeric and the prefix is the only lower-case part, so the two halves never blur into one another. The value is opaque to every caller and is never parsed for meaning. The body range is four to twenty-six characters rather than a fixed twenty-six, because this document prints identifiers from seven to twenty-six characters long and several of them contain an `L` that the Crockford alphabet excludes; a fixed-length Crockford pattern would refuse values the contract itself prints, which is the worse error. A newly minted record identifier uses the twenty-six-character form shown above; the wider pattern keeps stored and already-printed identifiers valid. The correlation identifier is the one exception: it names a request rather than a record, so a supplied `X-Correlation-Id` may carry a body of up to 32 characters, and a value outside `^req_[0-9A-Z]{4,32}$` is refused rather than echoed.
+**Identifier form.** The prefix names the entity type or identifier kind (`sub_`, `mbr_`, `stf_`, `cmt_`, `com_`, `rcd_`, `evt_` and so on); the body is upper-case alphanumeric and the prefix is the only lower-case part, so the two halves never blur into one another. The value is opaque to every caller and is never parsed for meaning. The body range is four to twenty-six characters rather than a fixed twenty-six, because stored and already-issued identifiers may be shorter and several contain an `L` that the Crockford alphabet excludes; a fixed-length Crockford pattern would refuse values the contract itself prints, which is the worse error. A newly minted record identifier uses the twenty-six-character form shown above. The correlation identifier is the one exception: it names a request rather than a record, so a supplied `X-Correlation-Id` may carry a body of up to 32 characters, and a value outside `^req_[0-9A-Z]{4,32}$` is refused rather than echoed.
+
+**Identifier prefixes.** This table is the complete record. Every kind that carries an identifier appears once with one three-letter prefix, no prefix names two kinds, and no identifier this document prints uses a prefix outside it. A new kind adds a row before anything is minted; a prefix, once recorded, is never reassigned. The pairs that could otherwise be mistaken for one another are deliberately distinct: `cmt_` is the Comment and `com_` the Commitment; `rsv_` is the Reservation and `rvd_` the ResidenceReview; `wdr_` is the WardDescriptionReview and `wrd_` the Ward.
+
+| Prefix | Kind | Prefix | Kind | Prefix | Kind |
+|---|---|---|---|---|---|
+| `wrd` | Ward | `mbr` | Member | `prg` | PendingRegistration |
+| `sic` | SignInChallenge | `rvd` | ResidenceReview | `cns` | Consent |
+| `stf` | StaffUser | `wdr` | WardDescriptionReview | `sub` | Submission |
+| `sdr` | SubmissionDraft | `bkg` | Backing | `cmt` | Comment |
+| `rul` | Rule | `mda` | ModerationAction | `apl` | Appeal |
+| `lrv` | LegalReview | `dec` | Decision | `ddr` | DecisionDraft |
+| `com` | Commitment | `csc` | CommitmentStatusChange | `dev` | DeliveryEvidence |
+| `blm` | BudgetLineMatch | `ses` | Session | `rsv` | Reservation |
+| `sqt` | SessionQuestion | `rcd` | ReportCard | `wrs` | WardReportSnapshot |
+| `wps` | WardPillarSnapshot | `drq` | DataRequest | `aud` | AuditEvent |
+| `evt` | Analytics event | `mev` | ModelEvaluation | `ntf` | Notification |
+| `ntc` | PublicNotice | `cus` | Custodian | `usr` | Analytics user |
+| `tok` | Pseudonym token | `qwr` | Queued write | `cur` | Pagination cursor |
+| `req` | Request correlation identifier | | | | |
+
+`evt_` names an emitted analytics event (`C-089`), `qwr_` a durably queued write (`C-001`), `cur_` a page cursor, and `req_` a request correlation identifier, so those four are identifier kinds rather than stored record entities; every other row names a record. A cursor, a queued-write identifier and an event identifier carry bodies of the same form as a record identifier and are equally opaque.
 
 **Response 200 (read envelope):**
 ```json
@@ -195,7 +217,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 {
   "ok": true,
   "data": {
-    "queuedWriteId": "qw_01J9Z6N8B1",
+    "queuedWriteId": "qwr_01J9Z6N8B1",
     "acceptedAt": "2026-11-18T09:14:00Z",
     "replayBy": "2026-11-19T09:14:00Z",
     "durable": true
@@ -817,7 +839,7 @@ For a withheld submission the response is `201` with `status:"withheld"`, `ledge
   "data": {
     "submission": { "reference": "ODP-004821", "status": "withdrawn", "withdrawnAt": "2026-11-20T11:02:00Z" },
     "backingsRetained": 37,
-    "commitment": { "id": "cmt_01J9ZA1B3C5D7E9F1G3H5J7KMP", "withdrawnByAuthor": true, "authorWithdrawnAt": "2026-11-20T11:02:00Z" }
+    "commitment": { "id": "com_01J9ZA1B3C5D7E9F1G3H5J7KMP", "withdrawnByAuthor": true, "authorWithdrawnAt": "2026-11-20T11:02:00Z" }
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-20T11:02:00Z" }
 }
@@ -1166,7 +1188,7 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
     },
     "supersededDecisions": [],
     "commitment": {
-      "id": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+      "id": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
       "owner": "Director, Water Resources, Ibadan North",
       "costBand": "5m_to_20m",
       "targetDate": "2027-03-31",
@@ -1225,7 +1247,7 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
     "resultCount": 41,
     "commitments": [
       {
-        "id": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+        "id": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
         "reference": "ODP-004821",
         "pillar": "infrastructure",
         "owner": "Director, Water Resources, Ibadan North",
@@ -1241,7 +1263,7 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
     "ledgerPath": "/declined"
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-25T12:00:00Z", "degraded": false },
-  "page": { "nextCursor": "c_01J9ZB3E5F7G9H1J3K5L7M9NPQ", "hasMore": true }
+  "page": { "nextCursor": "cur_01J9ZB3E5F7G9H1J3K5L7M9NPQ", "hasMore": true }
 }
 ```
 
@@ -1294,7 +1316,7 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
     ]
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-25T12:00:00Z", "degraded": false },
-  "page": { "nextCursor": "c_01J9ZB4F6G8H1J3K5L7M9NPQR", "hasMore": true }
+  "page": { "nextCursor": "cur_01J9ZB4F6G8H1J3K5L7M9NPQR", "hasMore": true }
 }
 ```
 `outcomeLabel` is one of `declined`, `unanswered`, `withheld`, `later_accepted`, `withdrawn`. It is a presentation label derived from `Submission.status`, `Decision.type` and `LegalReview.status`; it is not a stored enum.
@@ -1381,7 +1403,7 @@ A suppressed cell returns `null` for a count and `suppressionApplied:true`; it n
 {
   "data": {
     "reportCard": {
-      "id": "rpc_01J9ZC1D3E5F7G9H1J3K5L7MNP",
+      "id": "rcd_01J9ZC1D3E5F7G9H1J3K5L7MNP",
       "quarter": "2026-Q4",
       "cutOffAt": "2026-12-31T23:59:59Z",
       "publishedAt": "2027-01-02T06:00:00Z",
@@ -1555,7 +1577,7 @@ A repeat call for the same member and session returns `200` with the existing re
   "ok": true,
   "data": {
     "sessionQuestion": {
-      "id": "sq_01J9ZD3G5H7J9K1L3M5N7P9QRS",
+      "id": "sqt_01J9ZD3G5H7J9K1L3M5N7P9QRS",
       "sessionId": "ses_01J9ZD1E3F5G7H9J1K3L5M7NPQ",
       "memberId": "mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA",
       "questionText": "Why was the Agbowo water contract not advertised in the ward?",
@@ -1923,7 +1945,7 @@ When signed out, `scope` is `"session"` and no Member row is written.
     ]
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-25T10:00:00Z", "degraded": false },
-  "page": { "nextCursor": "c_01J9ZF1G3H5J7K9L1M3N5P7QRS", "hasMore": true }
+  "page": { "nextCursor": "cur_01J9ZF1G3H5J7K9L1M3N5P7QRS", "hasMore": true }
 }
 ```
 
@@ -2047,7 +2069,7 @@ When signed out, `scope` is `"session"` and no Member row is written.
       "publishedAt": "2026-11-25T12:00:00Z"
     },
     "commitment": {
-      "id": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+      "id": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
       "decisionId": "dec_01J9ZB1C3D5E7F9G1H3J5K7LMP",
       "submissionId": "sub_01J9Z7D8F1H3J5L7N9P1Q3R5ST",
       "wardId": "wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM",
@@ -2102,7 +2124,7 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
   "ok": true,
   "data": {
     "decision": { "id": "dec_01J9ZG3J5K7L9M1N3P5Q7R9STU", "submissionId": "sub_01J9Z7D8F1H3J5L7N9P1Q3R5ST", "version": 2, "type": "commit", "reason": "The programme slipped to the second quarter; the revised date reflects the appropriation line.", "authority": null, "signatoryId": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP", "supersedesDecisionId": "dec_01J9ZB1C3D5E7F9G1H3J5K7LMP", "publishedAt": "2026-12-02T09:00:00Z" },
-    "commitment": { "id": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP", "targetDate": "2027-06-30", "status": "committed", "updatedAt": "2026-12-02T09:00:00Z" },
+    "commitment": { "id": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP", "targetDate": "2027-06-30", "status": "committed", "updatedAt": "2026-12-02T09:00:00Z" },
     "supersededDecisionRetained": true
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-12-02T09:00:00Z" }
@@ -2128,7 +2150,7 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 **Request:**
 ```json
 {
-  "commitmentId": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+  "commitmentId": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
   "toStatus": "slipped",
   "reason": "The appropriation line was not released in the first quarter.",
   "changedAt": null
@@ -2140,10 +2162,10 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 {
   "ok": true,
   "data": {
-    "commitment": { "id": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP", "status": "slipped", "statusReason": "The appropriation line was not released in the first quarter.", "updatedAt": "2026-12-19T10:00:00Z" },
+    "commitment": { "id": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP", "status": "slipped", "statusReason": "The appropriation line was not released in the first quarter.", "updatedAt": "2026-12-19T10:00:00Z" },
     "statusChange": {
       "id": "csc_01J9ZG4K6L8M1N3P5Q7R9S1TUV",
-      "commitmentId": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+      "commitmentId": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
       "fromStatus": "committed",
       "toStatus": "slipped",
       "reason": "The appropriation line was not released in the first quarter.",
@@ -2174,7 +2196,7 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 **Request:**
 ```json
 {
-  "commitmentId": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+  "commitmentId": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
   "type": "site_visit",
   "reference": "Visit 2027-02-14, Agbowo market",
   "description": "The borehole was running and the ward officer confirmed the pump installation.",
@@ -2189,7 +2211,7 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
   "data": {
     "deliveryEvidence": {
       "id": "dev_01J9ZG5L7M9N1P3Q5R7S9T1UVW",
-      "commitmentId": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+      "commitmentId": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
       "type": "site_visit",
       "reference": "Visit 2027-02-14, Agbowo market",
       "description": "The borehole was running and the ward officer confirmed the pump installation.",
@@ -2231,7 +2253,7 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
     "candidates": [
       {
         "id": "blm_01J9ZG6M8N1P3Q5R7S9T1UVWX",
-        "commitmentId": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+        "commitmentId": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
         "lineReference": "IB-N/WS/2027/014",
         "lineDescription": "Rehabilitation of community boreholes, Ibadan North",
         "amount": 12000000,
@@ -2276,7 +2298,7 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
   "data": {
     "budgetLineMatch": { "id": "blm_01J9ZG6M8N1P3Q5R7S9T1UVWX", "status": "confirmed", "confirmedById": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP" },
     "commitment": {
-      "id": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP",
+      "id": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP",
       "budgetLineReference": "IB-N/WS/2027/014",
       "budgetLineDescription": "Rehabilitation of community boreholes, Ibadan North",
       "budgetLineAmount": 12000000,
@@ -2689,7 +2711,7 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
   "ok": true,
   "data": {
     "residenceReview": {
-      "id": "rsv_01J9ZJ1K3L5M7N9P1Q3R5S7TUV",
+      "id": "rvd_01J9ZJ1K3L5M7N9P1Q3R5S7TUV",
       "memberId": "mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA",
       "reviewerId": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP",
       "method": "ward_confirmation",
@@ -2864,7 +2886,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
     "existingCard": null,
     "figures": { "answerRate": 0.86, "deliveryRate": 0.71, "committedCount": 214, "deliveredCount": 61, "slippedCount": 12, "droppedCount": 7 },
     "wardRows": [{ "wardId": "wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM", "submissions": 63, "decisions": 51, "commitments": 22, "overdue": 4, "suppressionApplied": false }],
-    "unmatchedCommitments": [{ "commitmentId": "cmt_01J9ZB2D4E6F8G1H3J5K7L9MNP", "reason": "No confirmed appropriation line." }],
+    "unmatchedCommitments": [{ "commitmentId": "com_01J9ZB2D4E6F8G1H3J5K7L9MNP", "reason": "No confirmed appropriation line." }],
     "statusChangeCount": 73
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2027-01-01T09:00:00Z", "degraded": false }
@@ -2902,7 +2924,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
   "ok": true,
   "data": {
     "reportCard": {
-      "id": "rpc_01J9ZC1D3E5F7G9H1J3K5L7MNP",
+      "id": "rcd_01J9ZC1D3E5F7G9H1J3K5L7MNP",
       "quarter": "2026-Q4",
       "cutOffAt": "2026-12-31T23:59:59Z",
       "publishedAt": "2027-01-02T06:00:00Z",
@@ -2944,7 +2966,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 **Request:**
 ```json
 {
-  "correctionOfId": "rpc_01J9ZC1D3E5F7G9H1J3K5L7MNP",
+  "correctionOfId": "rcd_01J9ZC1D3E5F7G9H1J3K5L7MNP",
   "summaryNote": "Corrected: the delivered count was understated by six commitments recorded after the cut-off was applied.",
   "correctionReason": "Six delivery records were entered on 2 January against December delivery dates.",
   "directorApprovalReference": "dir-approval-2027-01-05"
@@ -2956,8 +2978,8 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 {
   "ok": true,
   "data": {
-    "reportCard": { "id": "rpc_01J9ZK1L3M5N7P9Q1R3S5T7UVW", "quarter": "2026-Q4", "status": "corrected", "correctionOfId": "rpc_01J9ZC1D3E5F7G9H1J3K5L7MNP", "publishedAt": "2027-01-06T09:00:00Z", "deliveredCount": 67, "summaryNote": "Corrected: the delivered count was understated by six commitments recorded after the cut-off was applied." },
-    "superseded": { "id": "rpc_01J9ZC1D3E5F7G9H1J3K5L7MNP", "status": "superseded" },
+    "reportCard": { "id": "rcd_01J9ZK1L3M5N7P9Q1R3S5T7UVW", "quarter": "2026-Q4", "status": "corrected", "correctionOfId": "rcd_01J9ZC1D3E5F7G9H1J3K5L7MNP", "publishedAt": "2027-01-06T09:00:00Z", "deliveredCount": 67, "summaryNote": "Corrected: the delivered count was understated by six commitments recorded after the cut-off was applied." },
+    "superseded": { "id": "rcd_01J9ZC1D3E5F7G9H1J3K5L7MNP", "status": "superseded" },
     "wardSnapshotCount": 33
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2027-01-06T09:00:00Z" }
@@ -2982,7 +3004,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Request:**
 ```json
-{ "sessionId": "ses_01J9ZD1E3F5G7H9J1K3L5M7NPQ", "sessionQuestionId": "sq_01J9ZD3G5H7J9K1L3M5N7P9QRS", "selected": true }
+{ "sessionId": "ses_01J9ZD1E3F5G7H9J1K3L5M7NPQ", "sessionQuestionId": "sqt_01J9ZD3G5H7J9K1L3M5N7P9QRS", "selected": true }
 ```
 
 **Response 200:**
@@ -2990,7 +3012,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 {
   "ok": true,
   "data": {
-    "sessionQuestion": { "id": "sq_01J9ZD3G5H7J9K1L3M5N7P9QRS", "selected": true, "selectedById": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP", "selectedAt": "2027-01-16T13:00:00Z", "outcome": "not_reached" },
+    "sessionQuestion": { "id": "sqt_01J9ZD3G5H7J9K1L3M5N7P9QRS", "selected": true, "selectedById": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP", "selectedAt": "2027-01-16T13:00:00Z", "outcome": "not_reached" },
     "selectedCount": 12,
     "questionsReceived": 48
   },
@@ -3018,7 +3040,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 ```json
 {
   "sessionId": "ses_01J9ZD1E3F5G7H9J1K3L5M7NPQ",
-  "sessionQuestionId": "sq_01J9ZD3G5H7J9K1L3M5N7P9QRS",
+  "sessionQuestionId": "sqt_01J9ZD3G5H7J9K1L3M5N7P9QRS",
   "answerText": "The contract was advertised on the state procurement portal on 4 October; the notice is attached to the record.",
   "outcome": "asked"
 }
@@ -3030,7 +3052,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
   "ok": true,
   "data": {
     "sessionQuestion": {
-      "id": "sq_01J9ZD3G5H7J9K1L3M5N7P9QRS",
+      "id": "sqt_01J9ZD3G5H7J9K1L3M5N7P9QRS",
       "outcome": "asked",
       "answerText": "The contract was advertised on the state procurement portal on 4 October; the notice is attached to the record.",
       "answeredById": "stf_01J9Z4C8D1E2F3G4H5J6K7M8NP",
