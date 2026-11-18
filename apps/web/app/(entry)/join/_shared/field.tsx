@@ -9,7 +9,8 @@
  * intact, the error when it is not, so a screen reader never reads a stale sentence under an
  * invalid control.
  */
-import type { InputHTMLAttributes, ReactNode } from 'react';import { FieldError, FieldLabel, TextInput } from '@odp/ui';
+import type { InputHTMLAttributes, ReactNode } from 'react';
+import { FieldError, FieldLabel, TextInput } from '@odp/ui';
 
 export interface FlowFieldProps {
   /** The control's `id`; the label, the hint and the error all bind through it. */
@@ -65,7 +66,10 @@ export function ErrorSummary({ heading, items }: ErrorSummaryProps): ReactNode {
       <ul className="mt-xs flex list-disc flex-col gap-xs ps-lg">
         {items.map((item) => (
           <li key={item.href}>
-            <a href={item.href} className="text-small text-primary-500 underline underline-offset-2">
+            <a
+              href={item.href}
+              className="text-small text-primary-500 underline underline-offset-2"
+            >
               {item.label}
             </a>
           </li>

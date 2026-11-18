@@ -126,7 +126,10 @@ export function createPortsDouble(options: PortsDoubleOptions = {}): PortsDouble
       },
       readAttempts: async (targetId): Promise<CodeAttempts> => {
         const stored = codes.get(targetId);
-        return { attempts: stored?.attempts ?? 0, ...(stored?.cooldownUntil === undefined ? {} : { cooldownUntil: stored.cooldownUntil }) };
+        return {
+          attempts: stored?.attempts ?? 0,
+          ...(stored?.cooldownUntil === undefined ? {} : { cooldownUntil: stored.cooldownUntil }),
+        };
       },
       recordFailure: async (targetId) => {
         const stored = codes.get(targetId);
@@ -193,17 +196,50 @@ export function createPortsDouble(options: PortsDoubleOptions = {}): PortsDouble
 
     // The remaining ports are type-complete and refused, as in the production composition: this
     // flow never reaches them.
-    signInChallenges: new Proxy({}, { get: () => () => refused('the sign-in challenges') }) as IdentityPorts['signInChallenges'],
-    consents: new Proxy({}, { get: () => () => refused('the consents') }) as IdentityPorts['consents'],
-    dataRequests: new Proxy({}, { get: () => () => refused('the data requests') }) as IdentityPorts['dataRequests'],
-    memberContent: new Proxy({}, { get: () => () => refused('the member content') }) as IdentityPorts['memberContent'],
-    legalHolds: new Proxy({}, { get: () => () => refused('the legal holds') }) as IdentityPorts['legalHolds'],
-    staffUsers: new Proxy({}, { get: () => () => refused('the staff users') }) as IdentityPorts['staffUsers'],
-    credentials: new Proxy({}, { get: () => () => refused('the staff credentials') }) as IdentityPorts['credentials'],
-    staffSessions: new Proxy({}, { get: () => () => refused('the staff sessions') }) as IdentityPorts['staffSessions'],
-    objectStore: new Proxy({}, { get: () => () => refused('the object store') }) as IdentityPorts['objectStore'],
-    idempotency: new Proxy({}, { get: () => () => refused('the idempotency store') }) as IdentityPorts['idempotency'],
-    queuedWrites: new Proxy({}, { get: () => () => refused('the write queue') }) as IdentityPorts['queuedWrites'],
+    signInChallenges: new Proxy(
+      {},
+      { get: () => () => refused('the sign-in challenges') },
+    ) as IdentityPorts['signInChallenges'],
+    consents: new Proxy(
+      {},
+      { get: () => () => refused('the consents') },
+    ) as IdentityPorts['consents'],
+    dataRequests: new Proxy(
+      {},
+      { get: () => () => refused('the data requests') },
+    ) as IdentityPorts['dataRequests'],
+    memberContent: new Proxy(
+      {},
+      { get: () => () => refused('the member content') },
+    ) as IdentityPorts['memberContent'],
+    legalHolds: new Proxy(
+      {},
+      { get: () => () => refused('the legal holds') },
+    ) as IdentityPorts['legalHolds'],
+    staffUsers: new Proxy(
+      {},
+      { get: () => () => refused('the staff users') },
+    ) as IdentityPorts['staffUsers'],
+    credentials: new Proxy(
+      {},
+      { get: () => () => refused('the staff credentials') },
+    ) as IdentityPorts['credentials'],
+    staffSessions: new Proxy(
+      {},
+      { get: () => () => refused('the staff sessions') },
+    ) as IdentityPorts['staffSessions'],
+    objectStore: new Proxy(
+      {},
+      { get: () => () => refused('the object store') },
+    ) as IdentityPorts['objectStore'],
+    idempotency: new Proxy(
+      {},
+      { get: () => () => refused('the idempotency store') },
+    ) as IdentityPorts['idempotency'],
+    queuedWrites: new Proxy(
+      {},
+      { get: () => () => refused('the write queue') },
+    ) as IdentityPorts['queuedWrites'],
   };
 
   return { ports, pending, members, sessions, audit, events, codes };

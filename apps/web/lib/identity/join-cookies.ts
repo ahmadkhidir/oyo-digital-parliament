@@ -49,10 +49,7 @@ export function emptyJoinFormValues(): JoinFormValues {
 
 /** Why the registration was refused, at the grain the screen's states name. */
 export type JoinStatus =
-  | 'ALREADY_REGISTERED'
-  | 'RATE_LIMITED'
-  | 'DEGRADED'
-  | 'REGISTRATION_EXPIRED';
+  'ALREADY_REGISTERED' | 'RATE_LIMITED' | 'DEGRADED' | 'REGISTRATION_EXPIRED';
 
 /** One failed registration attempt, as the redirected `/join` render reads it. */
 export interface JoinRetryState {
@@ -94,7 +91,10 @@ function isFresh(at: string, nowMs: number): boolean {
 }
 
 /** Reads and parses one flow cookie, or `null` when it is absent, stale or malformed. */
-async function readFlowCookie<T>(name: string, isState: (value: unknown) => value is T): Promise<T | null> {
+async function readFlowCookie<T>(
+  name: string,
+  isState: (value: unknown) => value is T,
+): Promise<T | null> {
   const store = await cookies();
   const raw = store.get(name)?.value;
   if (raw === undefined || raw === '') return null;

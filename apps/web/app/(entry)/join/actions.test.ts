@@ -164,9 +164,9 @@ describe('registerResidentAction (C-002)', () => {
     expect(retry?.status).toBe('ALREADY_REGISTERED');
     expect(retry?.fields['telephoneNumber']).toBe('ALREADY_SET');
     // The values survive so the visitor can correct or follow the recovery path.
-    expect(flowCookie<{ values: Record<string, string> }>('odp_join_retry')?.values.telephoneNumber).toBe(
-      '+2348031234567',
-    );
+    expect(
+      flowCookie<{ values: Record<string, string> }>('odp_join_retry')?.values.telephoneNumber,
+    ).toBe('+2348031234567');
   });
 
   it('refuses the attempt when the source address cap is reached, with the wait', async () => {

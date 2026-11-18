@@ -20,12 +20,7 @@
  */
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import {
-  isPast,
-  resendAvailableAt,
-  toIsoSeconds,
-  type PendingRegistration,
-} from '@odp/domain';
+import { isPast, resendAvailableAt, toIsoSeconds, type PendingRegistration } from '@odp/domain';
 import { getMessages, type Messages } from '../../../../messages';
 import type { LaunchLocale } from '../../../../messages';
 import { resolveLocale } from '../../../../lib/i18n/locale';
@@ -68,8 +63,7 @@ function outcomeOf(
   retryAfterSeconds: number | undefined,
   number: string,
 ): ConfirmOutcome {
-  const after = (seconds: number | undefined): string =>
-    formatWait(wait, locale, seconds ?? 60);
+  const after = (seconds: number | undefined): string => formatWait(wait, locale, seconds ?? 60);
   switch (cause) {
     case 'REQUIRED':
     case 'PATTERN_MISMATCH':
@@ -169,10 +163,9 @@ export default async function ConfirmPage() {
 
   // The number is shown in full so a mistake is visible immediately (`screens/04` Visual Focus);
   // it is the visitor's own held record, shown to the visitor alone.
-  const numberIntro = interpolate(
-    pointer.delayed ? copy.numberIntroHeld : copy.numberIntro,
-    { number: pending.telephoneNumber },
-  );
+  const numberIntro = interpolate(pointer.delayed ? copy.numberIntroHeld : copy.numberIntro, {
+    number: pending.telephoneNumber,
+  });
 
   // The resend timer restarts from the record's latest dispatch (`C-004`); the client counts the
   // remainder live, and without scripting the static note explains the wait.

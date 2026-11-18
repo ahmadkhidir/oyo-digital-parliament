@@ -52,9 +52,7 @@ function fieldErrorSentence(
         reason as keyof typeof copy.fields.telephoneNumber.errors
       ];
     case 'displayName':
-      return copy.fields.displayName.errors[
-        reason as keyof typeof copy.fields.displayName.errors
-      ];
+      return copy.fields.displayName.errors[reason as keyof typeof copy.fields.displayName.errors];
     default:
       return undefined;
   }

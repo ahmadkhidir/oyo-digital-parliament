@@ -39,7 +39,9 @@ vi.mock('next/headers', () => ({
 
 const holder = vi.hoisted(() => ({
   ports: null as IdentityPorts | null,
-  double: null as ReturnType<typeof import('../../../../test/identity-double').createPortsDouble> | null,
+  double: null as ReturnType<
+    typeof import('../../../../test/identity-double').createPortsDouble
+  > | null,
 }));
 vi.mock('../../../../lib/identity/ports', () => ({
   getIdentityDependencies: async () => ({
@@ -49,10 +51,7 @@ vi.mock('../../../../lib/identity/ports', () => ({
   }),
 }));
 
-import {
-  confirmRegistrationAction,
-  resendRegistrationCodeAction,
-} from './actions';
+import { confirmRegistrationAction, resendRegistrationCodeAction } from './actions';
 
 /** The double for the current test; every test seeds it in `beforeEach`. */
 function theDouble(): NonNullable<typeof holder.double> {
@@ -82,7 +81,10 @@ function seedPending(overrides: Partial<PendingRegistration> = {}): void {
 }
 
 /** Runs one action and captures its redirect. */
-async function run(action: (formData: FormData) => Promise<void>, formData?: FormData): Promise<Redirected> {
+async function run(
+  action: (formData: FormData) => Promise<void>,
+  formData?: FormData,
+): Promise<Redirected> {
   try {
     await action(formData ?? new FormData());
     throw new Error('the action was expected to redirect');

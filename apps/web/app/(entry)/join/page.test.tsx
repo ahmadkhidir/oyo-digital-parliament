@@ -25,7 +25,9 @@ vi.mock('next/headers', () => ({
 
 const holder = vi.hoisted(() => ({
   ports: null as IdentityPorts | null,
-  double: null as ReturnType<typeof import('../../../test/identity-double').createPortsDouble> | null,
+  double: null as ReturnType<
+    typeof import('../../../test/identity-double').createPortsDouble
+  > | null,
 }));
 vi.mock('../../../lib/identity/ports', () => ({
   getIdentityDependencies: async () => ({
@@ -80,7 +82,9 @@ describe('JoinPage (screens/03-registration-form.md)', () => {
     expect(screen.getByLabelText(copy.fields.declaredAge.label)).toBeInTheDocument();
     expect(screen.getByLabelText(copy.fields.telephoneNumber.label)).toBeInTheDocument();
     expect(
-      screen.getByLabelText(`${copy.fields.displayName.label} (${copy.fields.displayName.optional})`),
+      screen.getByLabelText(
+        `${copy.fields.displayName.label} (${copy.fields.displayName.optional})`,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: copy.sendCode })).toBeInTheDocument();
     // The privacy notice opens in a new page without leaving the form (`screens/03` edge case).
@@ -95,7 +99,12 @@ describe('JoinPage (screens/03-registration-form.md)', () => {
       'odp_join_retry',
       JSON.stringify({
         at: new Date().toISOString(),
-        values: { fullName: 'Oluwaseun Adeyemi', declaredAge: '12', telephoneNumber: '0803 123 45', displayName: '' },
+        values: {
+          fullName: 'Oluwaseun Adeyemi',
+          declaredAge: '12',
+          telephoneNumber: '0803 123 45',
+          displayName: '',
+        },
         fields: { telephoneNumber: 'PATTERN_MISMATCH', declaredAge: 'OUT_OF_BAND' },
       }),
     );
@@ -103,7 +112,9 @@ describe('JoinPage (screens/03-registration-form.md)', () => {
     render(await JoinPage());
 
     // Each failing field carries its own sentence, bound to its control.
-    expect(screen.getByText(copy.fields.telephoneNumber.errors.PATTERN_MISMATCH)).toBeInTheDocument();
+    expect(
+      screen.getByText(copy.fields.telephoneNumber.errors.PATTERN_MISMATCH),
+    ).toBeInTheDocument();
     expect(screen.getByText(copy.fields.declaredAge.errors.OUT_OF_BAND)).toBeInTheDocument();
     const number = screen.getByLabelText(copy.fields.telephoneNumber.label);
     expect(number).toHaveAttribute('aria-invalid', 'true');
@@ -112,7 +123,9 @@ describe('JoinPage (screens/03-registration-form.md)', () => {
     expect(screen.getByLabelText(copy.fields.fullName.label)).toHaveValue('Oluwaseun Adeyemi');
     // The summary names the failing fields; the per-field errors are live regions of their own.
     expect(
-      screen.getAllByRole('alert').some((element) => element.textContent?.includes(copy.errorSummaryHeading)),
+      screen
+        .getAllByRole('alert')
+        .some((element) => element.textContent?.includes(copy.errorSummaryHeading)),
     ).toBe(true);
   });
 
@@ -157,6 +170,8 @@ describe('JoinPage (screens/03-registration-form.md)', () => {
 
     expect(screen.getByRole('heading', { name: copy.publicationHeading })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: copy.sendCode })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: catalogues['en-NG'].join.publicationHeading })).toBeNull();
+    expect(
+      screen.queryByRole('heading', { name: catalogues['en-NG'].join.publicationHeading }),
+    ).toBeNull();
   });
 });

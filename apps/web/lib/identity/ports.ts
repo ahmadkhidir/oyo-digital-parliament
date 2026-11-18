@@ -40,7 +40,9 @@ import { createJsonLogger, type Logger } from '../logging';
  */
 function notWiredYet<T>(effect: string): T {
   const refusal = (): never => {
-    throw new Error(`${effect} is not wired in this deployment; the task that owns it composes it.`);
+    throw new Error(
+      `${effect} is not wired in this deployment; the task that owns it composes it.`,
+    );
   };
   return new Proxy({}, { get: refusal }) as T;
 }
@@ -74,7 +76,10 @@ function createIdentityAnalytics(platform: Platform): IdentityAnalyticsPort {
         name: event.name,
         properties: event.properties,
         eventId: platform.ids.next('evt'),
-        occurredAt: platform.clock.now().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        occurredAt: platform.clock
+          .now()
+          .toISOString()
+          .replace(/\.\d{3}Z$/, 'Z'),
         // `C-089` requires exactly one of `user_id` and `anonymous_id`, and the identity use cases
         // emit without actor context. Until the port carries the subject, no transport can
         // envelope these events; the refusal is logged and the write stands. Reported to the
@@ -129,7 +134,9 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       consents: createConsentRepository(database.db),
       dataRequests: createDataRequestRepository(database.db),
       staffUsers: createStaffUserRepository(database.db),
-      credentials: notWiredYet('the staff credential store (its seams arrive with the staff-auth task)'),
+      credentials: notWiredYet(
+        'the staff credential store (its seams arrive with the staff-auth task)',
+      ),
       memberSessions: platform.sessions.memberSessions,
       staffSessions: platform.sessions.staffSessions,
       codes: platform.sessions.codes,

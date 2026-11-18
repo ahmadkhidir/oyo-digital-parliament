@@ -97,7 +97,8 @@ async function consultAddressCap(
   ports: IdentityPorts,
   address: string,
 ): Promise<
-  { readonly refused: false } | { readonly refused: true; readonly retryAfterSeconds: number | null }
+  | { readonly refused: false }
+  | { readonly refused: true; readonly retryAfterSeconds: number | null }
 > {
   try {
     const outcome = await ports.rateLimits.consume({

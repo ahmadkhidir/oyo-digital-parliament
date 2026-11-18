@@ -28,7 +28,9 @@ vi.mock('next/headers', () => ({
 
 const holder = vi.hoisted(() => ({
   ports: null as IdentityPorts | null,
-  double: null as ReturnType<typeof import('../../../../test/identity-double').createPortsDouble> | null,
+  double: null as ReturnType<
+    typeof import('../../../../test/identity-double').createPortsDouble
+  > | null,
 }));
 vi.mock('../../../../lib/identity/ports', () => ({
   getIdentityDependencies: async () => ({
