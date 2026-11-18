@@ -108,31 +108,57 @@ canvas, on a transparent background.
 
 ### Family: Pillar icon
 
-**Medium:** Sourced — Tabler Icons 3.52.0, outline set, MIT. Files are the set's own glyphs, unmodified.
+**Medium:** Vector — seven custom glyphs, authored deterministically as editable SVG on the same 24-unit grid and 2-unit stroke as the interface set. Nothing here is sourced from an icon library and no image model is used, because the seven objects are fixed by `branding.md` and must sit unaltered beside an interface glyph at 20px.
 
 **Palette:** One tone per glyph, carried by the file as ink `#1B1815` and resolved at render to the interface role: default `#6B635C` (neutral-500), active `#9A4A26` (primary-500), disabled at 40% opacity. No pillar gets its own colour.
 
-**Invariants:** 24×24 grid, 2px stroke, round caps and joins, outlined single weight only. No filled weight, no redrawing, no combining two glyphs, no interior detail added. One object per pillar, and no pillar borrows another's glyph. The pillar name is always available as text or as an accessible name, so the icon never carries the category alone. Rendered at 20px, 22px and 24px per the `icon-size` token.
+**Invariants:** Seven objects and seven files, one object each, and the mapping never moves: a boundary post for local government autonomy, a bridge for infrastructure, a stethoscope for health, a graduation cap for education, a market stall for economy and jobs, a seed bag for agriculture and minerals, a whistle for security. 24-unit grid, 2-unit stroke, round caps and joins, outlined single weight only. No filled weight, no shading, no combining two objects into one glyph, and no decorative detail added. No pillar borrows another's glyph, none is replaced by a library object drawn to the same subject, and none is used as a generic interface icon. An active state is carried by colour, never by a filled or second glyph. The pillar name is always available as text or as an accessible name, so a glyph never carries the category alone. Rendered at 20px, 22px and 24px per the `icon-size` token, on the same grid position as an interface glyph, so a pillar sits in the set without a visible seam.
 
-**Prompt:** None. Sourced files, not generated.
+**Prompt:**
+```text
+Seven outlined pictograms, one object to a file, drawn on a 24-unit square grid in a single 2-unit
+stroke with round caps and round joins: a boundary post, a bridge, a stethoscope, a graduation cap, a
+market stall, a seed bag and a whistle.
+
+Each is drawn in the same hand as a 24-pixel outline interface set, so a pillar sits in a row of menu,
+chevron and close glyphs without a visible seam: same grid, same stroke, same rounded terminal, one
+weight only, no fill and no shading.
+
+Each object makes one reading. The boundary post stands on the ground with a domed crown and a painted
+band crossing it, the way a survey post marks a line. The bridge is a flat deck carried over a single
+arch on two short legs, seen side on. The stethoscope is two earpiece ticks above a wide U-tube that
+turns down into a round chest piece. The graduation cap is a diamond board with a band hanging from its
+two lower edges and a tassel from its right point. The market stall is a gabled canopy over two posts,
+with the counter as one line across them. The seed bag is a bulging sack standing upright, with a
+cinched neck and a folded collar. The whistle is a flat mouthpiece running into a round chamber.
+
+Stroke in ink #1B1815, no fill, no gradient, no shadow, no background rectangle, no text, no second
+object, no person. Every glyph keeps its counters open at 20 pixels and its silhouette distinct from
+the other six in a row.
+```
 
 **Settings:**
-- Source: `@tabler/icons` 3.52.0, outline set, 5,491 glyphs, MIT. Each file is taken from `https://cdn.jsdelivr.net/npm/@tabler/icons@3.52.0/icons/outline/`, one glyph file per slot, named in the variant table below.
-- Ship the upstream MIT licence text at `assets/icons/LICENSE`; it is a licence copy, not a visual slot. The interface shows no attribution.
-- Take the SVG unmodified: 24×24 `viewBox`, `stroke-width="2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`, `fill="none"`. Do not rescale the geometry, do not merge paths, do not add a second weight for the active state.
-- Glyph substitution — reported against `branding.md`, whose seven objects are not all carried by the set. Tabler 3.52.0 has no glyph for a boundary post, a graduation cap, a market stall, a seed bag or a whistle, and none for a siren, bollard or referee signal. The nearest object is pinned for those five pillars and the exact glyph is recorded per variant below. The two exact matches are the bridge and the stethoscope. Until `branding.md` either names the substituted objects or commissions seven custom glyphs on this grid, the pillar name in text or in the accessible name is what carries the meaning.
-- Verify each file renders at 20px without the stroke filling in, and that the seven silhouettes are separable at 20px in a filter list.
+- Every file is `viewBox="0 0 24 24"` with its drawing inside the live area, `x` from 2 to 22 and `y` from 2 to 22, so a pillar aligns optically with an interface glyph on the same baseline.
+- Stroke attributes only: `fill="none"`, `stroke="#1B1815"`, `stroke-width="2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`. No `stroke-dasharray`, no second stroke width, no fill, no filter, no gradient, no shadow, no embedded raster, no background rectangle, no text.
+- Each file holds one stroked path, which may carry several subpaths, plus at most one stroked circle. No glyph needs a third element.
+- Coordinates are whole or half units on the 24-unit grid; a curve's radius and control points follow the drawn curve where the geometry needs it, and nothing is scaled to fit.
+- Keep at least 2 clear units between two opposing strokes of the same glyph, so no counter closes up at a 20px render, where 2 units is 1.7px.
+- Every stroke is 2 units, arcs included. A curve that would need a thinner stroke is redrawn closer to the grid, never thinned.
+- The stroke list in each variant row below is the drawing: its coordinates are the file, reproduced exactly and not reinterpreted.
+- Each object is the one `branding.md` names for its pillar. A different object is a branding amendment first and a ledger change second, never a drawing decision taken here.
+- The seven glyphs are original work for this product and carry no third-party licence; `assets/icons/LICENSE` covers the interface glyphs only.
+- Verify each file at 20px, 22px and 24px: counters stay open, nothing fills in, and the seven are still separable as a row of 20px glyphs. Set each beside the interface glyphs at the same size and check weight, cap and join. Check the row once in greyscale.
 
 **Variants:**
 | Variant | Target | Execution Delta |
 |---|---|---|
-| Local government autonomy | assets/icons/pillars/local-government-autonomy.svg | Tabler `fence`: the nearest object in the set to a boundary post. |
-| Infrastructure | assets/icons/pillars/infrastructure.svg | Tabler `building-bridge-2`: the simpler of the two bridge glyphs, so it stays legible at 20px. |
-| Health | assets/icons/pillars/health.svg | Tabler `stethoscope`: the exact object. |
-| Education | assets/icons/pillars/education.svg | Tabler `school`: the nearest object in the set to a graduation cap; it is a building, not a book, so it does not fall into the stated failure reading. |
-| Economy and jobs | assets/icons/pillars/economy-and-jobs.svg | Tabler `building-store`: a shopfront with an awning, the nearest object to a market stall. |
-| Agriculture and minerals | assets/icons/pillars/agriculture-and-minerals.svg | Tabler `seedling`: the nearest object in the set to a seed bag. |
-| Security | assets/icons/pillars/security.svg | Tabler `shield`: the nearest object in the set to a whistle. |
+| Local government autonomy | assets/icons/pillars/local-government-autonomy.svg | A boundary post: a domed post outline `M9 21 V9 A3 3 0 0 1 15 9 V21 Z`, its crown rising 3 units above the shoulders, crossed by a painted band `M6.5 13 H17.5` that stands 2.5 units proud of each side. |
+| Infrastructure | assets/icons/pillars/infrastructure.svg | A bridge: a deck `M3 5 H21` carried over one arch `M5 20 V16 A7 7 0 0 1 19 16 V20`, its crown peaking 2 units below the deck, on two short legs. |
+| Health | assets/icons/pillars/health.svg | A stethoscope: two earpiece ticks `M5 3 L7 6` and `M19 3 L17 6`, a U-tube `M7 6 A5 5 0 0 0 17 6` that turns down at its centre into a stem `M12 11 V14`, and a chest piece as a circle of radius 3 at (12,18), whose top edge meets the stem. |
+| Education | assets/icons/pillars/education.svg | A graduation cap: a diamond board `M12 3 L21 7.5 L12 12 L3 7.5 Z`, a band hanging from its two lower edges `M7 9.5 V14 A5 5 0 0 0 17 14 V9.5`, and a tassel `M21 7.5 V13` dropped from the right point. |
+| Economy and jobs | assets/icons/pillars/economy-and-jobs.svg | A market stall: a gabled canopy `M3 9 L12 3.5 L21 9 Z`, a post at each eave corner `M3 9 V20` and `M21 9 V20`, and the counter as one line `M3 15 H21` across them. |
+| Agriculture and minerals | assets/icons/pillars/agriculture-and-minerals.svg | A seed bag: a body `M9 10 C6.5 12 5.5 16 6 20 H18 C18.5 16 17.5 12 15 10 Z` that swells about 3 units beyond the neck on each side and is closed across the neck by its own closing segment, with a folded collar `M7.5 6 H16.5 M7.5 6 L9 10 M16.5 6 L15 10`. |
+| Security | assets/icons/pillars/security.svg | A whistle: a mouthpiece `M12.5 10 H5 A2 2 0 0 0 5 14 H10.5` whose rounded left end closes the tube and whose two edges run into the wall of a round chamber, drawn as a circle of radius 5 at (15.5,14). |
 
 ### Family: Interface icon
 
