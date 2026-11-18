@@ -78,6 +78,7 @@ repository. Never copy live state into a file.
 | Styling | Tailwind CSS driven by generated design tokens | Tokens come from `branding.md`; no hardcoded palette or type scale in components |
 | Localisation | Externalised message catalogue, en-NG and yo-NG | Yoruba is a launch locale, not a later translation |
 | Tests | Vitest, Testing Library, Playwright, axe, k6 | Unit, component, browser, accessibility and load verification |
+| Lint & format | ESLint 9 flat config, Prettier | Import boundaries, copy discipline, accessibility rules and one formatter; see ADR-003 |
 | CI/CD | GitHub Actions | Build, lint, typecheck, unit, browser, accessibility and migration checks on every PR |
 | Hosting | Docker containers, single Nigerian region, rolling replacement | Member data stays in Nigeria; the read path scales independently of writes |
 | Observability | Structured logs, audit log, uptime monitor, product events | No personal data in operational logs; the answer rate is computed from the record |
@@ -89,7 +90,7 @@ Changing a stack choice is a decision: record it in `.decisions/` and update thi
 ```text
 .
 ├── AGENTS.md                     # coordinator manual (this file)
-├── CONTRACTS.md                  # frozen interfaces, C-001 to C-090
+├── CONTRACTS.md                  # frozen interfaces, C-001 onward
 ├── README.md                     # human-facing repository guide
 ├── .decisions/                   # append-only architecture decisions
 ├── .github/                      # issue, PR and CI configuration
@@ -104,12 +105,13 @@ Changing a stack choice is a decision: record it in `.decisions/` and update thi
 │   ├── domain/                   # business rules and use-case orchestration
 │   ├── db/                       # PostgreSQL schema, migrations, repositories
 │   ├── ui/                       # design tokens, primitives, record components
-│   └── inference/                # inference gateway and evaluation harness
+│   ├── inference/                # inference gateway and evaluation harness
+│   └── platform/                 # config, SMS, object storage, Redis, clock, IDs
 └── services/
     └── worker/                   # scheduled obligations
 ```
 
-The workspace manifests, toolchains and CI are created in Phase 0. No area may add a dependency outside
+The workspace manifests and toolchains are established in Phase 0. No area may add a dependency outside
 its own manifest.
 
 ## Area rules
@@ -124,6 +126,7 @@ nearest `AGENTS.md` at or above the issue's `Own` paths. List them with `git ls-
 | `packages/db` | `packages/db/AGENTS.md` | Schema, migrations, repositories, indexes, FTS, idempotency, audit append |
 | `packages/ui` | `packages/ui/AGENTS.md` | Design tokens and accessible presentation components |
 | `packages/inference` | `packages/inference/AGENTS.md` | The only model egress; four capabilities, de-identification, evaluation |
+| `packages/platform` | `packages/platform/AGENTS.md` | Configuration, SMS, object storage, Redis, clock and identifier adapters |
 | `services/worker` | `services/worker/AGENTS.md` | Scheduled jobs: overdue check, report cards, anomaly review, cache warm, backup verify, handover |
 | `assets` | `assets/AGENTS.md` | Asset slots and generated visual files |
 | `docs` | `docs/AGENTS.md` | Specification work, in the documentation repository |
@@ -152,8 +155,8 @@ Every task is exactly one class:
    Reporting; Continuity; Sessions. If the roadmap is missing or silent on order, raise a doc gap.
 3. **Phase 0: Foundation.** Before any roadmap feature phase is implemented, Phase 0 must be drafted,
    executed, and verified. Foundation sets up:
-   - the pnpm workspace root, Turborepo pipeline, Node 24 pin and strict TypeScript base, and the six
-     area manifests named in Repository structure;
+   - the pnpm workspace root, Turborepo pipeline, Node 24 pin and strict TypeScript base, and every
+     area manifest named in Repository structure;
    - verified Git and GitHub infrastructure: remote repository configured, the mandatory `phase` label
      created, `gh` CLI operational with sub-issues and blocked-by dependencies, and `main` protected;
    - verified commands for build, test, boot, lint, typecheck, migrations and evaluation;
@@ -232,6 +235,8 @@ stop it at any point.
 - **Task execution.** A worker focuses on its assigned issue, reads the nearest `AGENTS.md` at or above
   its `Own` paths and the documents it names, stays within its owned paths, and reports back on
   completion.
+- **Parallel work uses worktrees.** When two or more tasks run at once, each subagent works in its own
+  git worktree and opens a PR; never share the primary checkout. Remove the worktree after the PR merges.
 - **Tasks are leaves.** Only a phase issue has sub-issues. Never nest a task under a task.
 - **A phase issue is never dispatched.** It groups its tasks and parents the gate.
 - **The coordinating session works too.** When the user keeps the work here, do it under the same
@@ -261,7 +266,7 @@ board.
 
 ## Contracts
 
-`CONTRACTS.md` holds one entry per interface: `C-001` to `C-090`, frozen at version 1.0.0. Each entry
+`CONTRACTS.md` holds one entry per interface: `C-001` onward, frozen at the published contract version. Each entry
 names its surface — server action, route handler, internal RPC, or worker secret — its auth, its request
 and response shapes, and its error codes.
 
@@ -363,6 +368,7 @@ The canonical commands are created and verified in Phase 0. Until then, only the
 | Root | `pnpm test:e2e` | Playwright browser flows |
 | Root | `pnpm test:a11y` | axe accessibility checks across declared screens |
 | Root | `pnpm test:load` | k6 load profiles against the NFR budgets |
+| Root | `pnpm test:integration` | Adapter, repository and migration suites against disposable services |
 | Root | `pnpm db:generate` | Generate a migration from the schema |
 | Root | `pnpm db:check` | Verify the migration journal and schema drift |
 | Root | `pnpm db:migrate` | Apply migrations to the target database |
@@ -373,6 +379,7 @@ The canonical commands are created and verified in Phase 0. Until then, only the
 | `packages/db` | `pnpm --filter @odp/db db:generate` | Generate a migration inside the data area; `db:migrate`, `db:seed` and `test` follow the same form |
 | `packages/ui` | `pnpm --filter @odp/ui test` | Test the UI area; `typecheck` and `lint` follow the same form |
 | `packages/inference` | `pnpm --filter @odp/inference eval` | Run the inference harness in the inference area; `test` follows the same form |
+| `packages/platform` | `pnpm --filter @odp/platform test` | Test the platform area; `typecheck`, `lint` and `test:integration` follow the same form |
 | `services/worker` | `pnpm --filter @odp/worker test` | Test the worker area; `start` follows the same form |
 | Scaffold | `node "C:\Users\khidi\.agents\skills\vanguard-scaffold\scripts\scaffold.mjs" check` | Verify the repository scaffolding |
 
