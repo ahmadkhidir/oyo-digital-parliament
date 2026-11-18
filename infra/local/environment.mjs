@@ -193,6 +193,7 @@ export const VARIABLES = [
   ...appGroup('sms'),
   ...appGroup('model'),
   ...appGroup('flags'),
+  ...appGroup('worker'),
 ];
 
 /**

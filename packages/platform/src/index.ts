@@ -34,6 +34,8 @@ import type { CacheStore } from './ports/cache-store.ts';
 import { createIdFactory, type IdFactory } from './ids/ids.ts';
 
 export type { PlatformConfig } from './config/load.ts';
+export { loadConfig } from './config/index.ts';
+export type { WorkerConfig } from './config/load.ts';
 export type { IdFactory } from './ids/ids.ts';
 
 /** The effects an application or worker receives. */

@@ -91,10 +91,18 @@ export interface ModelConfig {
   readonly capabilities: Readonly<Record<ModelCapability, ModelCapabilityConfig>>;
 }
 
+/** The worker's probe listener and shutdown settings (`C-091`). */
+export interface WorkerConfig {
+  readonly host: string;
+  readonly port: number;
+  readonly shutdownGraceMs: number;
+}
+
 /** The validated configuration, frozen and safe to pass to a composition root. */
 export interface PlatformConfig {
   readonly databaseUrl: string;
   readonly redisUrl: string;
+  readonly worker: WorkerConfig;
   readonly cache: CacheTtlConfig;
   readonly storage: StorageConfig;
   readonly sms: SmsConfig;
@@ -227,6 +235,7 @@ function optionalString(values: ParsedValues, name: string): string | null {
 function buildScalars(values: ParsedValues): {
   databaseUrl: string;
   redisUrl: string;
+  worker: WorkerConfig;
   cache: CacheTtlConfig;
   storage: StorageConfig;
   sms: SmsConfig;
@@ -254,6 +263,11 @@ function buildScalars(values: ParsedValues): {
   return {
     databaseUrl: stringValue(values, 'DATABASE_URL'),
     redisUrl: stringValue(values, 'REDIS_URL'),
+    worker: {
+      host: stringValue(values, 'WORKER_HOST'),
+      port: numberValue(values, 'WORKER_PORT'),
+      shutdownGraceMs: numberValue(values, 'WORKER_SHUTDOWN_GRACE_MS'),
+    },
     cache: {
       publicPageSeconds: numberValue(values, 'CACHE_TTL_PUBLIC_PAGE_SECONDS'),
       wardReportSeconds: numberValue(values, 'CACHE_TTL_WARD_REPORT_SECONDS'),

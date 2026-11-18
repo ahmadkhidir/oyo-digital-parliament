@@ -30,6 +30,11 @@ packages/ui/src/styles/theme.css
 packages/ui/src/styles/fonts.css
 packages/ui/tailwind.preset.ts
 
+# Framework and migration generated files. Next writes next-env.d.ts; drizzle-kit writes the journal
+# and snapshot. Neither is hand-formatted.
+apps/web/next-env.d.ts
+packages/db/drizzle/meta/
+
 # Binary and generated assets.
 assets/**/*.svg
 assets/**/*.png

@@ -184,8 +184,15 @@ jobs:
             turbo-${{ runner.os }}-${{ github.job }}-
       - name: Install from the committed lockfile
         run: pnpm install --frozen-lockfile
+      - name: Start the disposable services
+        run: node scripts/dev/services.mjs up
+      - name: Export the validated environment
+        run: node scripts/ci/export-env.mjs
       - name: Run the unit suites
         run: pnpm test
+      - name: Stop the disposable services
+        if: always()
+        run: node scripts/dev/services.mjs down
 
   # The deployable, built the way it ships: Next.js standalone output, compiled from workspace source
   # exactly as the container image will. Skipped while the application has no route to build.

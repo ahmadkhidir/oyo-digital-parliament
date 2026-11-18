@@ -9,11 +9,13 @@
  * from `runtime/shutdown.ts`, which is why the controller is created here rather than inside a job.
  * This file starts no job of its own.
  *
- * Configuration is read once, from the environment, and never printed. A missing `DATABASE_URL` fails
- * boot with the variable's name, never its value (`NFR-024`). `WORKER_PORT` defaults to 3001 and is the
- * worker's own listener, separate from the web deployable.
+ * Configuration is read once through the platform loader, from the environment, and never printed. A
+ * missing `DATABASE_URL` fails boot with the variable's name, never its value (`NFR-024`).
+ * `WORKER_PORT`, `WORKER_HOST` and `WORKER_SHUTDOWN_GRACE_MS` are declared once in the platform schema
+ * and are the worker's own listener, separate from the web deployable (`C-091`).
  */
 import { pathToFileURL } from 'node:url';
+import { loadConfig } from '@odp/platform';
 import { createDatastoreCheck } from './runtime/datastore.ts';
 import { createProbeServer, type ProbeServer } from './runtime/health.ts';
 import { createJsonLogger, type Logger } from './runtime/log.ts';
@@ -22,12 +24,6 @@ import {
   installShutdownSignals,
   type ShutdownController,
 } from './runtime/shutdown.ts';
-
-/** Default probe port for the worker's own listener. */
-export const DEFAULT_WORKER_PORT = 3001;
-
-/** Default time a running batch has after `SIGTERM` before its lock is released. */
-export const DEFAULT_SHUTDOWN_GRACE_MS = 10_000;
 
 /** The validated boot configuration. */
 export interface WorkerConfig {
@@ -47,47 +43,14 @@ export interface RunningWorker {
   stop(reason?: string): Promise<void>;
 }
 
-/** Reads a bounded integer from the environment, naming the variable when it is malformed. */
-function readInteger(
-  env: NodeJS.ProcessEnv,
-  name: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = env[name];
-  if (raw === undefined || raw.trim() === '') return fallback;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new Error(`${name} must be an integer between ${min} and ${max}.`);
-  }
-  return value;
-}
-
-/**
- * Reads and validates the worker's configuration.
- *
- * @param env - The process environment, injected so the read is provable without mutating `process`.
- * @throws When `DATABASE_URL` is missing or a numeric setting is out of range.
- */
-export function readWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
-  const databaseUrl = env['DATABASE_URL'];
-  if (databaseUrl === undefined || databaseUrl.trim() === '') {
-    throw new Error('DATABASE_URL is required; the worker cannot serve readiness without it.');
-  }
-  const port = readInteger(env, 'WORKER_PORT', DEFAULT_WORKER_PORT, 1, 65_535);
-  const graceMs = readInteger(
-    env,
-    'WORKER_SHUTDOWN_GRACE_MS',
-    DEFAULT_SHUTDOWN_GRACE_MS,
-    0,
-    300_000,
-  );
+/** Reads the worker settings from the one validated platform configuration. */
+function workerConfigFromPlatform(): WorkerConfig {
+  const config = loadConfig();
   return {
-    port,
-    host: env['WORKER_HOST'] ?? '0.0.0.0',
-    databaseUrl,
-    graceMs,
+    port: config.worker.port,
+    host: config.worker.host,
+    databaseUrl: config.databaseUrl,
+    graceMs: config.worker.shutdownGraceMs,
   };
 }
 
@@ -142,7 +105,7 @@ async function main(): Promise<void> {
   const logger = createJsonLogger();
   try {
     loadLocalEnvironment();
-    const config = readWorkerConfig(process.env);
+    const config = workerConfigFromPlatform();
     const worker = await startWorker(config, { logger });
     installShutdownSignals({ controller: worker.controller, logger });
   } catch (error) {
