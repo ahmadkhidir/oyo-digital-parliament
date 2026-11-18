@@ -12,5 +12,9 @@ export default defineConfig({
     pool: 'vmThreads',
     setupFiles: ['./src/test/setup.ts'],
     esbuild: { jsx: 'automatic' },
+    // An axe scan over the record shell takes seconds in jsdom, and the whole workspace runs its
+    // suites in parallel (`pnpm test`). The 5s default timed the same assertions out under that
+    // load while they passed file-by-file; the budget covers the scan, not a flaky wait.
+    testTimeout: 30_000,
   },
 });
