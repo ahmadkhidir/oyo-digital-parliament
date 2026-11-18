@@ -105,6 +105,7 @@ describe('identifier factory', () => {
       'rsv',
       'rul',
       'rvd',
+      'scd',
       'sdr',
       'ses',
       'sic',
@@ -136,6 +137,9 @@ describe('identifier factory', () => {
     expect(CONTRACT_PREFIXES.residenceReview).toBe('rvd');
     expect(CONTRACT_PREFIXES.ward).toBe('wrd');
     expect(CONTRACT_PREFIXES.wardReview).toBe('wdr');
+    // C-092: the credential is `scd`; the staff user it belongs to is `stf`.
+    expect(CONTRACT_PREFIXES.staffCredential).toBe('scd');
+    expect(CONTRACT_PREFIXES.staffUser).toBe('stf');
     expect(CONTRACT_PREFIXES.analyticsEvent).toBe(TOKEN_PREFIXES.analyticsEvent);
     expect(CONTRACT_PREFIXES.pageCursor).toBe(TOKEN_PREFIXES.pageCursor);
   });

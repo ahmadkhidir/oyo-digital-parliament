@@ -20,6 +20,8 @@ export function validEnvironment(
     S3_ACCESS_KEY_ID: 'test-access-key',
     S3_SECRET_ACCESS_KEY: 'test-secret-key',
     S3_FORCE_PATH_STYLE: 'true',
+    // A disposable 32-byte key for sealing second-factor secrets in a test; never a real one.
+    STAFF_TOTP_SECRET_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
     ...overrides,
   };
 }

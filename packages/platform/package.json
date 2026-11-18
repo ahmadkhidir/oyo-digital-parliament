@@ -15,6 +15,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@node-rs/argon2": "catalog:",
     "redis": "catalog:"
   },
   "devDependencies": {

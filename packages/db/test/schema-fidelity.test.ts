@@ -25,12 +25,11 @@ const EXPECTED: Record<string, ExpectedEntity> = {
     optional: ['aliases'],
   },
   member: {
+    // P1-00g amended `schema.md`: a completed deletion nulls the three direct identifiers and keeps
+    // the row, so `telephoneNumber`, `fullName` and `declaredAge` are no longer required.
     required: [
       'id',
-      'telephoneNumber',
-      'fullName',
       'displayName',
-      'declaredAge',
       'wardStatus',
       'identityState',
       'verificationMethod',
@@ -38,7 +37,15 @@ const EXPECTED: Record<string, ExpectedEntity> = {
       'locale',
       'createdAt',
     ],
-    optional: ['wardId', 'attestedById', 'attestedAt', 'deletedAt'],
+    optional: [
+      'telephoneNumber',
+      'fullName',
+      'declaredAge',
+      'wardId',
+      'attestedById',
+      'attestedAt',
+      'deletedAt',
+    ],
   },
   pending_registration: {
     required: [
@@ -64,6 +71,27 @@ const EXPECTED: Record<string, ExpectedEntity> = {
   staff_user: {
     required: ['id', 'fullName', 'role', 'external', 'secondFactorEnrolled', 'active', 'createdAt'],
     optional: ['authorisedWardIds'],
+  },
+  staff_credential: {
+    required: [
+      'id',
+      'staffUserId',
+      'username',
+      'passwordHash',
+      'recoveryCodes',
+      'failedAttemptCount',
+      'createdAt',
+    ],
+    // `schema.md` lists `totpSecretEncrypted` as required, but `C-093` clears it on an operator reset,
+    // so the column must be nullable for that write to be expressible. The contract wins here and the
+    // disagreement is reported as a specification gap (`staff-credential.ts` states it in full).
+    optional: [
+      'passwordChangedAt',
+      'totpSecretEncrypted',
+      'secondFactorEnrolledAt',
+      'lockedUntil',
+      'lastSignInAt',
+    ],
   },
   ward_description_review: {
     required: ['id', 'memberId', 'description', 'status', 'createdAt'],
@@ -306,6 +334,7 @@ const ENTITY_TABLES: Record<string, PgTable> = {
   residence_review: schema.residenceReview,
   consent: schema.consent,
   staff_user: schema.staffUser,
+  staff_credential: schema.staffCredential,
   ward_description_review: schema.wardDescriptionReview,
   submission: schema.submission,
   submission_draft: schema.submissionDraft,

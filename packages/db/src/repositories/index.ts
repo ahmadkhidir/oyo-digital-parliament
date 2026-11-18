@@ -22,6 +22,11 @@ export {
 } from './pending-registration.repository.ts';
 export { createStaffUserRepository, type StaffUserRepository } from './staff-user.repository.ts';
 export {
+  createStaffCredentialRepository,
+  type StaffCredentialRepository,
+  type StaffCredentialSeams,
+} from './staff-credential.repository.ts';
+export {
   createWardDescriptionReviewRepository,
   type WardDescriptionReviewRepository,
 } from './ward-description-review.repository.ts';

@@ -163,6 +163,23 @@ describe('member repository', () => {
         deletedAt: '2026-03-01T09:00:00Z',
       });
 
+      // The stored row is what `schema.md` requires: the direct identifiers are null, not a
+      // placeholder that could be mistaken for a real number, name or age. Only the projection carries
+      // the reserved values, because the domain type has no null.
+      const storedRows = await database.db
+        .select({
+          telephoneNumber: member.telephoneNumber,
+          fullName: member.fullName,
+          declaredAge: member.declaredAge,
+        })
+        .from(member)
+        .where(eq(member.id, id));
+      expect(storedRows[0]).toEqual({
+        telephoneNumber: null,
+        fullName: null,
+        declaredAge: null,
+      });
+
       // The public record keeps a non-identifying author reference: nothing is deleted.
       expect((await repository.countAuthoredContent(id)).submissions).toBe(1);
       const rows = await database.db

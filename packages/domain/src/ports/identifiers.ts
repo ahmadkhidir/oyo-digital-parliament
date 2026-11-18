@@ -36,6 +36,7 @@ export type IdentifierPrefix =
   | 'rvd'
   | 'cns'
   | 'stf'
+  | 'scd'
   | 'wdr'
   | 'sub'
   | 'sdr'
