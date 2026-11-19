@@ -85,3 +85,9 @@ updates:
         applies-to: version-updates
         patterns:
           - '*'
+    ignore:
+      # A major image bump changes the stack `ADR-001` pins (PostgreSQL 16, Redis 7), so it is a
+      # decision recorded in `.decisions/` before it lands, not a schedule entry.
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
