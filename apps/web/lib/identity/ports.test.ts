@@ -55,10 +55,7 @@ function reporter() {
 }
 
 /** An adapter over the given effects. */
-function adapterFor(
-  store: ReturnType<typeof sink>,
-  extra: Partial<IdentityAnalyticsOptions> = {},
-) {
+function adapterFor(store: ReturnType<typeof sink>, extra: Partial<IdentityAnalyticsOptions> = {}) {
   const report = reporter();
   const buffer = createTelemetryBuffer();
   const adapter = createIdentityAnalytics({
@@ -204,7 +201,11 @@ describe('identity analytics adapter (C-089)', () => {
     expect(store.emitted).toEqual([]);
     expect(buffer.size()).toBe(1);
     expect(report.reported).toEqual([
-      { kind: 'NOT_STORED', eventId: 'evt_01J9ZQ1R3S5T7V9W1X3Y5Z02', cause: 'ANALYTICS_STORE_UNAVAILABLE' },
+      {
+        kind: 'NOT_STORED',
+        eventId: 'evt_01J9ZQ1R3S5T7V9W1X3Y5Z02',
+        cause: 'ANALYTICS_STORE_UNAVAILABLE',
+      },
     ]);
   });
 });

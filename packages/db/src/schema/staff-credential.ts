@@ -31,15 +31,7 @@
  * `createdAt`.
  */
 import { relations, sql } from 'drizzle-orm';
-import {
-  check,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  uniqueIndex,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { check, integer, jsonb, pgTable, text, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 import { isIdentifier, utcTimestamp } from './columns.ts';
 import { staffUser } from './staff-user.ts';
 

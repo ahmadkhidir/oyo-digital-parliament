@@ -129,9 +129,7 @@ export function renderNotificationTemplate(input: NotificationTemplateInput): st
 }
 
 /** How the boundary's body port renders a one-time code; the code store supplies it. */
-export type RegistrationCodeBody = (
-  record: OutboundNotification,
-) => Promise<string | null>;
+export type RegistrationCodeBody = (record: OutboundNotification) => Promise<string | null>;
 
 /**
  * Build the body port the notification boundary uses.

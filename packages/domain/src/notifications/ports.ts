@@ -93,10 +93,7 @@ export interface OutboundQueuePort {
   }): Promise<OutboundNotification | null>;
 
   /** The queue's held view: queued messages whose channel did not answer, oldest attempt first. */
-  listHeld(input: {
-    readonly cursor?: string;
-    readonly limit: number;
-  }): Promise<{
+  listHeld(input: { readonly cursor?: string; readonly limit: number }): Promise<{
     readonly rows: readonly OutboundNotification[];
     readonly nextCursor: string | null;
   }>;

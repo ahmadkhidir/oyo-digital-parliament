@@ -22,8 +22,7 @@ export interface GetDeliveryStateInput {
 
 /** The message's state, or the refusal that stopped the read. */
 export type GetDeliveryStateResult =
-  | { readonly ok: true; readonly notification: NotificationRecordView }
-  | NotificationFailure;
+  { readonly ok: true; readonly notification: NotificationRecordView } | NotificationFailure;
 
 /**
  * Read one notice's delivery state.

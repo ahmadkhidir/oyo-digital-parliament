@@ -25,9 +25,7 @@ export const MEMBER_GATE_COOKIE = 'odp_session';
 
 /** Whether a request path sits inside one of the member-only paths. */
 function isMemberOnlyPath(pathname: string): boolean {
-  return MEMBER_ONLY_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  return MEMBER_ONLY_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 /** What the gate tells the proxy to do with one request. */
@@ -42,10 +40,7 @@ export type GateDecision =
  * @param memberCookieName - The cookie name the gate checks for presence.
  * @param hasCookie - Whether the request carries the named member session cookie.
  */
-export function memberGateDecision(
-  pathname: string,
-  hasCookie: boolean,
-): GateDecision {
+export function memberGateDecision(pathname: string, hasCookie: boolean): GateDecision {
   if (!isMemberOnlyPath(pathname)) return { action: 'next' };
   if (hasCookie) return { action: 'next' };
   return {

@@ -63,7 +63,11 @@ export async function listWards(
   }
   if (!area.ok || !limit.ok) {
     // Unreachable: the map above already returned. Kept so the narrowing is explicit to TypeScript.
-    return wardFailure('VALIDATION_FAILED', 'WARD_LIST_QUERY_INVALID', 'The ward list query is invalid.');
+    return wardFailure(
+      'VALIDATION_FAILED',
+      'WARD_LIST_QUERY_INVALID',
+      'The ward list query is invalid.',
+    );
   }
 
   try {

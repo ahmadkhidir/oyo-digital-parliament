@@ -234,7 +234,9 @@ export function countsInWardReporting(input: {
  * `C-074` excludes only out-of-area submissions; a withheld submission stays in the denominator until
  * it is cleared.
  */
-export function countsInAnswerRateDenominator(input: { readonly locationScope: LocationScope }): boolean {
+export function countsInAnswerRateDenominator(input: {
+  readonly locationScope: LocationScope;
+}): boolean {
   return input.locationScope === 'in_state';
 }
 
@@ -272,9 +274,7 @@ export function identityStateAfterReview(
 }
 
 /** A residence can only be accepted for a member whose ward is recorded (`C-057`). */
-export function residenceReviewNeedsRecordedWard(
-  decision: ResidenceReviewDecision,
-): boolean {
+export function residenceReviewNeedsRecordedWard(decision: ResidenceReviewDecision): boolean {
   return decision === 'checked';
 }
 
@@ -330,7 +330,9 @@ export function readLocalGovernmentArea(raw: unknown): FieldReading {
 /** Reads the optional reviewer note against its column. */
 export function readResidenceNotes(
   raw: unknown,
-): { readonly ok: true; readonly value?: string } | { readonly ok: false; readonly fields: Readonly<Record<string, WardFieldReason>> } {
+):
+  | { readonly ok: true; readonly value?: string }
+  | { readonly ok: false; readonly fields: Readonly<Record<string, WardFieldReason>> } {
   if (raw === undefined || raw === null) return { ok: true };
   if (typeof raw !== 'string') {
     return { ok: false, fields: { notes: 'PATTERN_MISMATCH' } };
@@ -346,7 +348,9 @@ export function readResidenceNotes(
 /** Reads a page size against `C-001` pagination. */
 export function readPageLimit(
   raw: unknown,
-): { readonly ok: true; readonly value: number } | { readonly ok: false; readonly fields: Readonly<Record<string, WardFieldReason>> } {
+):
+  | { readonly ok: true; readonly value: number }
+  | { readonly ok: false; readonly fields: Readonly<Record<string, WardFieldReason>> } {
   if (raw === undefined || raw === null) return { ok: true, value: WARD_PAGE_DEFAULT_LIMIT };
   if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 1 || raw > WARD_PAGE_MAX_LIMIT) {
     return { ok: false, fields: { limit: 'OUT_OF_BAND' } };

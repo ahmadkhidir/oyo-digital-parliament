@@ -53,8 +53,7 @@ export interface EnqueueNotificationInput {
 
 /** The queued message's delivery state, or the refusal that stopped it. */
 export type EnqueueNotificationResult =
-  | { readonly ok: true; readonly notification: NotificationDeliveryState }
-  | NotificationFailure;
+  { readonly ok: true; readonly notification: NotificationDeliveryState } | NotificationFailure;
 
 /** Collects the frozen field reasons of every reading that failed. */
 function fieldsOf(

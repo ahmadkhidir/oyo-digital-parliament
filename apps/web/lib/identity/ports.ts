@@ -173,9 +173,7 @@ export interface IdentityAnalyticsOptions {
  * dispatch, so a payload the receiving side would reject never leaves. A refusal or an unreachable
  * store is reported, never thrown into the write, and nothing here logs a payload.
  */
-export function createIdentityAnalytics(
-  options: IdentityAnalyticsOptions,
-): IdentityAnalyticsPort {
+export function createIdentityAnalytics(options: IdentityAnalyticsOptions): IdentityAnalyticsPort {
   const buffer = options.buffer ?? createTelemetryBuffer();
   const appVersion = options.appVersion ?? APP_VERSION;
   const defaultLocale = options.defaultLocale ?? 'en-NG';
@@ -190,8 +188,7 @@ export function createIdentityAnalytics(
           // event therefore carries an opaque identifier minted for it: funnels join on `user_id` and
           // `anonymous_id`, which are stable, and no credential is copied into analytics.
           sessionId: options.identifiers.next('ses'),
-          userId:
-            event.subject.kind === 'member' ? analyticsUserId(event.subject.memberId) : null,
+          userId: event.subject.kind === 'member' ? analyticsUserId(event.subject.memberId) : null,
           anonymousId: event.subject.kind === 'anonymous' ? event.subject.anonymousId : null,
           locale: envelopeLocale(event, defaultLocale),
         },

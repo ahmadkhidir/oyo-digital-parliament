@@ -25,7 +25,11 @@ const heldResult = {
   cause: 'PROVIDER_UNAVAILABLE' as const,
 };
 
-function harness(recipients = [{ id: pendingRegistration, locale: 'en-NG' as const, smsDestination: '+2348031234567' }]) {
+function harness(
+  recipients = [
+    { id: pendingRegistration, locale: 'en-NG' as const, smsDestination: '+2348031234567' },
+  ],
+) {
   return createNotificationFakes({ recipients });
 }
 

@@ -17,11 +17,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lte, or, type SQL } from 'drizzle-orm';
-import type {
-  NotificationAttempt,
-  OutboundNotification,
-  OutboundQueuePort,
-} from '@odp/domain';
+import type { NotificationAttempt, OutboundNotification, OutboundQueuePort } from '@odp/domain';
 import { executorOf, type Executor } from '../client.ts';
 import { outboundNotification } from '../schema/outbound-notification.ts';
 
@@ -48,9 +44,7 @@ function newLeaseToken(): string {
 }
 
 /** Maps a stored row to the domain type, dropping the nulls the domain models as absent. */
-function toNotification(
-  row: typeof outboundNotification.$inferSelect,
-): OutboundNotification {
+function toNotification(row: typeof outboundNotification.$inferSelect): OutboundNotification {
   return {
     id: row.id,
     channel: row.channel as OutboundNotification['channel'],
@@ -89,10 +83,7 @@ export function createOutboundNotificationRepository(
 
   /** Not held by another dispatcher's live lease. */
   const leasable = (at: string): SQL =>
-    or(
-      isNull(outboundNotification.leaseUntil),
-      lte(outboundNotification.leaseUntil, at),
-    ) as SQL;
+    or(isNull(outboundNotification.leaseUntil), lte(outboundNotification.leaseUntil, at)) as SQL;
 
   /**
    * The condition a *sweep* claim must satisfy: queued, due, and leasable.

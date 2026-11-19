@@ -41,11 +41,7 @@ export type LocationScope = (typeof LOCATION_SCOPES)[number];
 
 /** `Submission.status`, as far as ward resolution needs to see it. */
 export type SubmissionStatus =
-  | 'awaiting_decision'
-  | 'decided'
-  | 'withdrawn'
-  | 'withheld'
-  | 'out_of_area';
+  'awaiting_decision' | 'decided' | 'withdrawn' | 'withheld' | 'out_of_area';
 
 /** A ward of Oyo State as the platform records it (`schema.md` Ward, `FEAT-002`). */
 export interface Ward {

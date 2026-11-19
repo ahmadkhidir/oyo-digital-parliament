@@ -81,7 +81,8 @@ export function fakeWard(overrides: Partial<Ward> & Pick<Ward, 'id' | 'name'>): 
 
 /** Builds the port bundle and the state a test can assert against. */
 export function createWardHarness(options: WardHarnessOptions = {}): WardHarness {
-  const wards: Ward[] = options.wards?.map((ward) => ({ ...ward, aliases: [...ward.aliases] })) ?? [];
+  const wards: Ward[] =
+    options.wards?.map((ward) => ({ ...ward, aliases: [...ward.aliases] })) ?? [];
   const members: FakeMember[] = options.members?.map((member) => ({ ...member })) ?? [];
   const reviews: WardDescriptionReview[] = options.reviews?.map((review) => ({ ...review })) ?? [];
   const submissions: FakeSubmission[] = options.submissions?.map((row) => ({ ...row })) ?? [];

@@ -81,11 +81,7 @@ export type {
   WardSubmissionState,
 } from './ports.ts';
 
-export {
-  listWards,
-  type ListWardsInput,
-  type ListWardsResult,
-} from './use-cases/list-wards.ts';
+export { listWards, type ListWardsInput, type ListWardsResult } from './use-cases/list-wards.ts';
 export {
   suggestWardCandidates,
   type SuggestWardCandidatesInput,

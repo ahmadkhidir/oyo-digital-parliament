@@ -17,11 +17,7 @@
  * shapes are the platform's own `ClockPort` and `SmsDeliveryPort` doubles, not look-alikes.
  */
 import { describe, expect, it } from 'vitest';
-import type {
-  NotificationPorts,
-  NotificationRecipient,
-  SmsDeliveryResult,
-} from '@odp/domain';
+import type { NotificationPorts, NotificationRecipient, SmsDeliveryResult } from '@odp/domain';
 import {
   dispatchNotification,
   enqueueNotification,

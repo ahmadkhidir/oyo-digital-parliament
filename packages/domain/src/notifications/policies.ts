@@ -221,7 +221,11 @@ export function recordAttempt(input: {
   if (attempts >= input.policy.maxAttempts) {
     return { ...base, state: 'failed' };
   }
-  return { ...base, state: 'queued', nextAttemptAt: nextAttemptAt(input.at, attempts, input.policy) };
+  return {
+    ...base,
+    state: 'queued',
+    nextAttemptAt: nextAttemptAt(input.at, attempts, input.policy),
+  };
 }
 
 /** The `C-076` `enqueue` result for one record. */
@@ -352,7 +356,8 @@ export function readDedupeKey(value: unknown): Reading<string> {
  * @param field - The field name a refusal names.
  */
 export function readLimit(value: unknown, field = 'limit'): Reading<number> {
-  if (value === undefined || value === null) return { ok: true, value: NOTIFICATION_PAGE_DEFAULT_LIMIT };
+  if (value === undefined || value === null)
+    return { ok: true, value: NOTIFICATION_PAGE_DEFAULT_LIMIT };
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > NOTIFICATION_PAGE_MAX_LIMIT) {
     return { ok: false, field, reason: 'OUT_OF_BAND' };

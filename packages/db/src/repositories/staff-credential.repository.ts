@@ -24,11 +24,7 @@
  * belongs to the identity module and is not part of this port.
  */
 import { eq, sql } from 'drizzle-orm';
-import type {
-  StaffCredentialPort,
-  StaffCredentialState,
-  TotpEnrolment,
-} from '@odp/domain';
+import type { StaffCredentialPort, StaffCredentialState, TotpEnrolment } from '@odp/domain';
 import type {
   PasswordHasherPort,
   SecondFactorPort,
@@ -104,7 +100,9 @@ export function createStaffCredentialRepository(
       .limit(1);
     const row = rows[0];
     if (row === undefined) return null;
-    return row.totpSecretEncrypted === null ? { secret: null } : { secret: row.totpSecretEncrypted };
+    return row.totpSecretEncrypted === null
+      ? { secret: null }
+      : { secret: row.totpSecretEncrypted };
   }
 
   return {

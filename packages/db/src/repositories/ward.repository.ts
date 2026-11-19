@@ -117,7 +117,9 @@ export function createWardRepository(executor: Executor): WardRepository {
       // alias (`FEAT-002` accumulates wording, not duplicates).
       await db
         .update(ward)
-        .set({ aliases: sql`array_append(coalesce(${ward.aliases}, '{}'::text[]), ${input.alias})` })
+        .set({
+          aliases: sql`array_append(coalesce(${ward.aliases}, '{}'::text[]), ${input.alias})`,
+        })
         .where(
           and(
             eq(ward.id, input.wardId),

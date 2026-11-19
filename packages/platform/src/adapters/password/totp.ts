@@ -196,7 +196,9 @@ export function createSecondFactorCodec(): SecondFactorPort {
 
     hashRecoveryCode(code: string): string {
       const normalised = code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-      return createHash('sha256').update(`${RECOVERY_CODE_LABEL}${normalised}`, 'utf8').digest('hex');
+      return createHash('sha256')
+        .update(`${RECOVERY_CODE_LABEL}${normalised}`, 'utf8')
+        .digest('hex');
     },
   };
 }
