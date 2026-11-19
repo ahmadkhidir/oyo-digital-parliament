@@ -87,7 +87,10 @@ describe('recordResidenceReview, rejected', () => {
       notes: 'No document shows the street address.',
     });
     expect(fakes.analytics).toEqual([
-      { name: 'residence_review_completed', properties: { decision: 'rejected', method: 'document' } },
+      {
+        name: 'residence_review_completed',
+        properties: { decision: 'rejected', method: 'document' },
+      },
     ]);
   });
 });

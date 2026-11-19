@@ -39,7 +39,9 @@ describe('second-factor secret box', () => {
     // Flip one bit of the ciphertext, leaving the format and the tag in place.
     bytes[bytes.length - 1] = (bytes[bytes.length - 1] ?? 0) ^ 0x01;
 
-    expect(() => box.open(`${version}.${bytes.toString('base64')}`)).toThrow(/failed authentication/);
+    expect(() => box.open(`${version}.${bytes.toString('base64')}`)).toThrow(
+      /failed authentication/,
+    );
   });
 
   it('refuses a value sealed under another key', () => {

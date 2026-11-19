@@ -69,7 +69,11 @@ describe('resolveWardDescription, resolved', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.member).toEqual({ id: 'mbr_MEMBER1', wardId: 'wrd_AGBOWO', wardStatus: 'resolved' });
+    expect(result.member).toEqual({
+      id: 'mbr_MEMBER1',
+      wardId: 'wrd_AGBOWO',
+      wardStatus: 'resolved',
+    });
     expect(result.submissionsMoved).toEqual(['ODP-004812']);
     expect(result.submissionsUnchanged).toBe(1);
     expect(fakes.submissions.map((submission) => submission.body)).toEqual([

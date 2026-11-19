@@ -19,11 +19,7 @@ import {
   type WardFailure,
   type WardFieldReason,
 } from '../entities.ts';
-import {
-  normaliseWardText,
-  readDescription,
-  readLocalGovernmentArea,
-} from '../policies.ts';
+import { normaliseWardText, readDescription, readLocalGovernmentArea } from '../policies.ts';
 import type { WardPorts } from '../ports.ts';
 import { appendWardAudit, emitWardAnalytics } from './support.ts';
 
@@ -185,7 +181,10 @@ export async function confirmWard(
       await deps.wards.appendAlias({ wardId: ward.id, alias: description.value });
     }
 
-    const occurredAt = deps.clock.now().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const occurredAt = deps.clock
+      .now()
+      .toISOString()
+      .replace(/\.\d{3}Z$/, 'Z');
     const refused = await appendWardAudit(deps, {
       actorId: caller.memberId,
       actorRole: 'member',
@@ -254,7 +253,10 @@ async function queueDescription(
     return wardFailure('NOT_FOUND', 'MEMBER_NOT_FOUND', 'That account does not exist.');
   }
 
-  const createdAt = deps.clock.now().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const createdAt = deps.clock
+    .now()
+    .toISOString()
+    .replace(/\.\d{3}Z$/, 'Z');
   const review: WardDescriptionReview = {
     id: deps.identifiers.next('wdr'),
     memberId: member.id,

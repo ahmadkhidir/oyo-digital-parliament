@@ -120,7 +120,10 @@ export async function recordResidenceReview(
     );
   }
 
-  const reviewedAt = deps.clock.now().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const reviewedAt = deps.clock
+    .now()
+    .toISOString()
+    .replace(/\.\d{3}Z$/, 'Z');
   const review: ResidenceReview = {
     id: deps.identifiers.next('rvd'),
     memberId: member.id,

@@ -96,7 +96,13 @@ function challengePort() {
         const row = rows.get(id);
         return row === undefined
           ? null
-          : { id, telephoneNumber: row.telephoneNumber, memberIds: row.memberIds, codeSentAt: row.codeSentAt, expiresAt: row.expiresAt };
+          : {
+              id,
+              telephoneNumber: row.telephoneNumber,
+              memberIds: row.memberIds,
+              codeSentAt: row.codeSentAt,
+              expiresAt: row.expiresAt,
+            };
       },
       consume: async (id: string, at: string) => {
         const row = rows.get(id);
@@ -193,7 +199,10 @@ function flowCookie<T>(name: string): T | null {
 }
 
 /** Starts a flow through the real number action, then opens the code for its challenge. */
-async function startCodeStep(double: PortsDouble, overrides: Record<string, string> = {}): Promise<string> {
+async function startCodeStep(
+  double: PortsDouble,
+  overrides: Record<string, string> = {},
+): Promise<string> {
   await run(requestSignInCodeAction, numberForm(overrides));
   const pending = flowCookie<{ challengeId: string; telephoneNumber: string }>(
     'odp_signin_pending',
@@ -253,9 +262,10 @@ describe('requestSignInCodeAction (C-005)', () => {
     const redirect = await run(requestSignInCodeAction, numberForm({ telephoneNumber: '12345' }));
 
     expect(redirect.url).toBe('/sign-in');
-    const retry = flowCookie<{ values: { telephoneNumber: string }; fields: Record<string, string> }>(
-      'odp_signin_retry',
-    );
+    const retry = flowCookie<{
+      values: { telephoneNumber: string };
+      fields: Record<string, string>;
+    }>('odp_signin_retry');
     expect(retry?.fields['telephoneNumber']).toBe('PATTERN_MISMATCH');
     expect(retry?.values.telephoneNumber).toBe('12345');
     expect(flowCookie('odp_signin_pending')).toBeNull();
@@ -445,7 +455,10 @@ describe('resendSignInCodeAction (C-005)', () => {
 
     // A second bundle whose limiter refuses: the resend consults the per-number bucket.
     const limited = createPortsDouble({ rateLimitRetryAfterSeconds: 45 });
-    holder.ports = { ...limited.ports, signInChallenges: (holder.ports as IdentityPorts).signInChallenges };
+    holder.ports = {
+      ...limited.ports,
+      signInChallenges: (holder.ports as IdentityPorts).signInChallenges,
+    };
 
     const redirect = await run(resendSignInCodeAction);
 

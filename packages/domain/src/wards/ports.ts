@@ -57,9 +57,7 @@ export interface WardReferencePort {
   listForMatching(): Promise<readonly Ward[]>;
 
   /** Reads the wards of the given local government areas, for the reviewer's picker (`C-055`). */
-  listByLocalGovernmentAreas(
-    localGovernmentAreas: readonly string[],
-  ): Promise<readonly Ward[]>;
+  listByLocalGovernmentAreas(localGovernmentAreas: readonly string[]): Promise<readonly Ward[]>;
 
   /**
    * Accumulates the resident's wording as an alias of the ward.

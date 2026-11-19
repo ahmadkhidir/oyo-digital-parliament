@@ -198,9 +198,7 @@ describe('SignInPage (screens/02-sign-in.md)', () => {
 
     const field = screen.getByLabelText(copy.telephoneNumber.label);
     expect(field).toHaveValue('0803 123 45');
-    expect(
-      screen.getByText(copy.telephoneNumber.errors.PATTERN_MISMATCH),
-    ).toBeInTheDocument();
+    expect(screen.getByText(copy.telephoneNumber.errors.PATTERN_MISMATCH)).toBeInTheDocument();
   });
 
   it('states the wait before another attempt (Rate limited)', async () => {
@@ -217,7 +215,9 @@ describe('SignInPage (screens/02-sign-in.md)', () => {
 
     render(await SignInPage(pageProps()));
 
-    expect(screen.getByText('That is too many attempts. Wait 45 seconds, then try again.')).toBeInTheDocument();
+    expect(
+      screen.getByText('That is too many attempts. Wait 45 seconds, then try again.'),
+    ).toBeInTheDocument();
   });
 
   it('states the failure when the code could not be sent (Delivery failed)', async () => {
@@ -285,7 +285,11 @@ describe('SignInPage (screens/02-sign-in.md)', () => {
 
     render(await SignInPage(pageProps()));
 
-    expect(screen.getByText('More than one account uses +2348031234567. Enter the code, then choose the account.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'More than one account uses +2348031234567. Enter the code, then choose the account.',
+      ),
+    ).toBeInTheDocument();
     const group = screen.getByRole('group', { name: copy.accountChoice.legend });
     expect(within(group).getByRole('radio', { name: 'Account 1 of 2' })).toBeInTheDocument();
     expect(within(group).getByRole('radio', { name: 'Account 2 of 2' })).toBeInTheDocument();

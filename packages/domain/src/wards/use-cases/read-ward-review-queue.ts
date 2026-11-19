@@ -80,7 +80,11 @@ export async function readWardReviewQueue(
     );
   }
   if (!area.ok || !limit.ok) {
-    return wardFailure('VALIDATION_FAILED', 'WARD_REVIEW_QUERY_INVALID', 'The queue query is invalid.');
+    return wardFailure(
+      'VALIDATION_FAILED',
+      'WARD_REVIEW_QUERY_INVALID',
+      'The queue query is invalid.',
+    );
   }
 
   let page;
@@ -88,9 +92,7 @@ export async function readWardReviewQueue(
     page = await deps.wardDescriptionReviews.listQueue({
       status,
       ...(area.value === '' ? {} : { localGovernmentArea: area.value }),
-      ...(typeof input.cursor === 'string' && input.cursor !== ''
-        ? { cursor: input.cursor }
-        : {}),
+      ...(typeof input.cursor === 'string' && input.cursor !== '' ? { cursor: input.cursor } : {}),
       limit: limit.value,
     });
   } catch {

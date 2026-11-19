@@ -47,8 +47,7 @@ export interface DispatchNotificationInput {
 
 /** One message's state after the call, or the refusal that stopped it being attempted. */
 export type DispatchNotificationResult =
-  | { readonly ok: true; readonly notification: NotificationRecordView }
-  | NotificationFailure;
+  { readonly ok: true; readonly notification: NotificationRecordView } | NotificationFailure;
 
 /** `flushDueNotifications` takes an optional batch size, under the `C-001` page convention. */
 export interface FlushDueNotificationsInput {
@@ -241,10 +240,20 @@ async function attemptFor(
   try {
     body = await deps.bodies.render({ record, recipient });
   } catch {
-    return recordAttempt({ ...base, outcome: 'held', messageRef: null, cause: 'TEMPLATE_UNAVAILABLE' });
+    return recordAttempt({
+      ...base,
+      outcome: 'held',
+      messageRef: null,
+      cause: 'TEMPLATE_UNAVAILABLE',
+    });
   }
   if (body === null) {
-    return recordAttempt({ ...base, outcome: 'failed', messageRef: null, cause: 'TEMPLATE_UNAVAILABLE' });
+    return recordAttempt({
+      ...base,
+      outcome: 'failed',
+      messageRef: null,
+      cause: 'TEMPLATE_UNAVAILABLE',
+    });
   }
 
   try {

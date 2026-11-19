@@ -20,11 +20,7 @@ import {
   type NotificationRetryPolicy,
   isHeld,
 } from './policies.ts';
-import type {
-  NotificationPorts,
-  NotificationRecipient,
-  OutboundQueuePort,
-} from './ports.ts';
+import type { NotificationPorts, NotificationRecipient, OutboundQueuePort } from './ports.ts';
 import type { SmsDeliveryPort, SmsDeliveryResult, SmsMessage } from '../ports/notifications.ts';
 
 /** The instant every fake starts from, in `C-001` form. */
@@ -82,11 +78,13 @@ function instant(value: string): number {
  *
  * @param options - The starting instant, the known recipients and any failure the test wants to inject.
  */
-export function createNotificationFakes(options: {
-  readonly now?: string;
-  readonly recipients?: readonly FakeRecipient[];
-  readonly retry?: NotificationRetryPolicy;
-} = {}): FakeNotificationHarness {
+export function createNotificationFakes(
+  options: {
+    readonly now?: string;
+    readonly recipients?: readonly FakeRecipient[];
+    readonly retry?: NotificationRetryPolicy;
+  } = {},
+): FakeNotificationHarness {
   let now = options.now ?? FAKE_NOTIFICATION_NOW;
   const rows: OutboundNotification[] = [];
   const leases = new Map<string, { token: string; until: string }>();
@@ -232,7 +230,9 @@ export function createNotificationFakes(options: {
   const ports: NotificationPorts = {
     queue,
     recipients: {
-      async resolve(reference: NotificationRecipientReference): Promise<NotificationRecipient | null> {
+      async resolve(
+        reference: NotificationRecipientReference,
+      ): Promise<NotificationRecipient | null> {
         const known = recipients.get(reference.id);
         // `undefined` is an unknown reference; `null` is one that has been anonymised or discarded.
         if (known === undefined || known === null) return null;

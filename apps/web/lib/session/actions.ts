@@ -16,10 +16,7 @@ import { redirect } from 'next/navigation';
 import { readSession, signOut, type SignOutResult } from '@odp/domain';
 import { newCorrelationId } from '../logging';
 import { getSignInDependencies } from './deps';
-import {
-  clearMemberSessionCookie,
-  presentedMemberSessionToken,
-} from './session-cookies';
+import { clearMemberSessionCookie, presentedMemberSessionToken } from './session-cookies';
 
 /**
  * Ends the caller's member session and returns them to the record home.

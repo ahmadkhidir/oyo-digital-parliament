@@ -14,11 +14,7 @@ import {
   type WardFailure,
   type WardFieldReason,
 } from '../entities.ts';
-import {
-  matchWardCandidates,
-  readDescription,
-  readLocalGovernmentArea,
-} from '../policies.ts';
+import { matchWardCandidates, readDescription, readLocalGovernmentArea } from '../policies.ts';
 import type { WardPorts } from '../ports.ts';
 import { emitWardAnalytics } from './support.ts';
 

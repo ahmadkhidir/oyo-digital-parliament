@@ -170,12 +170,7 @@ export type NotificationFailureCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'SERVI
 
 /** A field-level reason token from the frozen `C-001` set. */
 export type NotificationFieldReason =
-  | 'REQUIRED'
-  | 'PATTERN_MISMATCH'
-  | 'OUT_OF_BAND'
-  | 'ENUM_MISMATCH'
-  | 'TOO_LONG'
-  | 'UNKNOWN_FIELD';
+  'REQUIRED' | 'PATTERN_MISMATCH' | 'OUT_OF_BAND' | 'ENUM_MISMATCH' | 'TOO_LONG' | 'UNKNOWN_FIELD';
 
 /** A refusal in the `C-001` error shape. */
 export interface NotificationFailure {

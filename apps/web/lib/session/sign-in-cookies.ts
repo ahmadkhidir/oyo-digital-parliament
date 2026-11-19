@@ -135,11 +135,7 @@ async function readFlowCookie<T>(
 }
 
 /** Sets one flow cookie. The value is a JSON string; the caller owns its shape. */
-async function writeFlowCookie(
-  name: string,
-  value: unknown,
-  maxAgeSeconds: number,
-): Promise<void> {
+async function writeFlowCookie(name: string, value: unknown, maxAgeSeconds: number): Promise<void> {
   const store = await cookies();
   store.set(name, JSON.stringify(value), { ...COOKIE_ATTRIBUTES, maxAge: maxAgeSeconds });
 }
@@ -211,7 +207,11 @@ export async function readSignInRetry(): Promise<SignInRetryState | null> {
 
 /** Records a failed number attempt for the next render. */
 export async function writeSignInRetry(state: Omit<SignInRetryState, 'at'>): Promise<void> {
-  await writeFlowCookie(RETRY_COOKIE, { ...state, at: new Date().toISOString() }, RETRY_TTL_SECONDS);
+  await writeFlowCookie(
+    RETRY_COOKIE,
+    { ...state, at: new Date().toISOString() },
+    RETRY_TTL_SECONDS,
+  );
 }
 
 /** Forgets the payload; a sent code must not leave an error behind. */
@@ -228,7 +228,11 @@ export async function readSignInStatus(): Promise<SignInStatusState | null> {
 
 /** Records one confirm or resend outcome for the next render. */
 export async function writeSignInStatus(state: Omit<SignInStatusState, 'at'>): Promise<void> {
-  await writeFlowCookie(STATUS_COOKIE, { ...state, at: new Date().toISOString() }, RETRY_TTL_SECONDS);
+  await writeFlowCookie(
+    STATUS_COOKIE,
+    { ...state, at: new Date().toISOString() },
+    RETRY_TTL_SECONDS,
+  );
 }
 
 /** Forgets the outcome; the next render owns the screen's state. */

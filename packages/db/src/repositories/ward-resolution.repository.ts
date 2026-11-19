@@ -77,9 +77,7 @@ export function createWardResolutionRepository(executor: Executor): WardResoluti
           status: submission.status,
         })
         .from(submission)
-        .where(
-          and(eq(submission.authorId, memberId), eq(submission.wardStatus, 'unresolved')),
-        )
+        .where(and(eq(submission.authorId, memberId), eq(submission.wardStatus, 'unresolved')))
         .orderBy(asc(submission.submittedAt), asc(submission.reference));
       return rows;
     },
@@ -88,9 +86,7 @@ export function createWardResolutionRepository(executor: Executor): WardResoluti
       const rows = await db
         .select({ value: count() })
         .from(submission)
-        .where(
-          and(eq(submission.authorId, memberId), eq(submission.wardStatus, 'resolved')),
-        );
+        .where(and(eq(submission.authorId, memberId), eq(submission.wardStatus, 'resolved')));
       return Number(rows[0]?.value ?? 0);
     },
 

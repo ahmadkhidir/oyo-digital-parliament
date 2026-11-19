@@ -83,7 +83,10 @@ export async function resolveWardDescription(
   }
   const rejectionReason =
     typeof input.rejectionReason === 'string' ? input.rejectionReason.trim() : '';
-  if (input.status === 'resolved' && (typeof input.resolvedWardId !== 'string' || input.resolvedWardId === '')) {
+  if (
+    input.status === 'resolved' &&
+    (typeof input.resolvedWardId !== 'string' || input.resolvedWardId === '')
+  ) {
     fields['resolvedWardId'] = 'REQUIRED';
   }
   if (input.status === 'rejected' && rejectionReason === '') {
@@ -112,7 +115,11 @@ export async function resolveWardDescription(
     );
   }
   if (review === null) {
-    return wardFailure('NOT_FOUND', 'WARD_REVIEW_NOT_FOUND', 'That description is not in the queue.');
+    return wardFailure(
+      'NOT_FOUND',
+      'WARD_REVIEW_NOT_FOUND',
+      'That description is not in the queue.',
+    );
   }
   if (review.status !== 'queued') {
     return wardFailure(
@@ -134,7 +141,10 @@ export async function resolveWardDescription(
   }
   const accountGone = member === null || member.deletedAt !== undefined;
 
-  const resolvedAt = deps.clock.now().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const resolvedAt = deps.clock
+    .now()
+    .toISOString()
+    .replace(/\.\d{3}Z$/, 'Z');
 
   if (input.status === 'rejected') {
     const rejected = await deps.wardDescriptionReviews.markRejected({
@@ -244,7 +254,9 @@ export async function resolveWardDescription(
   // The resident's wording accumulates into the reference a reviewer just settled (`FEAT-002`).
   const alreadyKnown =
     normaliseWardText(ward.name) === normaliseWardText(review.description) ||
-    ward.aliases.some((alias) => normaliseWardText(alias) === normaliseWardText(review.description));
+    ward.aliases.some(
+      (alias) => normaliseWardText(alias) === normaliseWardText(review.description),
+    );
   if (!alreadyKnown) {
     await deps.wards.appendAlias({ wardId: ward.id, alias: review.description });
   }

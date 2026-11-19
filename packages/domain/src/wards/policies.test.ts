@@ -88,8 +88,20 @@ describe('matchWardCandidates', () => {
   });
 
   it('requires the local government area when a name is shared across areas', () => {
-    const first: Ward = { ...agbowo, id: 'wrd_AWE1', name: 'Ward I, Awe', localGovernmentArea: 'Afijio', aliases: [] };
-    const second: Ward = { ...agbowo, id: 'wrd_AWE2', name: 'Ward I, Awe', localGovernmentArea: 'Atiba', aliases: [] };
+    const first: Ward = {
+      ...agbowo,
+      id: 'wrd_AWE1',
+      name: 'Ward I, Awe',
+      localGovernmentArea: 'Afijio',
+      aliases: [],
+    };
+    const second: Ward = {
+      ...agbowo,
+      id: 'wrd_AWE2',
+      name: 'Ward I, Awe',
+      localGovernmentArea: 'Atiba',
+      aliases: [],
+    };
     const ambiguous = matchWardCandidates([first, second], { description: 'Awe' });
     expect(ambiguous.localGovernmentAreaRequired).toBe(true);
 
@@ -103,8 +115,20 @@ describe('matchWardCandidates', () => {
   });
 
   it('keeps equally matching wards together rather than picking one', () => {
-    const first: Ward = { ...agbowo, id: 'wrd_TIE1', name: 'Ward II, Ilora', localGovernmentArea: 'Afijio', aliases: [] };
-    const second: Ward = { ...agbowo, id: 'wrd_TIE2', name: 'Ward II, Ilora', localGovernmentArea: 'Atiba', aliases: [] };
+    const first: Ward = {
+      ...agbowo,
+      id: 'wrd_TIE1',
+      name: 'Ward II, Ilora',
+      localGovernmentArea: 'Afijio',
+      aliases: [],
+    };
+    const second: Ward = {
+      ...agbowo,
+      id: 'wrd_TIE2',
+      name: 'Ward II, Ilora',
+      localGovernmentArea: 'Atiba',
+      aliases: [],
+    };
     const result = matchWardCandidates([first, second], {
       description: 'Ilora',
       localGovernmentArea: 'Afijio',
@@ -135,9 +159,7 @@ describe('ward reporting exclusions', () => {
   });
 
   it('keeps an in-state resolved submission in the ward record', () => {
-    expect(
-      countsInWardReporting({ wardStatus: 'resolved', locationScope: 'in_state' }),
-    ).toBe(true);
+    expect(countsInWardReporting({ wardStatus: 'resolved', locationScope: 'in_state' })).toBe(true);
     expect(countsInAnswerRateDenominator({ locationScope: 'in_state' })).toBe(true);
   });
 

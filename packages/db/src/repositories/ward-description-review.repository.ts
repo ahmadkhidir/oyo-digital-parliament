@@ -174,8 +174,7 @@ export function createWardDescriptionReviewRepository(
 
       return {
         reviews,
-        nextCursor:
-          rows.length > query.limit ? encodeCursor(offset + page.length) : null,
+        nextCursor: rows.length > query.limit ? encodeCursor(offset + page.length) : null,
       };
     },
 
