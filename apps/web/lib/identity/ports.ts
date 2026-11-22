@@ -18,6 +18,7 @@
  * fails loudly instead of pretending.
  */
 import {
+  createAnalyticsEventRepository,
   createAuditEventRepository,
   createConsentRepository,
   createDataRequestRepository,
@@ -27,15 +28,17 @@ import {
   createStaffUserRepository,
   type DatabaseHandle,
 } from '@odp/db';
-import type {
-  AnalyticsLocale,
-  IdentityAnalyticsEvent,
-  IdentityAnalyticsPort,
-  IdentityPorts,
+import {
+  analyticsUserIdFor,
+  type AnalyticsLocale,
+  type IdentityAnalyticsEvent,
+  type IdentityAnalyticsPort,
+  type IdentityPorts,
 } from '@odp/domain';
 import { createPlatform, type Platform } from '@odp/platform';
 import { createJsonLogger, type Logger } from '../logging';
 import {
+  createDurableAnalyticsSink,
   createTelemetryBuffer,
   createTelemetryDispatcher,
   type TelemetryBuffer,
@@ -67,27 +70,6 @@ const logger: Logger = createJsonLogger({ service: 'web' });
  * per release train and reported as an assumption in the task that first ships analytics.
  */
 const APP_VERSION = '2026.11.0';
-
-/** A member's record identifier, whose opaque body is the analytics identity's body too (`C-001`). */
-const MEMBER_ID_PATTERN = /^mbr_([0-9A-Z]{4,26})$/;
-
-/**
- * The analytics identity of one member (`C-089`, `C-001`).
- *
- * `C-089` types `user_id` as a `usr_` identifier, while the record names the member with `mbr_`; the
- * identifier table gives the analytics user its own prefix and no mapping between the two is stored
- * anywhere. Both identifiers carry the same opaque ULID body, so the mapping here is the prefix and
- * nothing else: it is stable for the life of the member, it reveals no field the account does not
- * already hold, and a deletion request replaces it with a non-reversible token
- * (`analytics.replaceUserToken`). A value that is not a member identifier is passed through
- * unchanged, so the envelope refuses it as `PATTERN_MISMATCH` and reports it — the adapter never
- * invents an identity. Reported as a contract gap: the durable answer is an analytics user
- * identifier minted once at registration and stored, which is a schema and data change.
- */
-function analyticsUserId(memberId: string): string {
-  const match = MEMBER_ID_PATTERN.exec(memberId);
-  return match === null ? memberId : `usr_${match[1]}`;
-}
 
 /** One of the two locales the catalogue ships, or `null` for anything else (`C-089`). */
 function asLocale(value: unknown): AnalyticsLocale | null {
@@ -133,23 +115,6 @@ const analyticsReporter: TelemetryReporter = {
   },
 };
 
-/**
- * The sink this deployable has for a validated envelope.
- *
- * `C-077`'s `analytics.emit` boundary is not provisioned in this deployment, so a validated event has
- * nowhere durable to land yet. The sink refuses, and the dispatcher buffers the event and reports it
- * — `C-089`'s own degradation rule, which keeps a lost event from failing the registration, the
- * consent or the data request behind it, and keeps a drop visible instead of silent. Pointing this
- * function at the boundary client is the whole wiring change.
- */
-function createBoundarySink(): TelemetrySink {
-  return {
-    async emit(): Promise<{ readonly storedAt: string }> {
-      throw new Error('ANALYTICS_STORE_UNAVAILABLE');
-    },
-  };
-}
-
 /** What one identity analytics adapter needs: the transport plus the envelope's own sources. */
 export interface IdentityAnalyticsOptions {
   /** Where a validated envelope goes. */
@@ -188,7 +153,8 @@ export function createIdentityAnalytics(options: IdentityAnalyticsOptions): Iden
           // event therefore carries an opaque identifier minted for it: funnels join on `user_id` and
           // `anonymous_id`, which are stable, and no credential is copied into analytics.
           sessionId: options.identifiers.next('ses'),
-          userId: event.subject.kind === 'member' ? analyticsUserId(event.subject.memberId) : null,
+          userId:
+            event.subject.kind === 'member' ? analyticsUserIdFor(event.subject.memberId) : null,
           anonymousId: event.subject.kind === 'anonymous' ? event.subject.anonymousId : null,
           locale: envelopeLocale(event, defaultLocale),
         },
@@ -244,7 +210,10 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       objectStore: platform.storage,
       audit: createAuditEventRepository(database.db),
       analytics: createIdentityAnalytics({
-        sink: createBoundarySink(),
+        // The durable sink `C-077` names: one row per validated `C-089` envelope in the platform's
+        // own record store, so an event is stored rather than buffered against a boundary that is
+        // not provisioned (`P1-01b`).
+        sink: createDurableAnalyticsSink(createAnalyticsEventRepository(database.db)),
         clock: platform.clock,
         identifiers: platform.ids,
       }),

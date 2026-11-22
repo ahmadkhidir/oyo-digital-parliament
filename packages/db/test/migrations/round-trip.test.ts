@@ -29,6 +29,9 @@ const CREDENTIAL_MIGRATION = '0001_staff_credential_and_nullable_member_identifi
 /** The third migration: the durable outbound notification queue (`C-076`). */
 const QUEUE_MIGRATION = '0002_outbound_notification_queue';
 
+/** The fourth migration: the durable analytics sink (`C-089`). */
+const ANALYTICS_MIGRATION = '0003_analytics_event_sink';
+
 describe('initial migration', () => {
   it('builds every table, then drops them all through the down path and builds again', async () => {
     const database = await createTestDatabase();
@@ -37,13 +40,16 @@ describe('initial migration', () => {
         "select tablename from pg_tables where schemaname = 'public' order by tablename",
       );
       expect(tablesBefore.rows.map((row) => row.tablename)).toContain('ward');
-      expect(tablesBefore.rows).toHaveLength(34);
+      expect(tablesBefore.rows).toHaveLength(35);
 
       const downCredential = await readDownMigration(CREDENTIAL_MIGRATION);
       await database.pool.query(downCredential);
 
-      // Each down path must run before the one it built on: the outbound queue is dropped first, then
-      // the credential, then the initial schema.
+      // Each down path must run before the one it built on: the analytics sink and the outbound
+      // queue are dropped first, then the credential, then the initial schema.
+      const downAnalytics = await readDownMigration(ANALYTICS_MIGRATION);
+      await database.pool.query(downAnalytics);
+
       const downQueue = await readDownMigration(QUEUE_MIGRATION);
       await database.pool.query(downQueue);
 
@@ -67,7 +73,7 @@ describe('initial migration', () => {
       const tablesRebuilt = await database.pool.query<{ tablename: string }>(
         "select tablename from pg_tables where schemaname = 'public'",
       );
-      expect(tablesRebuilt.rows).toHaveLength(34);
+      expect(tablesRebuilt.rows).toHaveLength(35);
     } finally {
       await database.dispose();
     }
@@ -95,6 +101,10 @@ describe('initial migration', () => {
         'decision_successor_key',
         // C-017: one active backing per member and submission.
         'backing_active_member_key',
+        // C-089: the funnel count, the deletion-propagation rewrite and the retention sweep.
+        'analytics_event_name_occurred_idx',
+        'analytics_event_user_idx',
+        'analytics_event_expiry_idx',
       ]) {
         expect(names, `missing index ${name}`).toContain(name);
       }

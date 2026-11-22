@@ -5,6 +5,11 @@
  * module is never a repository.
  */
 export {
+  analyticsRetentionInstant,
+  createAnalyticsEventRepository,
+  type AnalyticsEventRepository,
+} from './analytics-event.repository.ts';
+export {
   createAuditEventRepository,
   readAuditEventsForEntity,
   type AuditEventRepository,

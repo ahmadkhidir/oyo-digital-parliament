@@ -207,6 +207,29 @@ describe('telemetry dispatcher', () => {
     expect(delivered).toEqual(['home', 'submit']);
   });
 
+  it('reports a buffered event the store still refuses on retry, rather than holding it silently', async () => {
+    const reports = reporter();
+    const dispatcher = dispatcherFor(sink({ fails: true }), { reporter: reports });
+    await dispatcher.emit('screen_viewed', {
+      screen: 'home',
+      device_class: 'mobile',
+      signed_in: true,
+    });
+    // The first refusal was reported by the emit that buffered the event; the retry must be too.
+    const reportedByEmit = reports.failures.length;
+
+    await dispatcher.flush();
+
+    expect(dispatcher.pending()).toBe(1);
+    expect(reports.failures.slice(reportedByEmit)).toEqual([
+      {
+        kind: 'NOT_STORED',
+        eventId: 'evt_01J9ZQ1R3S5T7V9W1X3Y5Z01',
+        cause: 'ANALYTICS_STORE_UNAVAILABLE',
+      },
+    ]);
+  });
+
   it('reports an event the taxonomy refuses instead of sending or queueing it', async () => {
     const store = sink();
     const reports = reporter();

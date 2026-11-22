@@ -170,8 +170,15 @@ export function createTelemetryDispatcher(
         try {
           await options.sink.emit(request);
         } catch {
-          // Keep this event and everything behind it, so the retried funnel stays in order.
+          // Keep this event and everything behind it, so the retried funnel stays in order. The
+          // refusal is reported here too: a retry that never lands is a drop, and a drop is
+          // observable rather than a buffer that quietly stays full (`C-089`).
           buffer.restore(pending.slice(index));
+          report({
+            kind: 'NOT_STORED',
+            eventId: request.event_id,
+            cause: 'ANALYTICS_STORE_UNAVAILABLE',
+          });
           return;
         }
       }
