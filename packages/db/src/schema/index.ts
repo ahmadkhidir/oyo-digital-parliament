@@ -2,9 +2,10 @@
  * The schema barrel.
  *
  * `drizzle.config.ts` and the Drizzle client read the schema from here, and nothing outside the
- * package imports an entity module directly. Two modules are infrastructure rather than product
- * entities: `idempotency-record.ts` (ADR-002's durable store) and `search-document.ts` (the derived
- * full-text projection). Every other module mirrors exactly one entity in `schema.md`.
+ * package imports an entity module directly. Three modules are infrastructure rather than product
+ * entities: `idempotency-record.ts` (ADR-002's durable store), `search-document.ts` (the derived
+ * full-text projection) and `analytics-event.ts` (the `C-089` sink, whose storage `analytics.md`
+ * leaves to the implementer). Every other module mirrors exactly one entity in `schema.md`.
  */
 export * from './columns.ts';
 export * from './enums.ts';
@@ -44,3 +45,4 @@ export * from './model-evaluation.ts';
 export * from './idempotency-record.ts';
 export * from './outbound-notification.ts';
 export * from './search-document.ts';
+export * from './analytics-event.ts';

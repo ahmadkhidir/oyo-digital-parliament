@@ -65,3 +65,8 @@ export {
   type ReplaceUserTokenResult,
 } from './replace-user-token.ts';
 export type { AnalyticsStorePort, PseudonymTokenPort } from './ports.ts';
+export {
+  ANALYTICS_USER_ID_PATTERN,
+  ANALYTICS_USER_PREFIX,
+  analyticsUserIdFor,
+} from './identity.ts';
