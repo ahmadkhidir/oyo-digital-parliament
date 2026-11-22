@@ -24,6 +24,7 @@ import {
   createConsentRepository,
   createDataRequestRepository,
   createDatabase,
+  createMemberContentRepository,
   createMemberRepository,
   createOutboundNotificationRepository,
   createPendingRegistrationRepository,
@@ -261,6 +262,37 @@ export function createRegistrationNotification(
       return { status: state === 'sent' ? 'sent' : 'delayed', channel: 'sms' };
     },
   };
+}
+
+/**
+ * The member's own-record bundle for the My Record screen (`C-032` to `C-036`).
+ *
+ * This is the identity composition with the two ports the member surface reaches wired to their
+ * persistence implementations: the member-content port over `Submission`, `Decision`, `Backing`,
+ * `Comment` and `LegalReview` (`packages/db`), and the legal-hold port, which is the data-request
+ * repository's own open-hold read. Nothing here opens a query: the route composes the bundle once
+ * per process and hands it to the domain use cases (`screens/13-my-record.md`).
+ *
+ * The write queue remains unwired: the durable queue is a separate task, and a store failure on
+ * `C-035` answers as a degraded write until it lands rather than pretending to accept one.
+ */
+let memberBundle: Promise<IdentityDependencies> | null = null;
+
+export function getMemberDependencies(): Promise<IdentityDependencies> {
+  memberBundle ??= (async () => {
+    const identity = await getIdentityDependencies();
+    const dataRequests = createDataRequestRepository(identity.database.db);
+    const ports: IdentityPorts = {
+      ...identity.ports,
+      dataRequests,
+      // One repository serves both entries: the open legal hold on a member is the request
+      // store's own read (`C-035`, `C-036`).
+      legalHolds: dataRequests,
+      memberContent: createMemberContentRepository(identity.database.db),
+    };
+    return { ...identity, ports };
+  })();
+  return memberBundle;
 }
 
 let cached: Promise<IdentityDependencies> | null = null;
