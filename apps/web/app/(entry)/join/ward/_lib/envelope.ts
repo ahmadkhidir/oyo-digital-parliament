@@ -1,0 +1,153 @@
+/**
+ * The `C-001` response envelopes for the two ward route handlers (`C-009`, `C-010`).
+ *
+ * One read envelope, one error envelope, one correlation rule. A supplied `X-Correlation-Id` outside
+ * the contract's form is refused rather than echoed, because `C-001` says so; a missing one is
+ * minted by the deployable's own identifier source.
+ */
+import type { WardFailure } from '@odp/domain';
+import { CORRELATION_ID_PATTERN, newCorrelationId } from '../../../../../lib/logging';
+
+/** The HTTP status each failure code these handlers can produce answers with (`C-001`). */
+const FAILURE_STATUS: Readonly<Record<WardFailure['code'], number>> = {
+  VALIDATION_FAILED: 400,
+  UNAUTHENTICATED: 401,
+  FORBIDDEN_ROLE: 403,
+  NOT_FOUND: 404,
+  CONFLICT_ALREADY_DECIDED: 409,
+  POLICY_VIOLATION: 422,
+  SERVICE_DEGRADED: 503,
+};
+
+/** The correlation identifier the response carries, and whether the caller supplied a usable one. */
+export type CorrelationReading =
+  | { readonly ok: true; readonly correlationId: string }
+  | { readonly ok: false; readonly correlationId: string };
+
+/**
+ * Resolves the request's correlation identifier (`C-001`).
+ *
+ * A malformed caller-supplied value is not echoed: the answer names the header as the failing field
+ * and carries a freshly minted identifier, so an operator can still follow the refusal.
+ */
+export function readCorrelationId(headers: Headers): CorrelationReading {
+  const supplied = headers.get('x-correlation-id');
+  if (supplied === null) return { ok: true, correlationId: newCorrelationId() };
+  if (CORRELATION_ID_PATTERN.test(supplied)) return { ok: true, correlationId: supplied };
+  return { ok: false, correlationId: newCorrelationId() };
+}
+
+/** The `C-001` read envelope for a successful answer. */
+export interface ReadEnvelope {
+  readonly data: unknown;
+  readonly meta: {
+    readonly correlationId: string;
+    readonly asAt: string;
+    readonly degraded: false;
+  };
+  readonly page?: { readonly nextCursor: string | null; readonly hasMore: boolean };
+}
+
+/**
+ * Builds the read envelope.
+ *
+ * @param data - The response's `data` member.
+ * @param context - The request's correlation identifier.
+ * @param options - The instant the answer was computed, and the page cursor where the entry prints
+ *   one (`C-009` does, `C-010` does not).
+ */
+export function readEnvelope(
+  data: unknown,
+  context: { readonly correlationId: string },
+  options: {
+    readonly asAt: string;
+    readonly nextCursor?: string | null;
+    readonly hasMore?: boolean;
+  },
+): { readonly status: 200; readonly body: ReadEnvelope } {
+  return {
+    status: 200,
+    body: {
+      data,
+      meta: {
+        correlationId: context.correlationId,
+        asAt: options.asAt,
+        degraded: false,
+      },
+      ...(options.nextCursor === undefined
+        ? {}
+        : {
+            page: {
+              nextCursor: options.nextCursor,
+              hasMore: options.hasMore ?? options.nextCursor !== null,
+            },
+          }),
+    },
+  };
+}
+
+/** The `C-001` error envelope. */
+export interface ErrorEnvelope {
+  readonly error: {
+    readonly code: WardFailure['code'];
+    readonly cause: string;
+    readonly message: string;
+    readonly correlationId: string;
+    readonly fields?: Readonly<Record<string, string>>;
+  };
+}
+
+/** Turns a domain refusal into the `C-001` error body and its status. */
+export function failureEnvelope(
+  failure: WardFailure,
+  context: { readonly correlationId: string },
+): { readonly status: number; readonly body: ErrorEnvelope } {
+  return {
+    status: FAILURE_STATUS[failure.code],
+    body: {
+      error: {
+        code: failure.code,
+        cause: failure.cause,
+        message: failure.message,
+        correlationId: context.correlationId,
+        ...(Object.keys(failure.fields).length === 0 ? {} : { fields: failure.fields }),
+      },
+    },
+  };
+}
+
+/** A boundary refusal, in the same error envelope the domain's refusals use. */
+export function validationEnvelope(
+  cause: string,
+  message: string,
+  fields: Readonly<Record<string, string>>,
+  context: { readonly correlationId: string },
+): { readonly status: 400; readonly body: ErrorEnvelope } {
+  return {
+    status: 400,
+    body: {
+      error: {
+        code: 'VALIDATION_FAILED',
+        cause,
+        message,
+        correlationId: context.correlationId,
+        fields,
+      },
+    },
+  };
+}
+
+/** Answers with one envelope and the transport headers the routes share. */
+export function jsonResponse(
+  status: number,
+  body: unknown,
+  options: { readonly correlationId: string },
+): Response {
+  return Response.json(body, {
+    status,
+    headers: {
+      'Cache-Control': 'no-store',
+      'X-Correlation-Id': options.correlationId,
+    },
+  });
+}

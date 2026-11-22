@@ -141,6 +141,55 @@ export const yoNG: Messages = {
     signIn: 'Ìwọle',
     backToForm: 'Padà sí fọ́ọ̀mù ìforúkọ́sílẹ̀',
   },
+  ward: {
+    title: 'Agbègbè rẹ',
+    heading: 'Agbègbè wo ni o ń gbé?',
+    intro:
+      'Ṣàpèjúwe agbègbè rẹ bí ìwọ yóò ṣe sọ ọ́. A máa ń dábà àwọn orúkọ ward; ìwọ ni yóò yan èyí tí ó bá a mu.',
+    areaLabel: 'Ìjọba ìbílẹ̀',
+    areaHint:
+      'Yan ìjọba ìbílẹ̀ kí o tó yan ward. Ó máa ń dín àkójọ kù, ó sì ń ya àwọn ward tí ó ní orúkọ kan náà já.',
+    areaPlaceholder: 'Yan ìjọba ìbílẹ̀ kan',
+    descriptionLabel: 'Ṣàpèjúwe agbègbè rẹ',
+    descriptionHint:
+      'Àmì ilẹ̀ kan, pópó kan tàbí orúkọ tí ìwọ ń lò fún agbègbè náà. Ọ̀rọ̀ rẹ fúnra rẹ̀ ti tó.',
+    descriptionPlaceholder: 'Àpẹẹrẹ: lẹ́yìn ọjà Agbowo, nítòsí ọ̀nà express',
+    suggesting: 'Ó ń wá ward rẹ',
+    candidatesLegend: 'Àwọn ward tí a dábà',
+    candidateOption: '{name} — {area}',
+    noCandidates:
+      'Kò sí ward nínú àkójọ tí ó bá àwọn ọ̀rọ̀ yìí mu. A ṣì gba agbègbè rẹ; fi ránṣẹ́ fún àyẹ̀wò ní ìsàlẹ̀.',
+    candidateError:
+      'A kò lè ka àkójọ ward ní ìsìpẹ̀ yìí. Ọ̀rọ̀ rẹ ṣì tó; fi ránṣẹ́ fún àyẹ̀wò ní ìsàlẹ̀.',
+    areaRequired: 'Ward ju ọ̀kan lọ ní orúkọ yẹn. Yan ìjọba ìbílẹ̀ rẹ lókè kí a lè dábà èyí tí ó tọ́.',
+    confirm: 'Mú ward náà múlẹ̀',
+    confirming: 'Ó ń kọ ward rẹ sílẹ̀',
+    noneOfThese: 'Kò sí ọ̀kan nínú èyí',
+    noneOfTheseHint:
+      'Yan èyí tí kò bá sí àbá tí ó jẹ́ agbègbè rẹ. Olùyẹ̀wò yóò mú u múlẹ̀, ìwọ sì lè tẹ̀síwájú.',
+    unresolvedHeading: 'Tí agbègbè rẹ kò bá sí nínú àkójọ',
+    unresolvedNote:
+      'A ṣì gbà á. Yóò wà ní àìdánilójú títí olùyẹ̀wò yóò fi mú u múlẹ̀, àkánnì rẹ sì ń ṣiṣẹ́.',
+    recordedHeading: 'A ti kọ ward rẹ sílẹ̀',
+    recordedBody: 'Ìṣirò rẹ wà nínú {ward}. O lè yí i padà ní ìsàlẹ̀ tí kò bá tọ́.',
+    sentHeading: 'A ti fi agbègbè ránṣẹ́ fún ìmúlò',
+    sentBody:
+      'A ó yẹ̀wò agbègbè rẹ, a ó sì mú u múlẹ̀. O lè tẹ̀síwájú báyìí; kò sí ohun tí ó dídúró nígbà tí kò tíì múlẹ̀.',
+    sentContinue: 'Tẹ̀síwájú sí ìwé ìṣirò',
+    errors: {
+      descriptionRequired: 'Ṣàpèjúwe agbègbè rẹ kí o tó fi ránṣẹ́.',
+      descriptionLong: 'Àpèjúwe yìí gun jù. Má ju 500 lẹ́tà lọ.',
+      areaLong: 'Orúkọ ìjọba ìbílẹ̀ yìí gun jù.',
+      choiceRequired: 'Yan ward tí a dábà, tàbí yan Kò sí ọ̀kan nínú èyí.',
+      wardUnknown: 'Ward yẹn kò sí nínú àkójọ mọ́. Yan àbá mìíràn, tàbí fi ọ̀rọ̀ rẹ ránṣẹ́ fún àyẹ̀wò.',
+      writeFailed:
+        'A kò lè kọ ward náà sílẹ̀ ní ìsìpẹ̀ yìí. Kò sí ohun tí ó yí, ọ̀rọ̀ rẹ sì ṣì wà. Gbìyànjú lẹ́kọ̀ọ́.',
+      idempotencyRequired: 'Fọ́ọ̀mù náà ti pẹ́ kí ó tó fi ránṣẹ́. Yẹ̀ wọ́ ọ̀rọ̀ rẹ kí o tún gbìyànjú.',
+      idempotencyConflict: 'A ti fi fọ́ọ̀mù yìí ránṣẹ́ pẹ̀lú ọ̀rọ̀ mìíràn. Yẹ̀ wọ́ wọn kí o tún gbìyànjú.',
+    },
+    offline: 'O wà ní ìtannà. Àwọn ọ̀rọ̀ rẹ dúró; fọ́ọ̀mù yóò rán nígbà tí ìbáraẹnisọ̀rọ̀ bá padà.',
+    offlineSubmit: 'Fi rán nígbà tí ìbáraẹnisọ̀rọ̀ bá padà',
+  },
   signIn: {
     title: 'Ìwọle',
     heading: 'Ìwọle',
