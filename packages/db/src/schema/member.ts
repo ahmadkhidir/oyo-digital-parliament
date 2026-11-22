@@ -4,8 +4,8 @@
  * Field classification (`C-001`, `NFR-040`):
  *
  * - `telephone_number` — direct identifier, personal data. Looked up for sign-in only; never indexed
- *   together with a ward and never selected by a public projection. Null once a deletion request is
- *   completed.
+ *   together with a ward and never selected by a public projection. Unique among the live accounts,
+ *   so a number belongs to at most one account; null once a deletion request is completed.
  * - `full_name` — direct identifier, personal data. Held for attribution and never published. Null
  *   once a deletion request is completed.
  * - `declared_age` — personal data, used only to check the 18-to-35 band. Null once a deletion request
@@ -20,10 +20,11 @@
  *
  * There is deliberately **no index on `ward_id`**: the platform never produces a member register by
  * ward, and an index whose only use would be that query is not added (`AGENTS.md` Boundaries,
- * `FEAT-012`). Accounts sharing a number are never merged, so `telephone_number` is not unique.
+ * `FEAT-012`). A number belongs to at most one account (`FEAT-001`): the partial unique index below
+ * enforces that for live rows while leaving an anonymised row — whose number is null — free of it.
  */
 import { relations, sql } from 'drizzle-orm';
-import { boolean, check, index, pgTable, smallint, text, varchar } from 'drizzle-orm/pg-core';
+import { check, pgTable, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 import { isIdentifier, utcTimestamp } from './columns.ts';
 import { identityState, locale, verificationMethod, wardStatus } from './enums.ts';
 import { staffUser } from './staff-user.ts';
@@ -56,7 +57,6 @@ export const member = pgTable(
     wardStatus: wardStatus('ward_status').notNull(),
     identityState: identityState('identity_state').notNull(),
     verificationMethod: verificationMethod('verification_method').notNull(),
-    sharedNumber: boolean('shared_number').notNull(),
     attestedById: text('attested_by_id').references(() => staffUser.id),
     attestedAt: utcTimestamp('attested_at'),
     locale: locale('locale').notNull(),
@@ -73,9 +73,13 @@ export const member = pgTable(
       'member_attestation_complete',
       sql`${t.verificationMethod} <> 'organiser_attestation' or (${t.attestedById} is not null and ${t.attestedAt} is not null)`,
     ),
-    // Read path: sign-in lookup by the number the code was sent to (`C-005`), and the assisted-intake
-    // duplicate check. Never joined to a ward.
-    index('member_telephone_idx').on(t.telephoneNumber),
+    // Read path: the sign-in lookup by the number the code was sent to (`C-005`) and the
+    // assisted-intake duplicate check (`C-058`). The predicate states the rule as `schema.md` gives
+    // it — unique among the live accounts — so an anonymised row, whose number is null, keeps its
+    // place in the public record without holding a number (`FEAT-012`). Never joined to a ward.
+    uniqueIndex('member_telephone_live_key')
+      .on(t.telephoneNumber)
+      .where(sql`${t.deletedAt} is null`),
   ],
 );
 

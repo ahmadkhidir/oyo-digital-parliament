@@ -229,17 +229,16 @@ describe('requestSignInCodeAction (C-005)', () => {
     const pending = flowCookie<{
       challengeId: string;
       telephoneNumber: string;
-      accountChoiceRequired: boolean;
-      accountCount: number;
       returnTo: string;
       resendAvailableAt: string;
     }>('odp_signin_pending');
     expect(pending?.challengeId).toMatch(/^sic_[0-9A-Z]+$/);
     expect(pending?.telephoneNumber).toBe('+2348031234567');
-    expect(pending?.accountChoiceRequired).toBe(false);
-    expect(pending?.accountCount).toBe(1);
     expect(pending?.returnTo).toBe('/');
     expect(pending?.resendAvailableAt).toBeTruthy();
+    // `C-005`: no account count and no account list travel with the challenge.
+    expect(pending).not.toHaveProperty('accountCount');
+    expect(pending).not.toHaveProperty('accountChoiceRequired');
     expect(flowCookie('odp_signin_retry')).toBeNull();
     expect(double.events.map((event) => event.name)).toContain('sign_in_started');
   });
@@ -329,46 +328,23 @@ describe('completeSignInAction (C-006)', () => {
     expect(double.audit.map((event) => event.action)).toContain('member.signed_in');
   });
 
-  it('names the account choice when the number is shared (Account choice)', async () => {
+  it('opens the session for the account that holds the number, with no account choice (C-006)', async () => {
     const double = signInDouble({
-      members: [
-        doubleMember({ id: 'mbr_0001', displayName: 'Seun A.' }),
-        doubleMember({ id: 'mbr_0002', displayName: 'Tunde O.' }),
-      ],
+      members: [doubleMember({ id: 'mbr_0001', displayName: 'Seun A.' })],
     });
     const challengeId = await startCodeStep(double);
-    const pending = flowCookie<{ accountChoiceRequired: boolean; accountCount: number }>(
-      'odp_signin_pending',
-    );
-    expect(pending?.accountChoiceRequired).toBe(true);
-    expect(pending?.accountCount).toBe(2);
+    const pending = flowCookie<Record<string, unknown>>('odp_signin_pending');
+    expect(pending).not.toHaveProperty('accountChoiceRequired');
+    expect(pending).not.toHaveProperty('accountCount');
 
-    // No choice posted: a shared number never signs in automatically (`screens/02` edge case).
-    const redirect = await run(completeSignInAction, codeForm());
-
-    expect(redirect.url).toBe('/sign-in');
-    const status = flowCookie<{ cause: string }>('odp_signin_status');
-    expect(status?.cause).toBe('ACCOUNT_CHOICE_REQUIRED');
-    expect(double.sessions.size).toBe(0);
-    expect(double.challengeRows.get(challengeId)?.consumedAt).toBeUndefined();
-  });
-
-  it('signs in the account the member chose, never the other (Account choice)', async () => {
-    const double = signInDouble({
-      members: [
-        doubleMember({ id: 'mbr_0001', displayName: 'Seun A.' }),
-        doubleMember({ id: 'mbr_0002', displayName: 'Tunde O.' }),
-      ],
-    });
-    await startCodeStep(double);
-
-    // The browser posts the position, never a member identifier.
-    const redirect = await run(completeSignInAction, codeForm({ memberId: '2' }));
+    // A posted member reference is ignored: the challenge already resolves the one account.
+    const redirect = await run(completeSignInAction, codeForm({ memberId: 'mbr_9999' }));
 
     expect(redirect.url).toBe('/');
-    expect(double.sessions.get(DOUBLE_SESSION_TOKEN)).toBe('mbr_0002');
+    expect(double.sessions.get(DOUBLE_SESSION_TOKEN)).toBe('mbr_0001');
     const signedIn = double.audit.find((event) => event.action === 'member.signed_in');
-    expect(signedIn?.entityId).toBe('mbr_0002');
+    expect(signedIn?.entityId).toBe('mbr_0001');
+    expect(double.challengeRows.get(challengeId)?.consumedAt).toBeDefined();
   });
 
   it('states the tries remaining after a wrong code (Incorrect code)', async () => {

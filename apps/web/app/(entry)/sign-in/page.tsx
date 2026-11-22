@@ -8,9 +8,6 @@
  * - **Default** - the number field and the send action, with the code-arrival note.
  * - **Submitting** - the client form's own state: send disabled with a spinner.
  * - **Code step** - the six-digit field, the resend timer, the change-number control.
- * - **Account choice** - the explicit choice the member makes before a session opens; the
- *   accounts are the challenge's own, named only by position, because the contract reveals the
- *   count of a shared number and never its names before the code is accepted (`C-005` Authority).
  * - **Validation error** - each failing field named under its control, the typed text kept.
  * - **Incorrect code** - the inline sentence with the tries remaining, the field cleared.
  * - **Expired** - the code window closed: the inline message, the resend as the lead action.
@@ -75,8 +72,6 @@ interface SignInOutcome {
   readonly message: string;
   /** The code control's own failure sentence, when the digits themselves were refused. */
   readonly codeError?: string;
-  /** The choice group's own failure sentence, when no account was named. */
-  readonly choiceError?: string;
   /** Whether the resend becomes the screen's lead action (`screens/02` Expired state). */
   readonly resendLead?: boolean;
 }
@@ -127,13 +122,6 @@ function outcomeOf(
       return { role: 'alert', tone: 'warning', message: copy.codeExpired, resendLead: true };
     case 'CODE_ALREADY_USED':
       return { role: 'alert', tone: 'warning', message: copy.codeAlreadyUsed, resendLead: true };
-    case 'ACCOUNT_CHOICE_REQUIRED':
-      return {
-        role: 'alert',
-        tone: 'error',
-        message: '',
-        choiceError: copy.choiceRequired,
-      };
     case 'DELIVERY_FAILED':
       return { role: 'alert', tone: 'error', message: copy.sendFailed };
     case 'RATE_LIMITED':
@@ -309,18 +297,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   // The number is shown in full so a mistake is visible immediately (`screens/02` Visual Focus);
   // it is the number this browser asked for, shown to this browser alone.
   const numberIntro = interpolate(copy.codeIntro, { number: pending.telephoneNumber });
-  const sharedIntro = interpolate(copy.sharedIntro, { number: pending.telephoneNumber });
 
   return (
     <EntryScreen {...frame}>
-      <p className="max-w-prose text-body text-text-primary">
-        {pending.accountChoiceRequired ? sharedIntro : numberIntro}
-      </p>
+      <p className="max-w-prose text-body text-text-primary">{numberIntro}</p>
 
-      {outcome !== null && (outcome.message !== '' || outcome.choiceError !== undefined) ? (
+      {outcome !== null && outcome.message !== '' ? (
         <Notice role={outcome.role} tone={outcome.tone}>
-          {outcome.message === '' ? null : <p>{outcome.message}</p>}
-          {outcome.choiceError === undefined ? null : <p>{outcome.choiceError}</p>}
+          {outcome.message}
         </Notice>
       ) : null}
 
@@ -334,13 +318,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             hint: copy.code.hint,
             ...(outcome?.codeError === undefined ? {} : { error: outcome.codeError }),
           },
-          ...(pending.accountChoiceRequired && copy.accountChoice !== undefined
-            ? { choice: { legend: copy.accountChoice.legend, option: copy.accountChoice.option } }
-            : {}),
           confirm: copy.confirm,
           confirming: copy.confirming,
         }}
-        accountCount={pending.accountChoiceRequired ? pending.accountCount : undefined}
         confirmVariant={outcome?.resendLead === true ? 'outline' : 'primary'}
       />
 

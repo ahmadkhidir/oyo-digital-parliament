@@ -8,9 +8,10 @@
  * a reviewer can see it does not exist. `packages/db/src/schema/member.ts` carries the same rule in
  * its index list: no index on `ward_id` is declared.
  *
- * Accounts that share a handset are never merged. `findByTelephone` returns every live account on the
- * number and `markSharedNumber` flags them all, which is what lets `C-005`/`C-006` ask which account
- * is acting after the code is accepted (`FEAT-001`).
+ * Accounts are looked up by a number only to resolve the one account that holds it: a number
+ * belongs to at most one live account (`FEAT-001`), and `findByTelephone` returns that account. A
+ * second account is refused by the database's live-number uniqueness rule, so no caller can create
+ * one.
  *
  * Deletion is a state change, not a delete (`FEAT-012`): `anonymise` replaces the three direct
  * identifiers with reserved non-identifying values, stamps `deleted_at`, and leaves the row so the
@@ -57,7 +58,6 @@ function toMemberRecord(row: typeof member.$inferSelect): MemberRecord {
     wardStatus: row.wardStatus,
     identityState: row.identityState,
     verificationMethod: row.verificationMethod,
-    sharedNumber: row.sharedNumber,
     ...(attestedById === undefined ? {} : { attestedById }),
     ...(attestedAt === undefined ? {} : { attestedAt }),
     locale: row.locale,
@@ -104,21 +104,12 @@ export function createMemberRepository(executor: Executor): MemberRepository {
         wardStatus: record.wardStatus,
         identityState: record.identityState,
         verificationMethod: record.verificationMethod,
-        sharedNumber: record.sharedNumber,
         attestedById: record.attestedById ?? null,
         attestedAt: record.attestedAt ?? null,
         locale: record.locale,
         createdAt: record.createdAt,
         deletedAt: record.deletedAt ?? null,
       });
-    },
-
-    async markSharedNumber(telephoneNumber) {
-      // Every live account on the number is flagged; the rows stay separate (`FEAT-001`).
-      await db
-        .update(member)
-        .set({ sharedNumber: true })
-        .where(and(eq(member.telephoneNumber, telephoneNumber), isNull(member.deletedAt)));
     },
 
     async updateProfile(memberId, input) {

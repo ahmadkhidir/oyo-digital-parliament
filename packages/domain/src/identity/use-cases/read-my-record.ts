@@ -82,7 +82,6 @@ export interface MyRecord {
     readonly wardId?: string;
     readonly locale: Locale;
     readonly createdAt: string;
-    readonly sharedNumber: boolean;
   };
   readonly consents: readonly MyRecordConsent[];
   readonly submissions: readonly MyRecordSubmission[];
@@ -205,7 +204,6 @@ export async function readMyRecord(
         ...(member.wardId === undefined ? {} : { wardId: member.wardId }),
         locale: member.locale,
         createdAt: member.createdAt,
-        sharedNumber: member.sharedNumber,
       },
       consents: consentRows.map((consent) => ({
         id: consent.id,

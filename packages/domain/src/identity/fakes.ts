@@ -2,9 +2,9 @@
  * In-memory ports for the identity tests. Test-only: nothing here is exported from the module barrel.
  *
  * The fakes keep the rules the adapters must keep - a code that is consumed cannot be reused, an
- * anonymised account no longer matches its number, a shared number keeps two rows, a spent recovery code
- * is refused - so a use-case test exercises the rule it names without a database. `packages/db` proves
- * the SQL side separately.
+ * anonymised account no longer matches its number, one number resolves to one account, a spent
+ * recovery code is refused - so a use-case test exercises the rule it names without a database.
+ * `packages/db` proves the SQL side separately.
  */
 import type { AuditEventRecord } from '../audit/entities.ts';
 import type {
@@ -151,7 +151,6 @@ export function fakeMember(
     wardStatus: 'unresolved',
     identityState: 'registered',
     verificationMethod: 'self_code',
-    sharedNumber: false,
     locale: 'en-NG',
     createdAt: FAKE_NOW,
     ...overrides,
@@ -388,14 +387,6 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
       async create(member) {
         guard(options.primaryStoreUnavailable, 'the store is unavailable');
         members.push({ ...member });
-      },
-      async markSharedNumber(telephoneNumber) {
-        for (let index = 0; index < members.length; index += 1) {
-          const member = members[index];
-          if (member === undefined || member.deletedAt !== undefined) continue;
-          if (member.telephoneNumber !== telephoneNumber) continue;
-          members[index] = { ...member, sharedNumber: true };
-        }
       },
       async updateProfile(memberId, input) {
         const index = members.findIndex((member) => member.id === memberId);

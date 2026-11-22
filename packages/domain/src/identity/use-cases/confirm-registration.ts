@@ -210,7 +210,8 @@ export async function confirmRegistration(
     );
   }
 
-  // `FEAT-001`: a number shared by two people keeps two accounts, each marked as sharing it.
+  // `FEAT-001`, `C-003`: the number may have come to belong to an account after the pending
+  // registration was made. It can never create a second one; the resident is offered sign-in.
   let existing: readonly MemberRecord[];
   try {
     existing = await deps.members.findByTelephone(pending.telephoneNumber);
@@ -219,6 +220,15 @@ export async function confirmRegistration(
       'SERVICE_DEGRADED',
       'IDENTITY_STORE_UNAVAILABLE',
       'The account store could not be read, so nothing was created.',
+    );
+  }
+  if (existing.length > 0) {
+    return identityFailure(
+      'CONFLICT_ALREADY_DECIDED',
+      'NUMBER_ALREADY_REGISTERED',
+      'That number now has an account. Sign in to it instead.',
+      {},
+      { meta: { recoveryPath: '/sign-in' } },
     );
   }
 
@@ -232,7 +242,6 @@ export async function confirmRegistration(
     wardStatus: 'unresolved',
     identityState: 'registered',
     verificationMethod: 'self_code',
-    sharedNumber: existing.length > 0,
     locale: pending.locale,
     createdAt: now,
   };
@@ -241,9 +250,6 @@ export async function confirmRegistration(
     await deps.codes.consume(pending.id);
     await deps.pendingRegistrations.markVerified(pending.id, now);
     await deps.members.create(member);
-    if (existing.length > 0) {
-      await deps.members.markSharedNumber(pending.telephoneNumber);
-    }
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -310,7 +316,6 @@ export async function confirmRegistration(
       properties: {
         identity_state: 'registered',
         verification_method: 'self_code',
-        shared_number: member.sharedNumber,
         ward_resolved: false,
         locale: member.locale,
       },

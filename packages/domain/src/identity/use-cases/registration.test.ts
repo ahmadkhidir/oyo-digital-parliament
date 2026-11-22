@@ -2,7 +2,7 @@
  * Registration flow tests (`C-002`, `C-003`, `C-004`, `FEAT-001`).
  *
  * The account does not exist until the code is accepted, the code windows and attempt limits hold, and
- * a shared number keeps two accounts.
+ * a number that already belongs to an account creates no second one.
  */
 import { describe, expect, it } from 'vitest';
 import { confirmRegistration, registerResident, resendRegistrationCode } from '../index.ts';
@@ -69,7 +69,7 @@ describe('registerResident (C-002)', () => {
     expect(fakes.pending).toEqual([]);
   });
 
-  it('offers recovery of an existing account unless the number is declared shared', async () => {
+  it('offers recovery of the one account that already holds the number', async () => {
     const fakes = createIdentityHarness({
       members: [fakeMember({ id: 'mbr_0001' })],
     });
@@ -80,18 +80,12 @@ describe('registerResident (C-002)', () => {
     });
     expect(refused).toMatchObject({
       ok: false,
+      code: 'VALIDATION_FAILED',
       cause: 'ALREADY_REGISTERED',
+      fields: { telephoneNumber: 'ALREADY_SET' },
       meta: { recoveryPath: '/sign-in' },
     });
-
-    const accepted = await registerResident(publicCaller, fakes.ports, {
-      fullName: 'Oluwaseun Adeyemi',
-      declaredAge: 24,
-      telephoneNumber: '+2348031234567',
-      sharedNumberDeclaration: true,
-    });
-    expect(accepted.ok).toBe(true);
-    expect(fakes.pending).toHaveLength(1);
+    expect(fakes.pending).toEqual([]);
   });
 
   it('generates a display name for a resident who supplies none', async () => {
@@ -239,7 +233,6 @@ describe('confirmRegistration (C-003)', () => {
         identityState: 'registered',
         verificationMethod: 'self_code',
         wardStatus: 'unresolved',
-        sharedNumber: false,
         locale: 'en-NG',
       },
       session: { established: true },
@@ -264,16 +257,22 @@ describe('confirmRegistration (C-003)', () => {
     expect(keys).not.toContain('declaredAge');
   });
 
-  it('marks both accounts as sharing one number without merging them', async () => {
+  it('creates no account when the number has come to belong to one', async () => {
     const fakes = harnessWithPending({ members: [fakeMember({ id: 'mbr_EXISTING' })] });
     const result = await confirmRegistration(publicCaller, fakes.ports, {
       pendingRegistrationId: 'prg_0001',
       code: FAKE_CODE,
     });
-    expect(result.ok).toBe(true);
-    expect(fakes.members).toHaveLength(2);
-    expect(fakes.members.every((member) => member.sharedNumber)).toBe(true);
-    expect(new Set(fakes.members.map((member) => member.id)).size).toBe(2);
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'CONFLICT_ALREADY_DECIDED',
+      cause: 'NUMBER_ALREADY_REGISTERED',
+      meta: { recoveryPath: '/sign-in' },
+    });
+    // `FEAT-001`: the number stays with the existing account, and no second account is created.
+    expect(fakes.members).toHaveLength(1);
+    expect(fakes.members[0]?.id).toBe('mbr_EXISTING');
+    expect(fakes.memberSessions.size).toBe(0);
   });
 
   it('states the attempts remaining on a wrong code, then rate-limits the third', async () => {

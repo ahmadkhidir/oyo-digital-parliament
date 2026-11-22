@@ -69,7 +69,6 @@ const IDENTITY_EVENTS: readonly AnalyticsEmitRequest[] = [
     {
       identity_state: 'registered',
       verification_method: 'self_code',
-      shared_number: false,
       ward_resolved: true,
       locale: 'en-NG',
     },
@@ -136,7 +135,6 @@ describe('analytics event repository', () => {
       expect(registered?.properties).toEqual({
         identity_state: 'registered',
         verification_method: 'self_code',
-        shared_number: false,
         ward_resolved: true,
         locale: 'en-NG',
       });

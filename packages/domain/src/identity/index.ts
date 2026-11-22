@@ -4,8 +4,8 @@
  *
  * The module owns the rules that decide who a person is on this platform, which account is acting, and
  * what may be read about them. It never produces a member register by ward or by any other grouping,
- * never merges two accounts that share a number, and never lets model output stand in for a person's
- * choice (`packages/domain/AGENTS.md` Discipline).
+ * never lets a number hold two accounts, and never lets model output stand in for a person's choice
+ * (`packages/domain/AGENTS.md` Discipline).
  */
 export {
   CONSENT_PURPOSE_VALUES,

@@ -148,7 +148,6 @@ describe('registerResidentAction (C-002)', () => {
           wardStatus: 'resolved',
           identityState: 'registered',
           verificationMethod: 'self_code',
-          sharedNumber: false,
           locale: 'en-NG',
           createdAt: '2026-11-01T09:00:00Z',
         },

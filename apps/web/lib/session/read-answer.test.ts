@@ -180,7 +180,6 @@ describe('GET /api/session (C-007)', () => {
           wardStatus: 'resolved',
           wardId: MEMBER.wardId,
           locale: 'yo-NG',
-          sharedNumber: false,
         },
         staff: null,
         locale: 'yo-NG',
@@ -268,7 +267,6 @@ describe('GET /api/session (C-007)', () => {
       'id',
       'identityState',
       'locale',
-      'sharedNumber',
       'wardId',
       'wardStatus',
     ]);

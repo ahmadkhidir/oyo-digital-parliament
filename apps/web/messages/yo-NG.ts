@@ -207,7 +207,6 @@ export const yoNG: Messages = {
     sendCode: 'Fi kọ́dù ránṣẹ́',
     sending: 'Ó ń rán kọ́dù',
     codeIntro: 'A fi kọ́dù díjítì mẹ́fà ránṣẹ́ sí {number}.',
-    sharedIntro: 'Àkánnì ju ọ̀kan lọ ń lo {number}. Kọ kọ́dù náà, lẹ́yìn náà yan àkánnì.',
     code: {
       label: 'Àwọn díjítì mẹ́fà láti inú ìfiránṣẹ́ náà',
       hint: 'Ó lè gba ìṣẹ́jú kan kí ó dé.',
@@ -216,11 +215,6 @@ export const yoNG: Messages = {
       REQUIRED: 'Kọ àwọn díjítì mẹ́fà láti inú ìfiránṣẹ́ náà.',
       PATTERN_MISMATCH: 'Kọ díjítì mẹ́fà, nọ́mbá pẹ̀lúpẹ̀lú.',
     },
-    accountChoice: {
-      legend: 'Àkánnì wo ni ń wọ inú?',
-      option: 'Àkánnì {position} nínú {count}',
-    },
-    choiceRequired: 'Yan àkánnì tí ó ń wọ inú.',
     confirm: 'Wọ inú',
     confirming: 'Ó ń wọ inú',
     incorrectTwo: 'Kọ́dù yìí kì í ṣe òótọ́. Ìgbìyànjú {attempts} ṣoṣo nìyìí fún ọ.',

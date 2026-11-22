@@ -35,7 +35,6 @@ const MEMBER: SessionMemberProjection = {
   identityState: 'registered',
   wardStatus: 'unresolved',
   locale: 'en-NG',
-  sharedNumber: false,
 };
 
 /** The state a test seeds: the session, the echo store and the runner's answer. */

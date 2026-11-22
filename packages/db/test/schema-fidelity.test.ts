@@ -33,7 +33,6 @@ const EXPECTED: Record<string, ExpectedEntity> = {
       'wardStatus',
       'identityState',
       'verificationMethod',
-      'sharedNumber',
       'locale',
       'createdAt',
     ],

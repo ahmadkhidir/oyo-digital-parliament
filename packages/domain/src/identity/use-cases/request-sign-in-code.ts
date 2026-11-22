@@ -1,9 +1,9 @@
 /**
  * Requesting a sign-in code (`C-005`, `FEAT-001`, `NFR-020`, `NFR-027`, `EVT-002`).
  *
- * Starts a challenge for a number that belongs to at least one account. It reveals only how many
- * accounts share the number, never a name, until a code is accepted: a shared handset must not leak
- * who else uses it.
+ * Starts a challenge for a number that belongs to a Member. A number belongs to at most one account
+ * (`FEAT-001`), so the answer names no account count and no account list: the challenge already
+ * resolves the one account the code will open a session for.
  */
 import {
   identityFailure,
@@ -32,8 +32,6 @@ export type RequestSignInCodeResult =
   | {
       readonly ok: true;
       readonly signInChallengeId: string;
-      readonly accountCount: number;
-      readonly accountChoiceRequired: boolean;
       readonly codeDelivery: {
         readonly status: 'sent' | 'delayed';
         readonly channel: 'sms';
@@ -115,7 +113,8 @@ export async function requestSignInCode(
       'The account store could not be read, so no code was sent.',
     );
   }
-  if (accounts.length === 0) {
+  const account = accounts[0];
+  if (account === undefined) {
     return identityFailure(
       'NOT_FOUND',
       'NO_ACCOUNT_FOR_NUMBER',
@@ -134,7 +133,8 @@ export async function requestSignInCode(
     const created = await deps.signInChallenges.create({
       id: challengeId,
       telephoneNumber: telephoneNumber.value,
-      memberIds: accounts.map((account) => account.id),
+      // `FEAT-001`: the number resolves to one account, so the challenge carries exactly that one.
+      memberIds: [account.id],
       at: now,
       expiresAt,
     });
@@ -151,7 +151,7 @@ export async function requestSignInCode(
     await deps.codes.issue({
       targetId: challengeId,
       telephoneNumber: telephoneNumber.value,
-      locale: accounts[0]?.locale ?? 'en-NG',
+      locale: account.locale,
       at: now,
     });
   } catch {
@@ -168,22 +168,16 @@ export async function requestSignInCode(
     {
       name: 'sign_in_started',
       properties: { attempt },
-      // `EVT-002`, `C-089`: one account on the number is the subject. A shared number has no single
-      // subject until the resident chooses which one is acting, so the challenge — the identifier
-      // this attempt minted — stands in until `C-006` names the account.
-      subject:
-        accounts.length === 1 && accounts[0] !== undefined
-          ? { kind: 'member', memberId: accounts[0].id }
-          : { kind: 'anonymous', anonymousId: challengeId },
-      locale: accounts[0]?.locale ?? 'en-NG',
+      // `EVT-002`, `C-089`: the number resolves to the one account it belongs to, so that account is
+      // the subject of the attempt.
+      subject: { kind: 'member', memberId: account.id },
+      locale: account.locale,
     },
   ]);
 
   return {
     ok: true,
     signInChallengeId: challengeId,
-    accountCount: accounts.length,
-    accountChoiceRequired: accounts.length > 1,
     codeDelivery: {
       status: 'sent',
       channel: 'sms',

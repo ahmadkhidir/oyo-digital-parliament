@@ -218,7 +218,6 @@ describe('member session issuance (C-003, C-006)', () => {
     const result = await completeSignIn(publicCaller, ports, {
       signInChallengeId: requested.signInChallengeId,
       code: FAKE_CODE,
-      memberId: 'mbr_0001',
     });
 
     expect(result.ok).toBe(true);

@@ -95,7 +95,6 @@ const MEMBER: SessionMemberProjection = {
   identityState: 'registered',
   wardStatus: 'unresolved',
   locale: 'en-NG',
-  sharedNumber: false,
 };
 
 const WARD: Ward = {

@@ -77,7 +77,6 @@ export interface MemberRecord {
   readonly wardStatus: MemberWardStatus;
   readonly identityState: MemberIdentityState;
   readonly verificationMethod: VerificationMethod;
-  readonly sharedNumber: boolean;
   readonly attestedById?: string;
   readonly attestedAt?: string;
   readonly locale: Locale;
@@ -106,13 +105,17 @@ export interface PendingRegistration {
 /**
  * One sign-in challenge (`C-005`, `C-006`).
  *
- * The challenge is ephemeral: it lives in the session store with the accounts the number resolves to,
- * never as a record on the member. It exists only long enough to prove the number.
+ * The challenge is ephemeral: it lives in the session store with the one account the number
+ * resolves to, never as a record on the member. It exists only long enough to prove the number.
  */
 export interface SignInChallenge {
   readonly id: string;
   readonly telephoneNumber: string;
-  /** Every account on this number, in creation order. Never merged (`FEAT-001`). */
+  /**
+   * The account that holds the number, as the challenge's own record carries it. A number belongs to
+   * at most one live account (`FEAT-001`), so this list holds one entry; it stays an array because
+   * the store's record is keyed that way.
+   */
   readonly memberIds: readonly string[];
   readonly codeSentAt: string;
   readonly expiresAt: string;

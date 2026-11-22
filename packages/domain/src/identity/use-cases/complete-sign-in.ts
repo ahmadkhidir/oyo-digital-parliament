@@ -1,8 +1,8 @@
 /**
  * Verifying a sign-in code and opening a session (`C-006`, `FEAT-001`, `NFR-020`, `NFR-026`).
  *
- * Resolves which account is signing in. A number shared by two people never signs in automatically:
- * the caller must name the account once the code is accepted, and the accounts are never merged.
+ * The challenge already resolves the one account that holds the number (`FEAT-001`), so accepting the
+ * code opens that account's session: there is no account choice to make and no account list to show.
  */
 import {
   identityFailure,
@@ -29,11 +29,10 @@ import type { CodeAttempts, CodeMatchResult, IdentityPorts } from '../ports.ts';
 import { liveSessionCookie, type SessionCookie } from '../../ports/session.ts';
 import { appendIdentityAudit } from './support.ts';
 
-/** The `C-006` request. `memberId` is required when the number has more than one account. */
+/** The `C-006` request. */
 export interface CompleteSignInInput {
   readonly signInChallengeId: string;
   readonly code: string;
-  readonly memberId?: string;
   /** The internal path the member came from, returned unchanged. */
   readonly returnTo?: string;
 }
@@ -58,7 +57,7 @@ export type CompleteSignInResult =
  *
  * @param caller - The visitor on the sign-in screen.
  * @param deps - The challenge, code, member, session and audit ports.
- * @param input - The challenge, the six digits, the chosen account and the path to return to.
+ * @param input - The challenge, the six digits, and the path to return to.
  */
 export async function completeSignIn(
   caller: IdentityCaller,
@@ -128,13 +127,15 @@ export async function completeSignIn(
       { meta: { recoveryPath: '/sign-in' } },
     );
   }
-  if (challenge.memberIds.length > 1 && (input.memberId === undefined || input.memberId === '')) {
-    // `C-006`: a shared number always requires an explicit choice.
+
+  const accountId = challenge.memberIds[0];
+  if (accountId === undefined) {
     return identityFailure(
-      'VALIDATION_FAILED',
-      'ACCOUNT_CHOICE_REQUIRED',
-      'Choose which account is signing in.',
-      { memberId: 'REQUIRED' },
+      'NOT_FOUND',
+      'MEMBER_NOT_FOUND',
+      'That account is no longer available.',
+      {},
+      { meta: { recoveryPath: '/sign-in' } },
     );
   }
 
@@ -155,18 +156,6 @@ export async function completeSignIn(
       'Too many wrong codes. Wait a moment before trying again.',
       {},
       { retryAfterSeconds: secondsUntil(attempts.cooldownUntil, now), attemptsRemaining: 0 },
-    );
-  }
-
-  const chosenId =
-    input.memberId === undefined || input.memberId === '' ? challenge.memberIds[0] : input.memberId;
-  if (chosenId === undefined || !challenge.memberIds.includes(chosenId)) {
-    return identityFailure(
-      'NOT_FOUND',
-      'ACCOUNT_NOT_ON_CHALLENGE',
-      'That account cannot sign in with this code.',
-      {},
-      { meta: { recoveryPath: '/sign-in' } },
     );
   }
 
@@ -235,7 +224,7 @@ export async function completeSignIn(
 
   let member: MemberRecord | null;
   try {
-    member = await deps.members.get(chosenId);
+    member = await deps.members.get(accountId);
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',

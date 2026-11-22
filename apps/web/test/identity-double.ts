@@ -68,7 +68,6 @@ export function doubleMember(overrides: Partial<MemberRecord>): MemberRecord {
     wardStatus: 'unresolved',
     identityState: 'registered',
     verificationMethod: 'self_code',
-    sharedNumber: false,
     locale: 'en-NG',
     createdAt: FIXED_NOW,
     ...overrides,
@@ -168,18 +167,13 @@ export function createPortsDouble(options: PortsDoubleOptions = {}): PortsDouble
     },
     members: {
       findByTelephone: async (telephoneNumber) =>
-        members.filter((member) => member.telephoneNumber === telephoneNumber),
+        members.filter(
+          (member) => member.telephoneNumber === telephoneNumber && member.deletedAt === undefined,
+        ),
       get: async () => null,
       create: async (member) => {
         members.push(member);
         takenNames.add(member.displayName);
-      },
-      markSharedNumber: async (telephoneNumber) => {
-        for (const [index, member] of members.entries()) {
-          if (member.telephoneNumber === telephoneNumber) {
-            members[index] = { ...member, sharedNumber: true };
-          }
-        }
       },
       updateProfile: () => refused('the member profile write'),
       isDisplayNameTaken: async (displayName) => takenNames.has(displayName),

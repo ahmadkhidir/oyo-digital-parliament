@@ -10,9 +10,9 @@
  * Three cookies, each carrying the least it can:
  *
  * - `odp_signin_pending` — where this browser's sign-in stands: the challenge identifier, the
- *   number it was sent to, whether the member must choose between accounts, the `returnTo` path
- *   they came from and when a new code may be requested. The telephone number is the visitor's own
- *   typed input, held no longer than the flow, exactly as the join flow's retry cookie holds it.
+ *   number it was sent to, the `returnTo` path they came from and when a new code may be requested.
+ *   The telephone number is the visitor's own typed input, held no longer than the flow, exactly as
+ *   the join flow's retry cookie holds it.
  * - `odp_signin_retry` — the number a refused attempt submitted and why it was refused.
  * - `odp_signin_status` — one outcome token for the redirected render, with the counts the
  *   contracts carry (`C-006` `attemptsRemaining`, `C-005`/`C-006` `retryAfterSeconds`).
@@ -65,7 +65,6 @@ export type SignInStatus =
   | 'CODE_ATTEMPTS_EXCEEDED'
   | 'CODE_EXPIRED'
   | 'CODE_ALREADY_USED'
-  | 'ACCOUNT_CHOICE_REQUIRED'
   | 'DELIVERY_FAILED'
   | 'RATE_LIMITED'
   | 'DEGRADED';
@@ -85,10 +84,6 @@ export interface SignInPendingState {
   readonly challengeId: string;
   /** The number the code was sent to, as the visitor typed it (normalised before the store). */
   readonly telephoneNumber: string;
-  /** Whether more than one account shares the number, so the code step renders the choice. */
-  readonly accountChoiceRequired: boolean;
-  /** How many accounts share the number (`C-005` reveals the count, never the names). */
-  readonly accountCount: number;
   /** The internal path the member came from, returned unchanged (`C-006`). */
   readonly returnTo: string;
   /** When a new code may be requested, from the `C-005` answer. */
@@ -166,10 +161,6 @@ function isSignInPendingState(value: unknown): value is SignInPendingState {
     typeof state.challengeId === 'string' &&
     IDENTIFIER_PATTERN.test(state.challengeId) &&
     typeof state.telephoneNumber === 'string' &&
-    typeof state.accountChoiceRequired === 'boolean' &&
-    typeof state.accountCount === 'number' &&
-    Number.isSafeInteger(state.accountCount) &&
-    state.accountCount >= 1 &&
     typeof state.returnTo === 'string' &&
     state.returnTo.startsWith('/') &&
     !state.returnTo.startsWith('//')
