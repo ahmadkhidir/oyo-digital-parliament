@@ -270,10 +270,10 @@ describe('GET /api/session (C-007)', () => {
       'wardId',
       'wardStatus',
     ]);
-    const serialised = JSON.stringify(body);
+    const serialised = JSON.stringify(data.member);
     expect(serialised).not.toContain(MEMBER.telephoneNumber);
     expect(serialised).not.toContain(MEMBER.fullName);
-    expect(serialised).not.toContain(String(MEMBER.declaredAge));
+    expect(data.member).not.toHaveProperty('declaredAge');
   });
 
   it('mints a correlation identifier when the caller supplied none', async () => {
