@@ -1,8 +1,10 @@
 /**
- * Resending a registration code (`C-004`, `FEAT-001`, `NFR-027`).
+ * Resending a registration code (`C-004`, `FEAT-001`, `NFR-027`, `C-076`).
  *
  * Issues one new code against the same pending registration and never extends the twenty-four-hour
- * window: a resident who leaves and returns keeps their place, but the held form still expires.
+ * window: a resident who leaves and returns keeps their place, but the held form still expires. The
+ * code leaves through the notification boundary like the first one, so one hold and retry rule covers
+ * every one-time code.
  */
 import {
   identityFailure,
@@ -11,7 +13,7 @@ import {
   type PendingRegistration,
 } from '../entities.ts';
 import { isPast, resendAvailableAt, resendCooldownRemaining, toIsoSeconds } from '../policies.ts';
-import type { IdentityPorts } from '../ports.ts';
+import type { CodeDelivery, IdentityPorts } from '../ports.ts';
 import { rateLimitHeaders, type RateLimitOutcome } from '../../ports/session.ts';
 
 /** The `C-004` request. */
@@ -127,15 +129,24 @@ export async function resendRegistrationCode(
     );
   }
 
+  // `C-004`, `C-076`: the code leaves through the notification boundary, which owns the queue, the
+  // hold and the retry. The dedupe key names the fact and the issue instant, so a replay of this
+  // resend sends nothing a second time while a later resend is its own message.
+  let delivery: CodeDelivery = { status: 'delayed', channel: 'sms' };
   try {
-    await deps.codes.issue({
-      targetId: pending.id,
-      telephoneNumber: pending.telephoneNumber,
+    delivery = await deps.notifications.deliverCode({
+      pendingRegistrationId: pending.id,
       locale: pending.locale,
-      at: now,
+      dedupeKey: `registration_code:${pending.id}:${now}`,
+      ...(caller.correlationId === undefined ? {} : { correlationId: caller.correlationId }),
     });
   } catch {
-    // `C-004`: the pending registration survives a refused dispatch, and the answer says so.
+    // A boundary that cannot take the call is the same answer as a hold: nothing reached the resident.
+    delivery = { status: 'delayed', channel: 'sms' };
+  }
+  if (delivery.status !== 'sent') {
+    // `C-004`, `C-076`: the pending registration survives a refused dispatch, and the answer says so.
+    // The resend window does not restart, because the delivery did not happen; asking again is safe.
     return identityFailure(
       'SERVICE_DEGRADED',
       'SMS_CHANNEL_UNAVAILABLE',
@@ -161,7 +172,7 @@ export async function resendRegistrationCode(
     codeSentAt: now,
     expiresAt: pending.expiresAt,
     resendAvailableAt: resendAvailableAt(now),
-    codeDelivery: { status: 'sent', channel: 'sms' },
+    codeDelivery: delivery,
   };
 }
 

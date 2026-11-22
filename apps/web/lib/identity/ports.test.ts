@@ -7,9 +7,11 @@
  * reading, no token from the session cookie, and a refusal that is reported rather than silently
  * dropped.
  *
- * The second half is the registration boundary (`C-002`, `C-076`): the code leaves through the
- * notification boundary's queue and reaches the SMS double, a hold answers `delayed` and leaves the
- * message queued, and a replay under one dedupe key sends nothing twice.
+ * The second half is the one-time code boundary (`C-002`, `C-004`, `C-005`, `C-076`): a registration
+ * code and a sign-in code both leave through its queue and reach the SMS double, the recipient decides
+ * who is addressed, a hold answers `delayed` and leaves the message queued, a replay under one dedupe
+ * key sends nothing twice, and a message its target has superseded is finished rather than rendered
+ * again.
  */
 import { describe, expect, it } from 'vitest';
 import type {
@@ -23,7 +25,7 @@ import { createFakeSms } from '@odp/platform/testing';
 import { createTelemetryBuffer } from '../telemetry';
 import {
   createIdentityAnalytics,
-  createRegistrationNotification,
+  createOneTimeCodeNotification,
   type IdentityAnalyticsOptions,
 } from './ports';
 
@@ -299,11 +301,26 @@ function queueDouble() {
 }
 
 /** The boundary with the SMS double, a queue that keeps its claim rule, and no database. */
-function boundary(options: { readonly ttlSeconds?: number } = {}) {
+function boundary(
+  options: {
+    readonly ttlSeconds?: number;
+    /** Answers whether a queued message is still current; defaults to yes. */
+    readonly isCurrent?: (input: {
+      readonly recipient: { readonly kind: string; readonly id: string };
+      readonly targetId: string;
+      readonly queuedAt: string;
+    }) => Promise<boolean>;
+  } = {},
+) {
   const sms = createFakeSms();
   const queue = queueDouble();
+  const freshnessCalls: {
+    readonly recipient: { readonly kind: string; readonly id: string };
+    readonly targetId: string;
+    readonly queuedAt: string;
+  }[] = [];
   let sequence = 0;
-  const deliverCode = createRegistrationNotification({
+  const deliverCode = createOneTimeCodeNotification({
     queue: queue.port,
     recipients: {
       async resolve() {
@@ -313,6 +330,12 @@ function boundary(options: { readonly ttlSeconds?: number } = {}) {
     bodies: {
       async render({ record }) {
         return record.template === 'registration_code' ? CODE_BODY : null;
+      },
+    },
+    freshness: {
+      async isCurrent(input) {
+        freshnessCalls.push(input);
+        return options.isCurrent === undefined ? true : options.isCurrent(input);
       },
     },
     sms,
@@ -325,7 +348,7 @@ function boundary(options: { readonly ttlSeconds?: number } = {}) {
     },
     codeTtlSeconds: options.ttlSeconds ?? 10 * 60,
   });
-  return { sms, rows: queue.rows, deliverCode };
+  return { sms, rows: queue.rows, deliverCode, freshnessCalls };
 }
 
 describe('registration code delivery (C-002, C-076)', () => {
@@ -371,7 +394,7 @@ describe('registration code delivery (C-002, C-076)', () => {
 
   it('answers delayed rather than failing the write when the queue is unreachable', async () => {
     const sms = createFakeSms();
-    const unreachable = createRegistrationNotification({
+    const unreachable = createOneTimeCodeNotification({
       queue: {
         ...queueDouble().port,
         async enqueue() {
@@ -388,6 +411,7 @@ describe('registration code delivery (C-002, C-076)', () => {
           return CODE_BODY;
         },
       },
+      freshness: { async isCurrent() { return true; } },
       sms,
       clock: { now: () => new Date(BOUNDARY_NOW) },
       identifiers: { next: (prefix) => `${prefix}_01J9ZN1P3Q5R7S9T1V3W01` },
@@ -418,5 +442,73 @@ describe('registration code delivery (C-002, C-076)', () => {
     expect(first).toEqual({ status: 'sent', channel: 'sms' });
     expect(replay).toEqual({ status: 'sent', channel: 'sms' });
     expect(sms.sent).toHaveLength(1);
+  });
+});
+
+describe('one-time code delivery across both flows (C-004, C-005, C-076)', () => {
+  /** The sign-in challenge and the one account its number resolves to. */
+  const CHALLENGE_ID = 'sic_01J9Z6R4F7H2J9K1L3M5N7P0Q2';
+  const MEMBER_ID = 'mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA';
+
+  it('addresses a sign-in code to the member and keeps the challenge as the code target', async () => {
+    const { sms, rows, deliverCode } = boundary();
+
+    const delivery = await deliverCode.deliverCode({
+      pendingRegistrationId: CHALLENGE_ID,
+      memberId: MEMBER_ID,
+      locale: 'en-NG',
+      dedupeKey: `sign_in_code:${CHALLENGE_ID}:${BOUNDARY_NOW}`,
+    });
+
+    expect(delivery).toEqual({ status: 'sent', channel: 'sms' });
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0]?.destination).toBe(DESTINATION);
+
+    // The row carries the account and the challenge, never the destination or the digits (`C-076`).
+    const [row] = [...rows.values()];
+    expect(row?.recipient).toEqual({ kind: 'member', id: MEMBER_ID });
+    expect(row?.payload).toEqual({ targetId: CHALLENGE_ID, expiresInMinutes: '10' });
+    expect(JSON.stringify(row)).not.toContain(DESTINATION);
+    expect(JSON.stringify(row)).not.toContain(CODE_BODY);
+  });
+
+  it('sends a sign-in code once for one dedupe key, however often it is replayed', async () => {
+    const { sms, deliverCode } = boundary();
+    const input = {
+      pendingRegistrationId: CHALLENGE_ID,
+      memberId: MEMBER_ID,
+      locale: 'en-NG' as const,
+      dedupeKey: `sign_in_code:${CHALLENGE_ID}:${BOUNDARY_NOW}`,
+    };
+
+    expect(await deliverCode.deliverCode(input)).toEqual({ status: 'sent', channel: 'sms' });
+    expect(await deliverCode.deliverCode(input)).toEqual({ status: 'sent', channel: 'sms' });
+    expect(sms.sent).toHaveLength(1);
+  });
+
+  it('finishes a superseded message instead of minting over a newer code', async () => {
+    const { sms, rows, deliverCode, freshnessCalls } = boundary({
+      isCurrent: async () => false,
+    });
+
+    const delivery = await deliverCode.deliverCode({
+      pendingRegistrationId: PENDING_ID,
+      locale: 'en-NG',
+      dedupeKey: `registration_code:${PENDING_ID}:${BOUNDARY_NOW}`,
+    });
+
+    // The stored message is finished, so the caller is not told it was sent; nothing reached the
+    // gateway and no fresh code was minted over the one a newer message already delivered.
+    expect(delivery).toEqual({ status: 'delayed', channel: 'sms' });
+    expect(sms.sent).toEqual([]);
+    expect(freshnessCalls).toEqual([
+      {
+        recipient: { kind: 'pending_registration', id: PENDING_ID },
+        targetId: PENDING_ID,
+        queuedAt: BOUNDARY_NOW,
+      },
+    ]);
+    const [row] = [...rows.values()];
+    expect(row).toMatchObject({ state: 'failed', lastCause: 'TEMPLATE_UNAVAILABLE' });
   });
 });
