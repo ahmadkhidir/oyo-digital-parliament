@@ -102,9 +102,9 @@ callers that exist.
   Throughout this package removal means a state change: nothing is deleted, and every softer-looking
   operation still records who did it and why.
 - **Identity has exactly two states and exactly one reader.** A member is Registered or Checked, and every
-  other notion of trust is a projection of those two. A telephone number shared by two people never merges
-  accounts, never blocks either from signing in, and never collapses the choice of which account is
-  acting. No function in this package produces a member register by ward or by any other grouping, and no
+  other notion of trust is a projection of those two. A telephone number belongs to at most one account, so
+  a second registration on a number already held creates no account and is offered sign-in; accounts are
+  never merged. No function in this package produces a member register by ward or by any other grouping, and no
   caller outside the member's own data view receives a real name, telephone number or declared age — the
   rest of the system receives a member identifier and a display name, and the external reviewer path
   receives neither identifier nor name.
