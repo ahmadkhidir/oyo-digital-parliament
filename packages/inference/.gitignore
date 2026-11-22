@@ -1,0 +1,3 @@
+# Local evaluation run artefacts. They are stored again by the production store (primary database
+# record plus object-storage artefact); a developer's run does not belong in the repository.
+eval/runs/
