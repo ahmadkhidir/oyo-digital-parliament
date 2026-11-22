@@ -9,7 +9,7 @@
  */
 import type { NextRequest } from 'next/server';
 import { identityFailure, toIsoSeconds } from '@odp/domain';
-import { correlationIdFrom } from '../../../lib/logging';
+import { readCorrelationId } from '../../../lib/logging/correlation';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getMyRecordRuntime } from '../../(record)/me/_lib/runtime';
 import { launchNoticeHistory, selectNotice } from '../../(entry)/privacy/_lib/notice';
@@ -24,7 +24,20 @@ export const dynamic = 'force-dynamic';
 
 /** Answers the published notice, or the version named in the query. */
 export async function GET(request: NextRequest): Promise<Response> {
-  const correlationId = correlationIdFrom(request.headers);
+  const correlation = readCorrelationId(request.headers);
+  const correlationId = correlation.correlationId;
+  if (!correlation.ok) {
+    return jsonAnswer(
+      validationAnswer(
+        correlationId,
+        'CORRELATION_ID_INVALID',
+        'The correlation identifier is not in the contract\'s form.',
+        { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+      ),
+      correlationId,
+    );
+  }
+
   const rawVersion = request.nextUrl.searchParams.get('version');
   if (rawVersion !== null && rawVersion.trim() === '') {
     return jsonAnswer(

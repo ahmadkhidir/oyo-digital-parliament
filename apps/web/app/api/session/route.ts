@@ -18,7 +18,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { readSession, toIsoSeconds } from '@odp/domain';
 import { resolveLocale } from '../../../lib/i18n/locale';
-import { correlationIdFrom } from '../../../lib/logging';
+import { readCorrelationId } from '../../../lib/logging/correlation';
 import { getSignInDependencies } from '../../../lib/session/deps';
 import { sessionReadAnswer } from '../../../lib/session/read-answer';
 import { applySessionCookie, presentedSessionTokens } from '../../../lib/session/session-cookies';
@@ -28,6 +28,26 @@ export const dynamic = 'force-dynamic';
 
 /** Answers the caller's session state in the `C-007` body. */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const correlation = readCorrelationId(request.headers);
+  const correlationId = correlation.correlationId;
+  if (!correlation.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'VALIDATION_FAILED',
+          cause: 'CORRELATION_ID_INVALID',
+          message: 'The correlation identifier is not in the contract\'s form.',
+          correlationId,
+          fields: { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+        },
+      },
+      {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store', 'X-Correlation-Id': correlationId },
+      },
+    );
+  }
+
   const ports = await getSignInDependencies();
   const tokens = await presentedSessionTokens();
 
@@ -39,7 +59,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
 
   const answer = sessionReadAnswer(result, {
-    correlationId: correlationIdFrom(request.headers),
+    correlationId,
     // `C-001` `meta.asAt` is the instant the answer was computed, from the same clock the use case
     // read, not the moment the transport formatted it.
     asAt: toIsoSeconds(ports.clock.now()),
