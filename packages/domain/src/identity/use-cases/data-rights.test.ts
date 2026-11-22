@@ -57,6 +57,26 @@ describe('readMyRecord (C-032)', () => {
           decision: { type: 'commit', authority: null },
         },
       ],
+      dataRequests: [
+        {
+          id: 'drq_DONE',
+          memberId: 'mbr_0001',
+          type: 'export',
+          status: 'completed',
+          requestedAt: FAKE_NOW,
+          completedAt: FAKE_NOW,
+          fileReference: 'exports/mbr_1/2026-11-20.zip',
+        },
+        {
+          id: 'drq_HELD',
+          memberId: 'mbr_0001',
+          type: 'deletion',
+          status: 'deferred_for_legal_hold',
+          requestedAt: FAKE_NOW,
+          legalHoldNote: 'A submission is under legal review.',
+          legalHoldReviewAt: '2026-12-01T09:00:00Z',
+        },
+      ],
     });
     const result = await readMyRecord(memberCaller(), fakes.ports, {});
     expect(result).toMatchObject({
@@ -69,6 +89,20 @@ describe('readMyRecord (C-032)', () => {
           declaredAge: 24,
         },
         submissions: [{ reference: 'ODP-004821', decision: { type: 'commit' } }],
+        // `C-032`: the review date is a field, and both hold fields are null unless deferred.
+        dataRequests: [
+          {
+            id: 'drq_DONE',
+            fileReference: 'exports/mbr_1/2026-11-20.zip',
+            legalHoldNote: null,
+            legalHoldReviewAt: null,
+          },
+          {
+            id: 'drq_HELD',
+            legalHoldNote: 'A submission is under legal review.',
+            legalHoldReviewAt: '2026-12-01T09:00:00Z',
+          },
+        ],
       },
       nextCursor: null,
     });
@@ -212,6 +246,7 @@ describe('createDataRequest (C-035)', () => {
       dataRequest: { type: 'deletion', status: 'received' },
       dueAt: '2026-12-18T09:00:00Z',
       legalHoldDetected: false,
+      legalHoldReviewAt: null,
     });
     expect(fakes.audit[0]).toMatchObject({ action: 'data_request.created' });
   });
@@ -222,7 +257,12 @@ describe('createDataRequest (C-035)', () => {
       legalHoldReviewDate: '2026-12-01T09:00:00Z',
     });
     const result = await createDataRequest(memberCaller(), fakes.ports, { type: 'deletion' });
-    expect(result).toMatchObject({ ok: true, legalHoldDetected: true });
+    expect(result).toMatchObject({
+      ok: true,
+      legalHoldDetected: true,
+      // `C-035`: the detected hold's review date is returned as a field, not folded into a note.
+      legalHoldReviewAt: '2026-12-01T09:00:00Z',
+    });
   });
 
   it('refuses a second open export and names the first', async () => {
@@ -326,10 +366,12 @@ describe('downloadExport (C-036)', () => {
     expect(result).toMatchObject({ ok: false, code: 'NOT_FOUND', cause: 'EXPORT_NOT_FOUND' });
   });
 
-  it('reports a deferred export as a legal hold with its review date', async () => {
+  it('reports a deferred export as a legal hold with its recorded review date', async () => {
     const fakes = createIdentityHarness({
       members: [fakeMember({ id: 'mbr_0001' })],
-      legalHoldReviewDate: '2026-12-01T09:00:00Z',
+      // A separate open case date must not leak into the answer: the deferred request's own
+      // recorded date is what the member is shown (`C-036`).
+      legalHoldReviewDate: '2026-11-01T09:00:00Z',
       dataRequests: [
         {
           id: 'drq_EXPORT',
@@ -337,6 +379,7 @@ describe('downloadExport (C-036)', () => {
           type: 'export',
           status: 'deferred_for_legal_hold',
           legalHoldNote: 'A submission is under review.',
+          legalHoldReviewAt: '2026-12-01T09:00:00Z',
           requestedAt: FAKE_NOW,
         },
       ],
@@ -347,7 +390,10 @@ describe('downloadExport (C-036)', () => {
     expect(result).toMatchObject({
       ok: false,
       code: 'LEGAL_HOLD',
-      meta: { reviewDate: '2026-12-01T09:00:00Z' },
+      meta: {
+        legalHoldNote: 'A submission is under review.',
+        legalHoldReviewAt: '2026-12-01T09:00:00Z',
+      },
     });
   });
 });

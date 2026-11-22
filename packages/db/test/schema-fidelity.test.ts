@@ -303,7 +303,14 @@ const EXPECTED: Record<string, ExpectedEntity> = {
   },
   data_request: {
     required: ['id', 'memberId', 'type', 'status', 'requestedAt'],
-    optional: ['legalHoldNote', 'outcomeReason', 'fileReference', 'completedById', 'completedAt'],
+    optional: [
+      'legalHoldNote',
+      'legalHoldReviewAt',
+      'outcomeReason',
+      'fileReference',
+      'completedById',
+      'completedAt',
+    ],
   },
   audit_event: {
     required: ['id', 'actorId', 'actorRole', 'action', 'entityType', 'entityId', 'occurredAt'],

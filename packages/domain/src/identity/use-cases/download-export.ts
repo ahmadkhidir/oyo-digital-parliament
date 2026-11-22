@@ -34,7 +34,7 @@ export type DownloadExportResult =
  * Issues a short-lived URL for one of the caller's export files.
  *
  * @param caller - The member who owns the request.
- * @param deps - The data-request, legal-hold, object-store and audit ports.
+ * @param deps - The data-request, object-store and audit ports.
  * @param input - The data request's identifier.
  */
 export async function downloadExport(
@@ -82,13 +82,9 @@ export async function downloadExport(
     return identityFailure('NOT_FOUND', 'EXPORT_NOT_FOUND', 'That export does not exist.');
   }
   if (request.status === 'deferred_for_legal_hold') {
-    let reviewDate: string | undefined;
-    try {
-      const hold = await deps.legalHolds.findOpenForMember(request.memberId);
-      reviewDate = hold?.reviewDate;
-    } catch {
-      reviewDate = undefined;
-    }
+    // `C-036`: the refusal prints the request's own recorded hold and review date. It never reads a
+    // date out of the note, and it does not consult a second record: the operator recorded both when
+    // the request was deferred (`C-067`).
     return identityFailure(
       'LEGAL_HOLD',
       'EXPORT_DEFERRED_FOR_LEGAL_HOLD',
@@ -97,7 +93,9 @@ export async function downloadExport(
       {
         meta: {
           ...(request.legalHoldNote === undefined ? {} : { legalHoldNote: request.legalHoldNote }),
-          ...(reviewDate === undefined ? {} : { reviewDate }),
+          ...(request.legalHoldReviewAt === undefined
+            ? {}
+            : { legalHoldReviewAt: request.legalHoldReviewAt }),
         },
       },
     );

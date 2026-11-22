@@ -1,0 +1,3 @@
+ALTER TABLE "data_request" ADD COLUMN "legal_hold_review_at" timestamp(0) with time zone;--> statement-breakpoint
+ALTER TABLE "data_request" ADD CONSTRAINT "data_request_legal_hold_review_at" CHECK (("data_request"."status" = 'deferred_for_legal_hold') = ("data_request"."legal_hold_review_at" is not null));--> statement-breakpoint
+COMMENT ON COLUMN "data_request"."legal_hold_review_at" IS 'Not personal data. When the legal hold is next reviewed (schema.md DataRequest); present only while the request is deferred. The reason stays in legal_hold_note.';

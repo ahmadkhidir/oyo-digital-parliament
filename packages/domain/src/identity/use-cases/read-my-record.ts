@@ -61,6 +61,10 @@ export interface MyRecordDataRequest {
   readonly status: DataRequestStatus;
   readonly requestedAt: string;
   readonly fileReference?: string;
+  /** The hold reason, `null` unless the request is deferred for a legal hold (`C-032`). */
+  readonly legalHoldNote: string | null;
+  /** The date the hold is next reviewed, `null` unless the request is deferred (`C-032`). */
+  readonly legalHoldReviewAt: string | null;
 }
 
 /** One of the member's items currently withheld from publication. */
@@ -228,6 +232,10 @@ export async function readMyRecord(
         status: request.status,
         requestedAt: request.requestedAt,
         ...(request.fileReference === undefined ? {} : { fileReference: request.fileReference }),
+        // `C-032`: both fields are `null` unless the request is deferred; the review date is the
+        // recorded one, never a sentence the record would have to be searched for.
+        legalHoldNote: request.legalHoldNote ?? null,
+        legalHoldReviewAt: request.legalHoldReviewAt ?? null,
       })),
       heldItems: heldItems.map((item) => ({
         reference: item.reference,

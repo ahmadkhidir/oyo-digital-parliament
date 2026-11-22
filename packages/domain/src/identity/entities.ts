@@ -139,6 +139,8 @@ export interface DataRequest {
   readonly type: DataRequestType;
   readonly status: DataRequestStatus;
   readonly legalHoldNote?: string;
+  /** Present only while the request is deferred for a legal hold (`C-032`, `C-036`, `C-067`). */
+  readonly legalHoldReviewAt?: string;
   readonly outcomeReason?: string;
   readonly fileReference?: string;
   readonly completedById?: string;
@@ -244,8 +246,11 @@ export interface IdentityFailureMeta {
   readonly recoveryPath?: string;
   /** `C-035`: the export request already open for this member. */
   readonly existingDataRequestId?: string;
-  /** `C-036`: the hold that deferred the request, and the date it is reviewed. */
+  /** `C-036`: the hold that deferred the request, and the date it is next reviewed. */
   readonly legalHoldNote?: string;
+  /** `C-036`: the review date printed on a deferred export, as `DataRequest.legalHoldReviewAt`. */
+  readonly legalHoldReviewAt?: string;
+  /** `C-058`, `C-070`: the date an open legal review is reported against. */
   readonly reviewDate?: string;
   /** `C-004`: the pending registration survived a failed dispatch. */
   readonly pendingRegistrationPreserved?: boolean;
