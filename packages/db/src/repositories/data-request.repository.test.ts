@@ -17,8 +17,13 @@ import {
   createSubmission,
   createTestDatabase,
   createWard,
+  readDownMigration,
+  readMigration,
   testId,
 } from '../testing/index.ts';
+
+/** The migration that gives `DataRequest` its structured legal-hold review date (`C-067`). */
+const REVIEW_DATE_MIGRATION = '0005_data_request_legal_hold_review_at';
 
 describe('data request repository', () => {
   it('lists requests newest first, finds the open export and resolves it through a guarded transition', async () => {
@@ -102,7 +107,7 @@ describe('data request repository', () => {
     }
   });
 
-  it('records a deferral with its hold note and a refusal with its reason', async () => {
+  it('records a deferral with its hold reason and review date, and a refusal with its reason', async () => {
     const database = await createTestDatabase();
     try {
       const memberId = await createMember(database.db);
@@ -122,14 +127,29 @@ describe('data request repository', () => {
         at: '2026-11-22T10:00:00Z',
         completedById: operatorId,
         outcomeReason: 'One submission is under an open legal review.',
-        legalHoldNote: 'Held for legal review, reference ODP-004821; review date 2026-12-19.',
+        legalHoldNote: 'Held for legal review, reference ODP-004821.',
+        legalHoldReviewAt: '2026-12-19T07:00:00Z',
       });
+      // `C-067`, `schema.md` DataRequest: the reason and the review date are separate fields; the
+      // note holds no date for anybody to parse.
       expect(await repository.findById(deferredId)).toMatchObject({
         status: 'deferred_for_legal_hold',
-        legalHoldNote: 'Held for legal review, reference ODP-004821; review date 2026-12-19.',
+        legalHoldNote: 'Held for legal review, reference ODP-004821.',
+        legalHoldReviewAt: '2026-12-19T07:00:00Z',
         outcomeReason: 'One submission is under an open legal review.',
         completedById: operatorId,
       });
+
+      // A deferred request can be worked once the hold is reviewed; leaving the deferred state
+      // clears the hold fields, which exist only while it is deferred (`schema.md` DataRequest).
+      const reopened = await repository.transition(deferredId, {
+        status: 'in_progress',
+        at: '2026-11-23T09:00:00Z',
+        completedById: operatorId,
+      });
+      expect(reopened?.status).toBe('in_progress');
+      expect(reopened?.legalHoldNote).toBeUndefined();
+      expect(reopened?.legalHoldReviewAt).toBeUndefined();
 
       const refusedId = testId('drq');
       await repository.create({
@@ -148,6 +168,47 @@ describe('data request repository', () => {
       expect((await repository.findById(refusedId))?.outcomeReason).toBe(
         'The request repeats one already answered on 2026-11-01.',
       );
+    } finally {
+      await database.dispose();
+    }
+  });
+
+  it('refuses a hold with no review date and a review date outside a hold', async () => {
+    const database = await createTestDatabase();
+    try {
+      const memberId = await createMember(database.db);
+      const operatorId = await createStaffUser(database.db, { role: 'operator' });
+      const repository = createDataRequestRepository(database.db);
+
+      const withoutReviewDate = testId('drq');
+      await repository.create({
+        id: withoutReviewDate,
+        memberId,
+        type: 'deletion',
+        status: 'received',
+        requestedAt: '2026-11-21T07:00:00Z',
+      });
+      // `screens/22-data-request-queue.md`: a legal hold cannot be recorded without a review date.
+      await expect(
+        repository.transition(withoutReviewDate, {
+          status: 'deferred_for_legal_hold',
+          at: '2026-11-22T10:00:00Z',
+          completedById: operatorId,
+          legalHoldNote: 'Held for legal review, reference ODP-004821.',
+        }),
+      ).rejects.toThrow();
+
+      // The column is absent unless the request is deferred (`schema.md` DataRequest).
+      await expect(
+        repository.create({
+          id: testId('drq'),
+          memberId,
+          type: 'deletion',
+          status: 'received',
+          requestedAt: '2026-11-21T07:00:00Z',
+          legalHoldReviewAt: '2026-12-19T07:00:00Z',
+        }),
+      ).rejects.toThrow();
     } finally {
       await database.dispose();
     }
@@ -201,6 +262,38 @@ describe('data request repository', () => {
         .set({ status: 'cleared', decidedAt: T0 })
         .where(eq(legalReview.id, reviewId));
       expect(await repository.findOpenForMember(memberId)).toBeNull();
+    } finally {
+      await database.dispose();
+    }
+  });
+
+  it('reverses the review-date migration and applies it again', async () => {
+    const database = await createTestDatabase();
+    try {
+      const columnBefore = await database.pool.query<{ column_name: string }>(
+        `select column_name from information_schema.columns
+          where table_schema = 'public' and table_name = 'data_request'
+            and column_name = 'legal_hold_review_at'`,
+      );
+      expect(columnBefore.rows).toHaveLength(1);
+
+      // The down path exists and removes exactly the column and its constraint.
+      await database.pool.query(await readDownMigration(REVIEW_DATE_MIGRATION));
+      const columnAfterDown = await database.pool.query<{ column_name: string }>(
+        `select column_name from information_schema.columns
+          where table_schema = 'public' and table_name = 'data_request'
+            and column_name = 'legal_hold_review_at'`,
+      );
+      expect(columnAfterDown.rows).toHaveLength(0);
+
+      // The forward migration applies again over the rolled-back shape.
+      await database.pool.query(await readMigration(REVIEW_DATE_MIGRATION));
+      const columnRestored = await database.pool.query<{ column_name: string }>(
+        `select column_name from information_schema.columns
+          where table_schema = 'public' and table_name = 'data_request'
+            and column_name = 'legal_hold_review_at'`,
+      );
+      expect(columnRestored.rows).toHaveLength(1);
     } finally {
       await database.dispose();
     }

@@ -12,11 +12,13 @@
  * reading `LegalReview` through the submission or comment it concerns. It returns only whether a hold
  * exists and the date attached to it, never the held text, the reason or the reviewer.
  *
- * SPECIFICATION GAP: `schema.md` gives `LegalReview` no next-review column; the only date the record
- * holds is `requestedAt`. The deferral's own review date is written in words into
- * `DataRequest.legalHoldNote` by the operator (`C-067`). Until the specification names a review-date
- * property, the case's opening date is reported as the review date so a member is told when the hold
- * was raised; the gap is reported to the coordinator rather than papered over with an invented column.
+ * The review date a member is shown lives on the deferred request itself: `DataRequest.legalHoldReviewAt`
+ * is required by `C-067` when an operator defers a request and is absent otherwise, so the member read
+ * (`C-032`), the queue (`C-066`) and the export refusal (`C-036`) read a date rather than a sentence
+ * (`screens/13-my-record.md`, `screens/22-data-request-queue.md`).
+ *
+ * `LegalReview` records only when a case was raised and when it was decided, so the hold check reports
+ * the case's opening instant; it is the earliest date the record holds and is never parsed from text.
  */
 import { and, asc, desc, eq, inArray, notInArray, or } from 'drizzle-orm';
 import type { DataRequest, DataRequestPort, DataRequestStatus, LegalHoldPort } from '@odp/domain';
@@ -44,6 +46,8 @@ export interface DataRequestTransition {
   readonly completedById: string;
   readonly outcomeReason?: string;
   readonly legalHoldNote?: string;
+  /** Required when deferring, absent otherwise (`C-067`, `schema.md` DataRequest). */
+  readonly legalHoldReviewAt?: string;
   readonly fileReference?: string;
 }
 
@@ -68,6 +72,7 @@ export interface DataRequestRepository extends DataRequestPort, LegalHoldPort {
 /** Maps a stored row to the domain type, dropping the nulls the domain models as absent. */
 function toDataRequest(row: typeof dataRequest.$inferSelect): DataRequest {
   const legalHoldNote = row.legalHoldNote ?? undefined;
+  const legalHoldReviewAt = row.legalHoldReviewAt ?? undefined;
   const outcomeReason = row.outcomeReason ?? undefined;
   const fileReference = row.fileReference ?? undefined;
   const completedById = row.completedById ?? undefined;
@@ -78,6 +83,7 @@ function toDataRequest(row: typeof dataRequest.$inferSelect): DataRequest {
     type: row.type,
     status: row.status,
     ...(legalHoldNote === undefined ? {} : { legalHoldNote }),
+    ...(legalHoldReviewAt === undefined ? {} : { legalHoldReviewAt }),
     ...(outcomeReason === undefined ? {} : { outcomeReason }),
     ...(fileReference === undefined ? {} : { fileReference }),
     ...(completedById === undefined ? {} : { completedById }),
@@ -142,6 +148,7 @@ export function createDataRequestRepository(executor: Executor): DataRequestRepo
         type: request.type,
         status: request.status,
         legalHoldNote: request.legalHoldNote ?? null,
+        legalHoldReviewAt: request.legalHoldReviewAt ?? null,
         outcomeReason: request.outcomeReason ?? null,
         fileReference: request.fileReference ?? null,
         completedById: request.completedById ?? null,
@@ -159,7 +166,18 @@ export function createDataRequestRepository(executor: Executor): DataRequestRepo
       };
       if (input.status === 'completed') set.completedAt = input.at;
       if (input.outcomeReason !== undefined) set.outcomeReason = input.outcomeReason;
-      if (input.legalHoldNote !== undefined) set.legalHoldNote = input.legalHoldNote;
+      if (input.status === 'deferred_for_legal_hold') {
+        if (input.legalHoldNote !== undefined) set.legalHoldNote = input.legalHoldNote;
+        if (input.legalHoldReviewAt !== undefined) {
+          set.legalHoldReviewAt = input.legalHoldReviewAt;
+        }
+      } else {
+        // The hold fields exist only while the request is deferred (`schema.md` DataRequest). A
+        // request that leaves the deferred state clears them; the audit log keeps who deferred it,
+        // when, and why.
+        set.legalHoldNote = null;
+        set.legalHoldReviewAt = null;
+      }
       if (input.fileReference !== undefined) set.fileReference = input.fileReference;
 
       // The guard is in the statement rather than in a read-then-write pair: a request already

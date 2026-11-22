@@ -40,6 +40,13 @@ export interface DataRequestCreated {
   };
   readonly dueAt: string;
   readonly legalHoldDetected: boolean;
+  /**
+   * The date the detected hold is next reviewed, or `null` when nothing is held (`C-035`).
+   *
+   * It comes from the hold record, never from the words of a note: the member is told a date, and
+   * `screens/13-my-record.md` prints it without parsing prose.
+   */
+  readonly legalHoldReviewAt: string | null;
 }
 
 /** The `WRITE_QUEUED` answer: the store refused, the queue accepted (`C-001`). */
@@ -166,9 +173,9 @@ export async function createDataRequest(
     }
   }
 
-  let legalHoldDetected = false;
+  let legalHold: { readonly reviewDate: string } | null;
   try {
-    legalHoldDetected = (await deps.legalHolds.findOpenForMember(member.id)) !== null;
+    legalHold = await deps.legalHolds.findOpenForMember(member.id);
   } catch {
     return identityFailure(
       'SERVICE_DEGRADED',
@@ -224,7 +231,8 @@ export async function createDataRequest(
       requestedAt: request.requestedAt,
     },
     dueAt: dataRequestDueAt(request.type, request.requestedAt),
-    legalHoldDetected,
+    legalHoldDetected: legalHold !== null,
+    legalHoldReviewAt: legalHold?.reviewDate ?? null,
   };
 }
 

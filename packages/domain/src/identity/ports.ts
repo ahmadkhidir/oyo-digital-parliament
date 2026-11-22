@@ -269,7 +269,14 @@ export interface MemberContentPort {
 
 /** An open legal review that blocks a change (`C-035`, `C-036`, `C-070`). */
 export interface LegalHoldPort {
-  /** The open hold on this member's record, with the date it is next reviewed. */
+  /**
+   * The open hold on this member's record, with the date it is next reviewed.
+   *
+   * `schema.md` LegalReview records when a case was raised and when it was decided, so an open case
+   * reports the instant it was raised. A deferred data request keeps its own structured
+   * `legalHoldReviewAt` (`C-067`), which is what the member read and the export refusal print for a
+   * request already deferred.
+   */
   findOpenForMember(memberId: string): Promise<{ readonly reviewDate: string } | null>;
 }
 
