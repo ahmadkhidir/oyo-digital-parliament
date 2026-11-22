@@ -20,6 +20,10 @@ export {
   type DataRequestRepository,
   type DataRequestTransition,
 } from './data-request.repository.ts';
+export {
+  createMemberContentRepository,
+  type MemberContentRepository,
+} from './member-content.repository.ts';
 export { createMemberRepository, type MemberRepository } from './member.repository.ts';
 export {
   createOutboundNotificationRepository,
