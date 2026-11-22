@@ -597,6 +597,10 @@ export type IdentityAnalyticsEvent = {
       readonly name: 'data_request_created';
       readonly properties: AnalyticsPayloads['data_request_created'];
     }
+  | {
+      readonly name: 'data_request_completed';
+      readonly properties: AnalyticsPayloads['data_request_completed'];
+    }
 );
 
 /**
@@ -645,6 +649,98 @@ export interface IdentityNotificationPort {
     /** Carried for the boundary's own correlation; identifies the request, never a person. */
     readonly correlationId?: string;
   }): Promise<CodeDelivery>;
+}
+
+/**
+ * The operator's data-request queue read (`C-066`).
+ *
+ * The member's own request list (`DataRequestPort`) is enough for the member's record, but the
+ * operator's queue is ordered by statutory deadline across every member, so it needs its own read:
+ * one page of open requests and the open set behind the two counts. Neither method returns a name,
+ * a telephone number or any other personal field — the store returns the request row, and the use
+ * case strips the member reference before it reaches the wire.
+ */
+export interface DataRequestQueuePort {
+  /**
+   * Reads one page of requests in statutory-deadline order.
+   *
+   * `status:"open"` means every request that is neither completed nor refused. A deferred request
+   * stays in the queue because its hold is reviewed on a date (`C-067`).
+   */
+  listQueue(query: {
+    readonly status: 'open';
+    readonly cursor?: string;
+    readonly limit: number;
+  }): Promise<{
+    readonly requests: readonly DataRequest[];
+    readonly nextCursor: string | null;
+  }>;
+
+  /** Every request that is neither completed nor refused, for the queue's two counts. */
+  listOpen(): Promise<readonly DataRequest[]>;
+}
+
+/** One operator transition, as `C-067` records it. */
+export interface DataRequestTransitionInput {
+  readonly status: Extract<
+    DataRequest['status'],
+    'in_progress' | 'completed' | 'deferred_for_legal_hold' | 'refused'
+  >;
+  /** The instant the operator acted. */
+  readonly at: string;
+  /** The operator, recorded on every transition. */
+  readonly completedById: string;
+  readonly outcomeReason?: string;
+  readonly legalHoldNote?: string;
+  readonly legalHoldReviewAt?: string;
+  readonly fileReference?: string;
+}
+
+/** The one conditional write `C-067` makes. */
+export interface DataRequestResolutionPort {
+  /**
+   * Moves one request to its next state.
+   *
+   * @returns The updated request, or `null` when it does not exist or is already completed/refused.
+   */
+  transition(
+    requestId: string,
+    input: DataRequestTransitionInput,
+  ): Promise<DataRequest | null>;
+}
+
+/**
+ * The export `C-070`'s `exportMemberData` operation produces (`C-036`, `C-067`).
+ *
+ * The identity service assembles the member's own record into one machine-readable file, writes it
+ * once to private object storage and returns the object reference the request row records. The
+ * operator supplies no file and sees no personal data: the reference is opaque.
+ */
+export interface MemberExportPort {
+  /**
+   * Produces and stores one member's export.
+   *
+   * @returns The object reference and the instant the file was produced.
+   * @throws when the record could not be read or the object store refused the write. The caller then
+   *   answers `SERVICE_DEGRADED` and leaves the request open.
+   */
+  exportMemberData(input: {
+    readonly memberId: string;
+    readonly requestId: string;
+    readonly at: string;
+  }): Promise<{ readonly objectReference: string; readonly generatedAt: string }>;
+}
+
+/**
+ * Deletion propagation across the analytics store (`analytics.md` Deletion propagation, `C-090`).
+ *
+ * A deletion is not complete until the analytics store confirms the member's events are no longer
+ * attributable. The adapter derives the same opaque token on every attempt and reports how many
+ * stored events now carry it, so a retry confirms the replacement rather than minting a second
+ * identity.
+ */
+export interface AnalyticsDeletionPort {
+  replaceSubject(memberId: string): Promise<{ readonly replaced: number }>;
 }
 
 /** The port bundle every identity use case receives. */

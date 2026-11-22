@@ -127,10 +127,14 @@ export {
 } from './policies.ts';
 
 export type {
+  AnalyticsDeletionPort,
   CodeAttempts,
   CodeDelivery,
   ConsentPort,
   DataRequestPort,
+  DataRequestQueuePort,
+  DataRequestResolutionPort,
+  DataRequestTransitionInput,
   HeldBackingRow,
   HeldItemRow,
   IdentityAnalyticsEvent,
@@ -139,6 +143,7 @@ export type {
   IdempotencyPort,
   LegalHoldPort,
   MemberContentPort,
+  MemberExportPort,
   MemberPort,
   MemberSessionPort,
   MemberSubmissionRow,
@@ -260,3 +265,20 @@ export {
   type SignOutStaffInput,
   type SignOutStaffResult,
 } from './use-cases/sign-out-staff.ts';
+export {
+  readDataRequestQueue,
+  type DataRequestQueueDeps,
+  type QueuedDataRequest,
+  type ReadDataRequestQueueInput,
+  type ReadDataRequestQueueResult,
+} from './use-cases/read-data-request-queue.ts';
+export {
+  DATA_REQUEST_ACTIONS,
+  resolveDataRequest,
+  type DataRequestAction,
+  type DataRequestPropagation,
+  type ResolvedDataRequest,
+  type ResolveDataRequestDeps,
+  type ResolveDataRequestInput,
+  type ResolveDataRequestResult,
+} from './use-cases/resolve-data-request.ts';

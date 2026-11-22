@@ -20,8 +20,17 @@
  * `LegalReview` records only when a case was raised and when it was decided, so the hold check reports
  * the case's opening instant; it is the earliest date the record holds and is never parsed from text.
  */
-import { and, asc, desc, eq, inArray, notInArray, or } from 'drizzle-orm';
-import type { DataRequest, DataRequestPort, DataRequestStatus, LegalHoldPort } from '@odp/domain';
+import { and, asc, desc, eq, inArray, notInArray, or, sql } from 'drizzle-orm';
+import type {
+  DataRequest,
+  DataRequestPort,
+  DataRequestQueuePort,
+  DataRequestResolutionPort,
+  DataRequestStatus,
+  DataRequestTransitionInput,
+  LegalHoldPort,
+} from '@odp/domain';
+import { DATA_REQUEST_DUE_DAYS as DUE_DAYS } from '@odp/domain';
 import { executorOf, type Executor } from '../client.ts';
 import { comment } from '../schema/comment.ts';
 import { dataRequest } from '../schema/data-request.ts';
@@ -35,39 +44,41 @@ const CLOSED_STATUSES: readonly DataRequestStatus[] = ['completed', 'refused'];
 const EXPORT_IN_FLIGHT: readonly DataRequestStatus[] = ['received', 'in_progress'];
 
 /** One operator transition, as `C-067` records it. */
-export interface DataRequestTransition {
-  readonly status: Extract<
-    DataRequestStatus,
-    'in_progress' | 'completed' | 'deferred_for_legal_hold' | 'refused'
-  >;
-  /** When the operator acted. Written to `completedAt` only for `completed`. */
-  readonly at: string;
-  /** The operator. Recorded on every transition so the queue always names who moved the case. */
-  readonly completedById: string;
-  readonly outcomeReason?: string;
-  readonly legalHoldNote?: string;
-  /** Required when deferring, absent otherwise (`C-067`, `schema.md` DataRequest). */
-  readonly legalHoldReviewAt?: string;
-  readonly fileReference?: string;
+export type DataRequestTransition = DataRequestTransitionInput;
+
+/** The identifier kind `C-001` assigns to a pagination cursor. */
+const CURSOR_PREFIX = 'cur_';
+const CURSOR_PATTERN = /^cur_[0-9]{4,26}$/;
+
+function encodeCursor(offset: number): string {
+  return `${CURSOR_PREFIX}${String(offset).padStart(6, '0')}`;
 }
+
+function decodeCursor(cursor: string | undefined): number {
+  if (cursor === undefined || !CURSOR_PATTERN.test(cursor)) return 0;
+  const offset = Number.parseInt(cursor.slice(CURSOR_PREFIX.length), 10);
+  return Number.isInteger(offset) && offset >= 0 ? offset : 0;
+}
+
+/**
+ * The statutory due instant of one request (`C-035`, `C-066`).
+ *
+ * The days come from the domain's own table rather than a second copy here, so the queue's order,
+ * its overdue count and the member-facing due date cannot drift apart.
+ */
+const dueAtExpression = sql`${dataRequest.requestedAt} + make_interval(days => case ${dataRequest.type}::text when 'access' then ${DUE_DAYS.access} when 'correction' then ${DUE_DAYS.correction} when 'export' then ${DUE_DAYS.export} else ${DUE_DAYS.deletion} end)`;
 
 /**
  * The data-request repository.
  *
  * It implements the two ports the data-rights use cases inject - the request store and the legal-hold
- * check - and adds the operator transition `C-067` writes, which no domain use case has landed yet.
+ * check - and the operator queue's read and its conditional transition (`C-066`, `C-067`).
  */
-export interface DataRequestRepository extends DataRequestPort, LegalHoldPort {
-  /**
-   * Moves one request to its next state.
-   *
-   * A `completed` or `refused` request is final and answers `null`; a case deferred for a legal hold
-   * can be worked once the hold is reviewed, so it is not treated as closed.
-   *
-   * @returns The updated request, or `null` when it does not exist or is already closed.
-   */
-  transition(requestId: string, input: DataRequestTransition): Promise<DataRequest | null>;
-}
+export interface DataRequestRepository
+  extends DataRequestPort,
+    LegalHoldPort,
+    DataRequestQueuePort,
+    DataRequestResolutionPort {}
 
 /** Maps a stored row to the domain type, dropping the nulls the domain models as absent. */
 function toDataRequest(row: typeof dataRequest.$inferSelect): DataRequest {
@@ -191,6 +202,32 @@ export function createDataRequestRepository(executor: Executor): DataRequestRepo
         .returning();
       const row = rows[0];
       return row === undefined ? null : toDataRequest(row);
+    },
+
+    async listQueue(query) {
+      const offset = decodeCursor(query.cursor);
+      const rows = await db
+        .select()
+        .from(dataRequest)
+        .where(notInArray(dataRequest.status, [...CLOSED_STATUSES]))
+        .orderBy(sql`${dueAtExpression} asc`, asc(dataRequest.requestedAt), asc(dataRequest.id))
+        .limit(query.limit + 1)
+        .offset(offset);
+
+      const page = rows.slice(0, query.limit);
+      return {
+        requests: page.map(toDataRequest),
+        nextCursor: rows.length > query.limit ? encodeCursor(offset + page.length) : null,
+      };
+    },
+
+    async listOpen() {
+      const rows = await db
+        .select()
+        .from(dataRequest)
+        .where(notInArray(dataRequest.status, [...CLOSED_STATUSES]))
+        .orderBy(sql`${dueAtExpression} asc`, asc(dataRequest.requestedAt), asc(dataRequest.id));
+      return rows.map(toDataRequest);
     },
 
     async findOpenForMember(memberId) {

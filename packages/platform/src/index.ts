@@ -36,6 +36,7 @@ import { createSystemClock } from './clock/clock.ts';
 import { loadConfig, type LoadConfigOptions, type PlatformConfig } from './config/load.ts';
 import type { CacheStore } from './ports/cache-store.ts';
 import { createIdFactory, type IdFactory } from './ids/ids.ts';
+export { createCredentialAdapters, type CredentialAdapters } from './adapters/password/index.ts';
 
 export type { PlatformConfig } from './config/load.ts';
 export { loadConfig } from './config/index.ts';
