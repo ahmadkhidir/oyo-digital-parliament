@@ -156,6 +156,8 @@ export type {
   ResolvedStaffSession,
   SignInChallengePort,
   StaffCredentialPort,
+  StaffCredentialResetPort,
+  StaffResetTarget,
   StaffSessionPort,
   StaffUserPort,
   TotpEnrolment,
@@ -282,3 +284,14 @@ export {
   type ResolveDataRequestInput,
   type ResolveDataRequestResult,
 } from './use-cases/resolve-data-request.ts';
+export {
+  readStaffResetTargets,
+  resetStaffCredential,
+  type ReadStaffResetTargetsResult,
+  type ResetStaffCredentialApplied,
+  type ResetStaffCredentialCredential,
+  type ResetStaffCredentialDeps,
+  type ResetStaffCredentialInput,
+  type ResetStaffCredentialResult,
+  type ResetStaffCredentialStaff,
+} from './use-cases/reset-staff-credential.ts';

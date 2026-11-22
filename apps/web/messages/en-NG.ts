@@ -504,8 +504,7 @@ export const enNG = {
       note: 'No resident’s name, number or ward description is part of staff authentication.',
       invalid: 'That username and password do not match.',
       locked: 'Attempts are paused until {time}. Ask the operator if you need access sooner.',
-      deliveryFailed:
-        'The sign-in service could not be reached. Try again, or ask the operator.',
+      deliveryFailed: 'The sign-in service could not be reached. Try again, or ask the operator.',
       sessionEnded: 'Your staff session ended. Sign in again.',
       passwordRequired: 'Enter your password again to continue.',
       memberSession:
@@ -524,8 +523,7 @@ export const enNG = {
       useAuthenticator: 'Use the authenticator',
       confirm: 'Confirm code',
       confirming: 'Checking the code',
-      enrolmentNote:
-        'The second factor is required for every staff role and is enrolled once.',
+      enrolmentNote: 'The second factor is required for every staff role and is enrolled once.',
       secretLabel: 'Add this secret to your authenticator',
       secretHint: 'It is shown once and never again.',
       copySecret: 'Copy secret',
@@ -569,8 +567,36 @@ export const enNG = {
       credentialsBody:
         'The operator resets another staff member’s password and second factor here. No password, secret or recovery code is ever shown.',
       credentialsEntry: 'Staff credentials panel',
-      note:
-        'The console carries no resident personal data beyond what your role’s work requires. Every action is recorded with its actor, target, time and reason.',
+      credentialsLoading: 'Reading the staff list',
+      credentials: {
+        empty: 'No staff credential is available to reset.',
+        choose: 'Choose the staff member to reset',
+        active: 'Active',
+        inactive: 'Inactive',
+        enrolled: 'Second factor enrolled',
+        notEnrolled: 'No second factor',
+        newPassword: 'New password',
+        newPasswordHint: '12 to 128 characters. Hand it over in person; it is never shown again.',
+        reason: 'Reason for the reset',
+        reasonHint:
+          'Recorded with your name, the staff member and the time. Do not include the password or a code.',
+        reset: 'Reset credentials',
+        resetting: 'Resetting the credential',
+        offline: 'You are offline. Reconnect before resetting a credential.',
+        confirmHeading: 'Reset this staff member’s credentials?',
+        confirmBody:
+          '{name} loses their current password and second factor. Every session they hold ends, and they must enrol a second factor again before returning to work.',
+        confirm: 'Reset the credential',
+        cancel: 'Go back',
+        applied:
+          'Reset applied. {count} session(s) ended. The staff member must enrol a second factor again before returning to work.',
+        self: 'You cannot reset your own credential here. A second operator must do it.',
+        errorHeading: 'The reset could not be applied',
+        errorBody:
+          'Check the staff member’s state before trying again. No password, secret or recovery code was shown.',
+        retry: 'Try again',
+      },
+      note: 'The console carries no resident personal data beyond what your role’s work requires. Every action is recorded with its actor, target, time and reason.',
       signOut: 'Sign out',
       errorHeading: 'Your role could not be read',
       errorBody: 'No destination is guessed. Try again; the session is unchanged.',
@@ -623,9 +649,11 @@ export const enNG = {
       notes: 'Notes',
       recordResidence: 'Record residence review',
       recordingResidence: 'Recording the review',
-      resolved: 'The ward was recorded and the member and their unresolved submissions moved to it.',
+      resolved:
+        'The ward was recorded and the member and their unresolved submissions moved to it.',
       rejected: 'The description was rejected. The member will be told what to correct.',
-      checked: 'The residence is checked. The member now appears as Checked on their submissions and backings.',
+      checked:
+        'The residence is checked. The member now appears as Checked on their submissions and backings.',
       residenceRejected: 'The residence review was rejected. The member remains Registered.',
       moved: '{moved} submission(s) moved; {unchanged} already carried a ward.',
       nextCase: 'Next case',
