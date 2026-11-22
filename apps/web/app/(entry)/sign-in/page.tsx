@@ -1,26 +1,29 @@
 /**
- * Sign In — `docs/OyoDigitalParliament/screens/02-sign-in.md`, wired to `C-005` and `C-006`
+ * Sign In - `docs/OyoDigitalParliament/screens/02-sign-in.md`, wired to `C-005` and `C-006`
  * (`apps/web/app/(entry)/sign-in/actions.ts`).
  *
  * The screen's two steps render from the flow's cookies and the presented session, resolved on
  * the server:
  *
- * - **Default** — the number field and the send action, with the code-arrival note.
- * - **Submitting** — the client form's own state: send disabled with a spinner.
- * - **Code step** — the six-digit field, the resend timer, the change-number control.
- * - **Account choice** — the explicit choice the member makes before a session opens; the
+ * - **Default** - the number field and the send action, with the code-arrival note.
+ * - **Submitting** - the client form's own state: send disabled with a spinner.
+ * - **Code step** - the six-digit field, the resend timer, the change-number control.
+ * - **Account choice** - the explicit choice the member makes before a session opens; the
  *   accounts are the challenge's own, named only by position, because the contract reveals the
  *   count of a shared number and never its names before the code is accepted (`C-005` Authority).
- * - **Validation error** — each failing field named under its control, the typed text kept.
- * - **Incorrect code** — the inline sentence with the tries remaining, the field cleared.
- * - **Expired** — the code window closed: the inline message, the resend as the lead action.
- * - **Delivery failed** — the inline message with the send action as the retry.
- * - **Rate limited** — the wait before another attempt, stated as time remaining.
- * - **Expired session** — one line explaining the session ended, then the number field.
- * - **Offline** — the banner; the action disabled with the reason, the typed values preserved.
+ * - **Validation error** - each failing field named under its control, the typed text kept.
+ * - **Incorrect code** - the inline sentence with the tries remaining, the field cleared.
+ * - **Expired** - the code window closed: the inline message, the resend as the lead action.
+ * - **Delivery failed** - the inline message with the send action as the retry.
+ * - **Rate limited** - the wait before another attempt, stated as time remaining.
+ * - **Expired session** - one line explaining the session ended, then the number field.
+ * - **Offline** - the banner; the action disabled with the reason, the typed values preserved.
  *
  * A signed-in member who reaches this screen is sent back where they came from; a browser whose
  * cookie names no live session sees the one-line explanation and the number field (`NFR-026`).
+ *
+ * The screen is the register's returning door: the title row names the door, the margin index
+ * shows the other one, and the code step gives the six digits the width of the page's focus.
  */
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -32,6 +35,7 @@ import {
   type MemberSessionRead,
   type SignedOutSession,
 } from '@odp/domain';
+import { focusRingClasses, Notice, type NoticeTone } from '@odp/ui';
 import { getMessages, type Messages } from '../../../messages';
 import type { LaunchLocale } from '../../../messages';
 import { resolveLocale } from '../../../lib/i18n/locale';
@@ -44,6 +48,8 @@ import {
   type SignInStatusState,
 } from '../../../lib/session/sign-in-cookies';
 import { presentedMemberSessionToken } from '../../../lib/session/session-cookies';
+import { EntryIndex } from '../_shell/entry-index';
+import { EntryScreen } from '../_shell/entry-screen';
 import {
   SignInChangeNumberForm,
   SignInCodeForm,
@@ -65,6 +71,7 @@ export async function generateMetadata(): Promise<Metadata> {
 /** One outcome the screen renders, with the parts each state needs. */
 interface SignInOutcome {
   readonly role: 'alert' | 'status';
+  readonly tone: NoticeTone;
   readonly message: string;
   /** The code control's own failure sentence, when the digits themselves were refused. */
   readonly codeError?: string;
@@ -93,13 +100,19 @@ function outcomeOf(
     case 'PATTERN_MISMATCH':
       // The code field's own failure: the sentence sits under the control (`NFR-044`), where the
       // `role="alert"` announcement and the association are already wired.
-      return { role: 'alert', message: '', codeError: copy.codeErrors[status.cause] };
+      return {
+        role: 'alert',
+        tone: 'error',
+        message: '',
+        codeError: copy.codeErrors[status.cause],
+      };
     case 'CODE_INCORRECT': {
       // `C-006` carries the tries remaining on the refusal; the sentence states it, and it
       // belongs to the control it failed, so it renders there rather than as a page notice.
       const attempts = status.attemptsRemaining ?? 2;
       return {
         role: 'alert',
+        tone: 'error',
         message: '',
         codeError: attempts <= 1 ? copy.incorrectOne : interpolate(copy.incorrectTwo, { attempts }),
       };
@@ -107,24 +120,31 @@ function outcomeOf(
     case 'CODE_ATTEMPTS_EXCEEDED':
       return {
         role: 'alert',
+        tone: 'warning',
         message: interpolate(copy.attemptsExhausted, { duration: after(status.retryAfterSeconds) }),
       };
     case 'CODE_EXPIRED':
-      return { role: 'alert', message: copy.codeExpired, resendLead: true };
+      return { role: 'alert', tone: 'warning', message: copy.codeExpired, resendLead: true };
     case 'CODE_ALREADY_USED':
-      return { role: 'alert', message: copy.codeAlreadyUsed, resendLead: true };
+      return { role: 'alert', tone: 'warning', message: copy.codeAlreadyUsed, resendLead: true };
     case 'ACCOUNT_CHOICE_REQUIRED':
-      return { role: 'alert', message: '', choiceError: copy.choiceRequired };
+      return {
+        role: 'alert',
+        tone: 'error',
+        message: '',
+        choiceError: copy.choiceRequired,
+      };
     case 'DELIVERY_FAILED':
-      return { role: 'alert', message: copy.sendFailed };
+      return { role: 'alert', tone: 'error', message: copy.sendFailed };
     case 'RATE_LIMITED':
       return {
         role: 'alert',
+        tone: 'warning',
         message: interpolate(copy.rateLimited, { duration: after(status.retryAfterSeconds) }),
       };
     default:
       // A degraded service and anything unanticipated: nothing changed, the flow is held.
-      return { role: 'alert', message: copy.degraded };
+      return { role: 'alert', tone: 'error', message: copy.degraded };
   }
 }
 
@@ -179,13 +199,27 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const retry = await readSignInRetry();
   const status = await readSignInStatus();
 
-  const shell = 'mx-auto flex w-full max-w-2xl flex-col gap-lg px-md py-xl';
+  const index = (
+    <EntryIndex
+      items={[
+        { id: 'sign-in', label: copy.heading, current: true },
+        { id: 'join', label: messages.join.heading, href: '/join' },
+      ]}
+    />
+  );
+
+  const frame = {
+    title: copy.heading,
+    tagline: messages.brand.tagline,
+    disclosure: messages.footer.disclosure,
+    index,
+  };
 
   if (pending === null) {
     // The number step. The typed number survives a refusal; the session-ended line, when this
     // browser presented a dead token, sits above the field (`screens/02` Expired session).
-    // A refusal the number step itself answered — the wait, a dispatch the channel could not
-    // take — travels in the retry cookie beside the values; a resend's outcome would only land
+    // A refusal the number step itself answered - the wait, a dispatch the channel could not
+    // take - travels in the retry cookie beside the values; a resend's outcome would only land
     // here if its pointer had already gone, which its action guards against.
     const outcome =
       status !== null
@@ -205,26 +239,23 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         : copy.telephoneNumber.errors[
             retry.fields['telephoneNumber'] as keyof typeof copy.telephoneNumber.errors
           ];
+
     return (
-      <div className={shell}>
-        <h1 className="text-h1 text-text-primary">{copy.heading}</h1>
+      <EntryScreen {...frame}>
+        <p className="max-w-prose text-body text-text-primary">{copy.intro}</p>
+
         {sessionEnded ? (
-          <div
-            role="status"
-            className="border border-border bg-surface px-md py-sm text-body text-text-primary"
-          >
+          <Notice role="status" tone="info">
             {copy.sessionEnded}
-          </div>
+          </Notice>
         ) : null}
+
         {outcome !== null && outcome.message !== '' ? (
-          <div
-            role={outcome.role}
-            className="border border-border bg-surface px-md py-sm text-body text-text-primary"
-          >
+          <Notice role={outcome.role} tone={outcome.tone}>
             {outcome.message}
-          </div>
+          </Notice>
         ) : null}
-        <p className="text-body text-text-primary">{copy.intro}</p>
+
         <SignInNumberForm
           action={requestSignInCodeAction}
           copy={{
@@ -241,18 +272,23 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           returnTo={destination === '/' ? undefined : destination}
           defaultValue={retry?.values.telephoneNumber}
         />
-        <p className="text-small text-text-secondary">
+
+        {/* The other door: a visitor without an account goes to registration (`screens/02`). */}
+        <p className="border-t border-border pt-md text-small text-text-secondary">
           {copy.createAccountPrompt}{' '}
-          <a href="/join" className="text-primary-500 underline underline-offset-2">
+          <a
+            href="/join"
+            className={`inline-flex min-h-button items-center text-primary-500 underline underline-offset-2 hover:text-primary-700 ${focusRingClasses}`}
+          >
             {copy.createAccount}
           </a>
         </p>
-      </div>
+      </EntryScreen>
     );
   }
 
   // The code step. The expired state is decided here too: a pointer whose challenge the store no
-  // longer holds — the window closed, or the code was already used — renders the expired message
+  // longer holds - the window closed, or the code was already used - renders the expired message
   // with the resend as the lead action, which is the same recovery either way.
   const now = toIsoSeconds(ports.clock.now());
   const challenge = await ports.signInChallenges.findById(pending.challengeId);
@@ -263,7 +299,12 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       ? outcomeOf(copy, messages.wait, locale, status)
       : challengeLive
         ? null
-        : { role: 'alert' as const, message: copy.codeExpired, resendLead: true };
+        : {
+            role: 'alert' as const,
+            tone: 'warning' as const,
+            message: copy.codeExpired,
+            resendLead: true,
+          };
 
   // The number is shown in full so a mistake is visible immediately (`screens/02` Visual Focus);
   // it is the number this browser asked for, shown to this browser alone.
@@ -271,20 +312,16 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const sharedIntro = interpolate(copy.sharedIntro, { number: pending.telephoneNumber });
 
   return (
-    <div className={shell}>
-      <h1 className="text-h1 text-text-primary">{copy.heading}</h1>
-      <p className="text-body text-text-primary">
+    <EntryScreen {...frame}>
+      <p className="max-w-prose text-body text-text-primary">
         {pending.accountChoiceRequired ? sharedIntro : numberIntro}
       </p>
 
       {outcome !== null && (outcome.message !== '' || outcome.choiceError !== undefined) ? (
-        <div
-          role={outcome.role}
-          className="border border-border bg-surface px-md py-sm text-body text-text-primary"
-        >
+        <Notice role={outcome.role} tone={outcome.tone}>
           {outcome.message === '' ? null : <p>{outcome.message}</p>}
           {outcome.choiceError === undefined ? null : <p>{outcome.choiceError}</p>}
-        </div>
+        </Notice>
       ) : null}
 
       <SignInCodeForm
@@ -304,10 +341,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           confirming: copy.confirming,
         }}
         accountCount={pending.accountChoiceRequired ? pending.accountCount : undefined}
+        confirmVariant={outcome?.resendLead === true ? 'outline' : 'primary'}
       />
 
       {/* The delivery note: what to do when no code arrives (`screens/02`). */}
-      <p className="text-small text-text-secondary">{copy.deliveryNote}</p>
+      <p className="max-w-prose text-small text-text-secondary">{copy.deliveryNote}</p>
 
       <SignInResendForm
         action={resendSignInCodeAction}
@@ -322,13 +360,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         }}
         locale={locale}
         wait={messages.wait}
-        variant={outcome?.resendLead === true ? 'primary' : 'secondary'}
+        variant={outcome?.resendLead === true ? 'primary' : 'outline'}
         {...(pending.resendAvailableAt === undefined
           ? {}
           : { availableAt: pending.resendAvailableAt })}
       />
 
-      <SignInChangeNumberForm action={useDifferentNumberAction} label={copy.useDifferentNumber} />
-    </div>
+      <div className="border-t border-border pt-sm">
+        <SignInChangeNumberForm action={useDifferentNumberAction} label={copy.useDifferentNumber} />
+      </div>
+    </EntryScreen>
   );
 }

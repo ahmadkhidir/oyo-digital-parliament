@@ -15,6 +15,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { type ButtonVariant } from '@odp/ui';
 import { FlowField } from '../../_shared/field';
 import { GuardedSubmit, OfflineNote } from '../../_shared/offline';
 import { useOffline } from '../../_shared/use-offline';
@@ -34,10 +35,18 @@ export interface ConfirmCodeFormProps {
   /** The `C-003` server action. */
   action: (formData: FormData) => void | Promise<void>;
   copy: ConfirmCodeCopy;
+  /** The confirm control's variant; it yields to the resend when the code has expired. */
+  confirmVariant?: ButtonVariant;
 }
 
 /** The form's body, inside the form element, where pending and offline are readable. */
-function ConfirmCodeBody({ copy }: { copy: ConfirmCodeCopy }) {
+function ConfirmCodeBody({
+  copy,
+  confirmVariant,
+}: {
+  copy: ConfirmCodeCopy;
+  confirmVariant: ButtonVariant;
+}) {
   const offline = useOffline();
   const { pending } = useFormStatus();
   return (
@@ -58,12 +67,15 @@ function ConfirmCodeBody({ copy }: { copy: ConfirmCodeCopy }) {
             // Six digits, numeric keypad on touch (`screens/04`). No default value: the field is
             // empty whenever this screen renders, including after a wrong attempt.
             maxLength: 6,
+            // The digits are the focus of the step: set in the display face, centred, tabular.
+            className: 'text-center font-display text-h1 tabular-nums',
           }}
         />
       </fieldset>
       <div className="mt-lg">
         <GuardedSubmit
-          variant="primary"
+          variant={confirmVariant}
+          className="w-full"
           label={copy.confirm}
           sendingLabel={copy.confirming}
           offlineLabel={copy.offlineSubmit}
@@ -73,10 +85,14 @@ function ConfirmCodeBody({ copy }: { copy: ConfirmCodeCopy }) {
   );
 }
 
-export function ConfirmCodeForm({ action, copy }: ConfirmCodeFormProps) {
+export function ConfirmCodeForm({
+  action,
+  copy,
+  confirmVariant = 'primary',
+}: ConfirmCodeFormProps) {
   return (
     <form action={action}>
-      <ConfirmCodeBody copy={copy} />
+      <ConfirmCodeBody copy={copy} confirmVariant={confirmVariant} />
     </form>
   );
 }
@@ -102,7 +118,7 @@ export interface ResendCodeFormProps {
   locale: LaunchLocale;
   wait: WaitTemplates;
   /** The control's variant: the lead action when the code has expired (`screens/04`). */
-  variant: 'primary' | 'secondary';
+  variant: ButtonVariant;
 }
 
 /** Whole seconds still to wait before `availableAt`, from the client's own clock. */
@@ -176,6 +192,7 @@ export function ResendCodeForm({
       <div className="mt-sm">
         <GuardedSubmit
           variant={variant}
+          className="w-full tablet:w-auto"
           label={copy.resend}
           sendingLabel={copy.resending}
           offlineLabel={copy.offlineSubmit}
