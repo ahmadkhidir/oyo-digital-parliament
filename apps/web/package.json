@@ -5,8 +5,11 @@
   "description": "The single deployable: public record and role-scoped /admin console as Next.js App Router route groups.",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/sync-assets.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/sync-assets.mjs",
     "build": "next build",
+    "prestart": "node scripts/sync-assets.mjs",
     "start": "next start",
     "lint": "eslint --max-warnings 0 .",
     "typecheck": "tsc -p tsconfig.json --noEmit",

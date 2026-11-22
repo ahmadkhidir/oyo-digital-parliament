@@ -18,6 +18,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { focusRingClasses, type ButtonVariant } from '@odp/ui';
 import { FlowField } from '../../join/_shared/field';
 import { GuardedSubmit, OfflineNote } from '../../join/_shared/offline';
 import { useOffline } from '../../join/_shared/use-offline';
@@ -75,7 +76,8 @@ function SignInNumberBody({
       </fieldset>
       <div className="mt-lg">
         <GuardedSubmit
-          variant="secondary"
+          variant="outline"
+          className="w-full"
           label={copy.sendCode}
           sendingLabel={copy.sending}
           offlineLabel={copy.offlineSubmit}
@@ -111,15 +113,19 @@ export interface SignInCodeFormProps {
   copy: SignInCodeCopy;
   /** How many accounts share the number, when the member must choose. */
   accountCount?: number | undefined;
+  /** The confirm control's variant; it yields to the resend when the code has expired. */
+  confirmVariant?: ButtonVariant;
 }
 
 /** The code form's body, inside the form element, where pending and offline are readable. */
 function SignInCodeBody({
   copy,
   accountCount,
+  confirmVariant,
 }: {
   copy: SignInCodeCopy;
   accountCount?: number | undefined;
+  confirmVariant: ButtonVariant;
 }) {
   const offline = useOffline();
   const { pending } = useFormStatus();
@@ -134,19 +140,19 @@ function SignInCodeBody({
           {/* The explicit choice before sign-in (`screens/02` Account choice; FEAT-001: a shared
               number never signs in automatically). Ordinal labels only: the names stay on the
               server until the code is accepted (`C-005` Authority). */}
-          <legend className="text-body-strong text-text-primary">{choice.legend}</legend>
-          <div className="mt-sm flex flex-col gap-xs">
+          <legend className="mb-sm text-body-strong text-text-primary">{choice.legend}</legend>
+          <div className="flex flex-col gap-xs">
             {Array.from({ length: count }, (_, index) => (
               <label
                 key={index + 1}
-                className="flex items-center gap-sm rounded-md border border-border bg-surface px-md py-sm text-body text-text-primary"
+                className={`flex min-h-button cursor-pointer items-center gap-sm rounded-md border border-border bg-surface px-md py-sm text-body text-text-primary hover:border-primary-300 hover:bg-primary-100 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-100 ${focusRingClasses}`}
               >
                 <input
                   type="radio"
                   name="memberId"
                   value={String(index + 1)}
                   required
-                  className="size-5 shrink-0 accent-primary-700"
+                  className="shrink-0 accent-primary-700"
                 />
                 {interpolate(choice.option, { position: index + 1, count })}
               </label>
@@ -169,12 +175,15 @@ function SignInCodeBody({
             // Six digits, numeric keypad on touch (`screens/02`). No default value: the field is
             // empty whenever this screen renders, including after a wrong attempt.
             maxLength: 6,
+            // The digits are the focus of the step: set in the display face, centred, tabular.
+            className: 'text-center font-display text-h1 tabular-nums',
           }}
         />
       </fieldset>
       <div className="mt-lg">
         <GuardedSubmit
-          variant="primary"
+          variant={confirmVariant}
+          className="w-full"
           label={copy.confirm}
           sendingLabel={copy.confirming}
           offlineLabel={copy.offlineSubmit}
@@ -184,10 +193,15 @@ function SignInCodeBody({
   );
 }
 
-export function SignInCodeForm({ action, copy, accountCount }: SignInCodeFormProps) {
+export function SignInCodeForm({
+  action,
+  copy,
+  accountCount,
+  confirmVariant = 'primary',
+}: SignInCodeFormProps) {
   return (
     <form action={action}>
-      <SignInCodeBody copy={copy} accountCount={accountCount} />
+      <SignInCodeBody copy={copy} accountCount={accountCount} confirmVariant={confirmVariant} />
     </form>
   );
 }
@@ -213,7 +227,7 @@ export interface SignInResendFormProps {
   locale: LaunchLocale;
   wait: WaitTemplates;
   /** The control's variant: the lead action when the code has expired (`screens/02`). */
-  variant: 'primary' | 'secondary';
+  variant: ButtonVariant;
 }
 
 /** Whole seconds still to wait before `availableAt`, from the client's own clock. */
@@ -287,6 +301,7 @@ export function SignInResendForm({
       <div className="mt-sm">
         <GuardedSubmit
           variant={variant}
+          className="w-full tablet:w-auto"
           label={copy.resend}
           sendingLabel={copy.resending}
           offlineLabel={copy.offlineSubmit}
@@ -311,7 +326,10 @@ export interface SignInChangeNumberProps {
 export function SignInChangeNumberForm({ action, label }: SignInChangeNumberProps) {
   return (
     <form action={action}>
-      <button type="submit" className="text-small text-primary-500 underline underline-offset-2">
+      <button
+        type="submit"
+        className={`inline-flex min-h-button items-center text-small text-primary-500 underline underline-offset-2 hover:text-primary-700 ${focusRingClasses}`}
+      >
         {label}
       </button>
     </form>

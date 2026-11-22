@@ -14,6 +14,7 @@ export {
 export { TextInput, type TextInputProps } from './primitives/text-input/TextInput';
 export { FieldLabel, type FieldLabelProps } from './primitives/field-label/FieldLabel';
 export { FieldError, type FieldErrorProps } from './primitives/field-error/FieldError';
+export { Notice, type NoticeProps, type NoticeTone } from './primitives/notice/Notice';
 export { focusRingClasses } from './primitives/focus-ring';
 
 // Record components (`screens.md`, Shared / Common Components).

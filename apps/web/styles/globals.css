@@ -8,6 +8,51 @@
 @import '@odp/ui/styles/theme.css';
 @import '@odp/ui/styles/fonts.css';
 
+/*
+ * Tailwind's automatic source detection scans this application's own tree and stops at the
+ * workspace package boundary, because `@odp/ui` is resolved through node_modules. Every class the
+ * design system composes would then be missing from the shipped sheet - the button's fill, the
+ * focus ring, the footer's gaps. The package source is declared as a source explicitly, so the
+ * utilities are generated once from the components that own them (`packages/ui/AGENTS.md`, one
+ * source for presentation).
+ */
+@source '../../../packages/ui/src';
+
+/*
+ * The brand mark's two declared tones (`branding.md`, Brand Mark & Logo System: one tone, with
+ * the knockout reversal on the dark column). The master ink file (A-001) holds on the warm paper
+ * surface; the knockout file (A-003) holds on the deep neutral surface. Both are shipped and the
+ * active token family selects one, following `theme.css`'s own dark rules exactly - the media
+ * query with the explicit `data-theme` override in both directions. Neither file is recoloured,
+ * filtered or redrawn.
+ */
+.brand-mark-ink {
+  display: block;
+}
+.brand-mark-knockout {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .brand-mark-ink {
+    display: none;
+  }
+  :root:not([data-theme='light']) .brand-mark-knockout {
+    display: block;
+  }
+}
+[data-theme='dark'] .brand-mark-ink {
+  display: none;
+}
+[data-theme='dark'] .brand-mark-knockout {
+  display: block;
+}
+[data-theme='light'] .brand-mark-ink {
+  display: block;
+}
+[data-theme='light'] .brand-mark-knockout {
+  display: none;
+}
+
 /* Tailwind v4 resolves max-w-* to the spacing scale in this preset; restore the layout widths. */
 .max-w-xs {
   max-width: 20rem;

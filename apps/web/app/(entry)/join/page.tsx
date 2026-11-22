@@ -1,19 +1,23 @@
 /**
- * Registration Form — `docs/OyoDigitalParliament/screens/03-registration-form.md`, wired to
+ * Registration Form - `docs/OyoDigitalParliament/screens/03-registration-form.md`, wired to
  * `C-002` (`apps/web/app/(entry)/join/actions.ts`).
  *
  * The screen states resolve on the server from the flow's cookies and the pending record:
  *
- * - **Default** — the statement, four empty fields, the send action.
- * - **Validation error** — each failing field named through the retry cookie's field reasons, the
+ * - **Default** - the statement, four empty fields, the send action.
+ * - **Validation error** - each failing field named through the retry cookie's field reasons, the
  *   typed text kept (`screens/03`: "the typed text kept").
- * - **Submitting** — the client form's own state: button disabled, spinner, fields locked.
- * - **Delivery failed** — a held first dispatch (`C-002` 201 `delayed`): the inline message with
+ * - **Submitting** - the client form's own state: button disabled, spinner, fields locked.
+ * - **Delivery failed** - a held first dispatch (`C-002` 201 `delayed`): the inline message with
  *   the continue action, the form preserved, the pending registration kept for 24 hours.
- * - **Offline** — the client banner; the form is held and sends when the connection returns.
+ * - **Offline** - the client banner; the form is held and sends when the connection returns.
  *
  * A visitor returning with a live pending registration ("change number", or a closed tab) finds
  * the form as they left it, prefilled from the pending record they created.
+ *
+ * The page lays the statement before the fields, in the order the screen declares, and closes the
+ * title row with the sign-in door for a resident who already has an account (`screens/03` exit
+ * points).
  */
 import type { Metadata } from 'next';
 import { isPast, toIsoSeconds } from '@odp/domain';
@@ -28,6 +32,9 @@ import {
   type JoinFormValues,
   type JoinRetryState,
 } from '../../../lib/identity/join-cookies';
+import { focusRingClasses } from '@odp/ui';
+import { EntryIndex } from '../_shell/entry-index';
+import { EntryScreen } from '../_shell/entry-screen';
 import { JoinRegistrationForm, type RegistrationStatus } from './_shared/registration-form';
 import { registerResidentAction } from './actions';
 
@@ -83,20 +90,22 @@ function statusOf(
     case 'ALREADY_REGISTERED':
       return {
         role: 'alert',
+        tone: 'info',
         message: copy.alreadyRegistered,
         link: { href: '/sign-in', label: copy.signIn },
       } as const;
     case 'RATE_LIMITED':
       return {
         role: 'alert',
+        tone: 'warning',
         message: interpolate(copy.rateLimited, {
           duration: formatWait(wait, locale, retry.retryAfterSeconds ?? 60),
         }),
       } as const;
     case 'DEGRADED':
-      return { role: 'alert', message: copy.degraded } as const;
+      return { role: 'alert', tone: 'error', message: copy.degraded } as const;
     case 'REGISTRATION_EXPIRED':
-      return { role: 'alert', message: copy.expiredRegistration } as const;
+      return { role: 'alert', tone: 'warning', message: copy.expiredRegistration } as const;
     default:
       return null;
   }
@@ -124,6 +133,7 @@ export default async function JoinPage() {
   const status: RegistrationStatus | null = delayed
     ? {
         role: 'alert',
+        tone: 'warning',
         heading: copy.deliveryDelayedHeading,
         message: copy.deliveryDelayedBody,
         link: { href: '/join/confirm', label: copy.deliveryDelayedContinue },
@@ -131,7 +141,7 @@ export default async function JoinPage() {
     : retry === null
       ? pending === null
         ? null
-        : { role: 'status', message: copy.pendingNotice }
+        : { role: 'status', tone: 'info', message: copy.pendingNotice }
       : statusOf(copy, messages.wait, locale, retry);
 
   // Per-field failure sentences, mapped from the retry cookie's `C-001` reason tokens.
@@ -179,32 +189,54 @@ export default async function JoinPage() {
         };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-lg px-md py-xl">
+    <EntryScreen
+      title={copy.heading}
+      tagline={messages.brand.tagline}
+      disclosure={messages.footer.disclosure}
+      index={
+        <EntryIndex
+          items={[
+            { id: 'join', label: copy.heading, current: true },
+            { id: 'confirm', label: messages.confirm.heading },
+          ]}
+        />
+      }
+      action={
+        <a
+          href="/sign-in"
+          className={`inline-flex min-h-button items-center text-small text-primary-500 underline underline-offset-2 hover:text-primary-700 ${focusRingClasses}`}
+        >
+          {copy.signIn}
+        </a>
+      }
+    >
       {/* The publication statement, before any field (`screens/03` Visual Focus). */}
       <section
         aria-labelledby="join-publication"
-        className="border border-primary-300 bg-primary-100 px-md py-md text-primary-900"
+        className="rounded-md border border-primary-300 bg-primary-100 p-lg text-primary-900"
       >
-        <h2 id="join-publication" className="text-h3 text-primary-900">
+        <h2 id="join-publication" className="font-display text-h3 text-primary-900">
           {copy.publicationHeading}
         </h2>
-        <p className="mt-xs text-body">{copy.publicationBody}</p>
+        <p className="mt-sm max-w-prose text-body">{copy.publicationBody}</p>
         <a
           href="/privacy"
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-sm inline-block text-small text-primary-700 underline underline-offset-2"
+          className={`mt-sm inline-flex min-h-button items-center gap-xs text-small text-primary-700 underline underline-offset-2 hover:no-underline ${focusRingClasses}`}
         >
           {copy.privacyLink}
+          <span aria-hidden="true">&#8599;</span>
         </a>
       </section>
 
       {/* The eligibility panel: the band, and the policy it follows. */}
-      <aside aria-label={copy.heading} className="border border-border bg-surface px-md py-sm">
-        <p className="text-small text-text-secondary">{copy.eligibility}</p>
+      <aside
+        aria-label={copy.heading}
+        className="max-w-prose border-s border-primary-300 ps-md text-small text-text-secondary"
+      >
+        {copy.eligibility}
       </aside>
-
-      <h1 className="text-h1 text-text-primary">{copy.heading}</h1>
 
       <JoinRegistrationForm
         action={registerResidentAction}
@@ -222,6 +254,6 @@ export default async function JoinPage() {
         status={status}
         summary={summary}
       />
-    </div>
+    </EntryScreen>
   );
 }

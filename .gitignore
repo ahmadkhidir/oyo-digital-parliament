@@ -4,6 +4,8 @@ node_modules/
 
 # Builds
 .next/
+# Asset slots are copied from assets/ at dev and build time by scripts/sync-assets.mjs.
+apps/web/public/
 out/
 dist/
 build/

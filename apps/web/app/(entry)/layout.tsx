@@ -1,25 +1,29 @@
 /**
  * The entry group's shell (`apps/web/AGENTS.md` Structure): the screens a visitor reaches without
- * an account — registration, its confirmation, sign-in and the privacy notice — under a minimal
- * header (the product name, which returns to the record home) and the shared footer.
+ * an account - registration, its confirmation, sign-in and, in a later task, the privacy notice -
+ * under the register's masthead and the shared footer.
  *
- * This layout exists because a route tree cannot render without a group shell; it is a shared
- * module created by the first entry task and reused by the ones that follow (sign-in, the ward
- * screen, the privacy notice). The footer is the shared component `screens.md` names, with the
- * language switch wired to the visitor's session choice (`C-039`, signed-out branch: the choice is
- * held for the session and applied to the PendingRegistration at `C-002`; a member's own locale
- * becomes authoritative after sign-in and is written by the task that owns the member surface).
+ * The masthead is the minimal header these screens declare: the mark bound to the product name,
+ * which returns to the record home, with the tagline under the name where the margin rail cannot
+ * carry it (tablet and mobile). It sits on the paper surface with a single rule beneath - the
+ * register's cover, not a navigation bar.
+ *
+ * The footer is the shared component `screens.md` names, with the language switch wired to the
+ * visitor's session choice (`C-039`, signed-out branch: the choice is held for the session and
+ * applied to the PendingRegistration at `C-002`; a member's own locale becomes authoritative after
+ * sign-in and is written by the task that owns the member surface).
  */
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
-import { RecordFooter } from '@odp/ui';
+import { RecordFooter, focusRingClasses } from '@odp/ui';
 import { getMessages } from '../../messages';
 import { LOCALE_COOKIE, readLocaleValue, resolveLocale } from '../../lib/i18n/locale';
+import { BrandMark } from './_shell/brand-mark';
 
 /**
  * The visitor's language choice (`C-039`, signed out).
  *
- * The signed-in branch — writing `Member.locale` — belongs to the member-surface task; on the
+ * The signed-in branch - writing `Member.locale` - belongs to the member-surface task; on the
  * entry screens every visitor is anonymous, so this stores the session-scoped choice only. A
  * value outside the two launch locales is ignored rather than guessed at.
  */
@@ -42,13 +46,20 @@ export default async function EntryLayout({ children }: { readonly children: Rea
   const copy = getMessages(locale);
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-border bg-surface px-md py-sm">
-        {/* The product name link: names the product and returns to the record home (`screens/03`). */}
-        <a href="/" className="inline-flex flex-col">
-          <span className="text-body-strong text-text-primary">{copy.brand.name}</span>
-          <span className="text-small text-text-secondary">{copy.brand.tagline}</span>
-        </a>
+    <div className="flex min-h-dvh flex-col bg-surface">
+      <header className="border-b border-border bg-surface">
+        <div className="mx-auto flex w-full max-w-6xl items-center px-lg py-md">
+          <a href="/" className={`inline-flex items-center gap-sm rounded-sm ${focusRingClasses}`}>
+            <BrandMark className="size-button" />
+            <span className="flex flex-col">
+              <span className="text-body-strong text-text-primary">{copy.brand.name}</span>
+              {/* The tagline lives in the margin rail from desktop; here it closes the lockup. */}
+              <span className="text-caption text-text-secondary desktop:hidden">
+                {copy.brand.tagline}
+              </span>
+            </span>
+          </a>
+        </div>
       </header>
       <div className="flex-1">{children}</div>
       <RecordFooter
