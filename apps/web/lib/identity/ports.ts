@@ -14,9 +14,11 @@
  * registrations, the members, the codes, the notification boundary, the member sessions, the limiter,
  * the audit log, the analytics emitter, the clock and the identifier factory. The staff credential
  * port is wired to its repository and the three credential-material adapters, so `C-092` has a real
- * store rather than a refusing stub. The ports a later task wires — the sign-in challenges, the
- * member's authored content, the legal holds and the durable write queue — are present but refuse to
- * answer, so a port that is reached before its task lands fails loudly instead of pretending.
+ * store rather than a refusing stub. The sign-in challenge store is wired over the platform's cache
+ * seam because both the sign-in codes and the notification boundary's freshness check read it. The
+ * ports a later task wires — the member's authored content, the legal holds and the durable write
+ * queue — are present but refuse to answer, so a port that is reached before its task lands fails
+ * loudly instead of pretending.
  */
 import {
   createAnalyticsEventRepository,
@@ -43,11 +45,13 @@ import {
   type NotificationBodyPort,
   type NotificationPorts,
   type NotificationRecipientPort,
+  type NotificationRecipientReference,
   type OutboundQueuePort,
   type SmsDeliveryPort,
 } from '@odp/domain';
 import { createCredentialAdapters, createPlatform, type Platform } from '@odp/platform';
 import { createJsonLogger, type Logger } from '../logging';
+import { createSignInChallengeStore } from '../session/sign-in-challenges';
 import {
   createDurableAnalyticsSink,
   createTelemetryBuffer,
@@ -192,18 +196,43 @@ export interface IdentityDependencies {
 }
 
 /**
- * What the registration code's delivery needs (`C-002`, `C-076`).
+ * The one request shape the boundary accepts, taken from the port so this module never restates it.
+ */
+type OneTimeCodeDelivery = Parameters<IdentityPorts['notifications']['deliverCode']>[0];
+
+/**
+ * Whether one queued one-time-code message may still mint a code for its target (`C-076`).
+ *
+ * A message queued before a newer issue for the same target is superseded: rendering it would mint a
+ * fresh code and void the one the newer message already delivered. The answer reads the target's own
+ * issue instant, never a clock guess, and touches no destination and no digits.
+ */
+export interface OneTimeCodeFreshnessPort {
+  isCurrent(input: {
+    /** The queued message's recipient: the pending registration or the member it belongs to. */
+    readonly recipient: NotificationRecipientReference;
+    /** The `prg_` or `sic_` the code is proved against. */
+    readonly targetId: string;
+    /** The instant the message was enqueued: the issue instant it was meant to carry. */
+    readonly queuedAt: string;
+  }): Promise<boolean>;
+}
+
+/**
+ * What a one-time code's delivery needs (`C-002`, `C-004`, `C-005`, `C-076`).
  *
  * Every seam is passed in rather than opened here, so the same composition runs in production against
  * the durable queue and the configured gateway, and in a test against a double that records the send.
  */
-export interface RegistrationNotificationOptions {
+export interface OneTimeCodeNotificationOptions {
   /** The durable outbound queue (`packages/db`). */
   readonly queue: OutboundQueuePort;
-  /** Turns a `prg_` reference into a destination and a locale at send time. */
+  /** Turns a `prg_` or `mbr_` reference into a destination and a locale at send time. */
   readonly recipients: NotificationRecipientPort;
   /** Renders the body at send time; the one-time code comes from the code store. */
   readonly bodies: NotificationBodyPort;
+  /** Decides whether a retried message is still the newest for its target. */
+  readonly freshness: OneTimeCodeFreshnessPort;
   readonly sms: SmsDeliveryPort;
   readonly clock: { now(): Date };
   readonly identifiers: { next(prefix: string): string };
@@ -212,21 +241,39 @@ export interface RegistrationNotificationOptions {
 }
 
 /**
- * Compose the notification boundary as registration hands it a code (`C-002`, `C-076`).
+ * Compose the notification boundary as identity hands it a one-time code (`C-002`, `C-004`,
+ * `C-005`, `C-076`).
  *
- * The use case names the pending registration and the dedupe key and is told whether the gateway took
- * the message. This adapter does the two calls `C-076` defines — enqueue, then one dispatch — and maps
- * every answer that is not a delivery to `delayed`, because `C-002` answers 201 with a held
- * registration rather than failing the write. Nothing here logs: a notification body and a destination
- * are personal data, and the queue's own rows are the record (`NFR-024`).
+ * The use case names the pending registration or the sign-in challenge and the dedupe key and is told
+ * whether the gateway took the message. This adapter does the two calls `C-076` defines — enqueue, then
+ * one dispatch — and maps every answer that is not a delivery to `delayed`, because registration
+ * answers 201 with a held record rather than failing the write. Nothing here logs: a notification body
+ * and a destination are personal data, and the queue's own rows are the record (`NFR-024`).
+ *
+ * A retried message whose target has moved on is finished rather than rendered. Without that check, the
+ * code store would mint a fresh code on every render, so an older queue row dispatched after a newer one
+ * would void the code the resident had just been sent.
  */
-export function createRegistrationNotification(
-  options: RegistrationNotificationOptions,
+export function createOneTimeCodeNotification(
+  options: OneTimeCodeNotificationOptions,
 ): IdentityPorts['notifications'] {
   const ports: NotificationPorts = {
     queue: options.queue,
     recipients: options.recipients,
-    bodies: options.bodies,
+    bodies: {
+      async render(input) {
+        const targetId = input.record.payload['targetId'];
+        if (targetId !== undefined) {
+          const current = await options.freshness.isCurrent({
+            recipient: input.record.recipient,
+            targetId,
+            queuedAt: input.record.createdAt,
+          });
+          if (!current) return null;
+        }
+        return options.bodies.render(input);
+      },
+    },
     sms: options.sms,
     clock: options.clock,
     identifiers: options.identifiers,
@@ -234,25 +281,34 @@ export function createRegistrationNotification(
   const expiresInMinutes = Math.max(1, Math.round(options.codeTtlSeconds / 60));
 
   return {
-    async deliverCode(input) {
+    async deliverCode(input: OneTimeCodeDelivery) {
       const caller = {
         component: 'identity',
         ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
       };
+      // The pending registration has no account yet, so it receives its own message; a sign-in code
+      // goes to the one account its number resolves to, and the challenge is only the code's target.
+      const targetId = input.pendingRegistrationId;
+      const recipient: NotificationRecipientReference =
+        input.memberId === undefined
+          ? { kind: 'pending_registration', id: targetId }
+          : { kind: 'member', id: input.memberId };
 
       const queued = await enqueueNotification(caller, ports, {
         channel: 'sms',
+        // `C-076` names one template for the one-time code, and its copy is the code store's, so a
+        // registration code and a sign-in code share it. The target in the payload says which record
+        // the code is proved against; neither the digits nor the destination enter the row.
         template: 'registration_code',
-        recipient: { kind: 'pending_registration', id: input.pendingRegistrationId },
-        // `C-076`'s closed payload set for this template: the target and the window, never the digits.
+        recipient,
         payload: {
-          targetId: input.pendingRegistrationId,
+          targetId,
           expiresInMinutes: String(expiresInMinutes),
         },
         dedupeKey: input.dedupeKey,
       });
-      // An unreachable queue or a recipient that has gone leaves the message unsent; the pending
-      // registration stands and `C-002` answers `delayed`.
+      // An unreachable queue or a recipient that has gone leaves the message unsent; the caller's own
+      // record stands and `C-002` answers `delayed`.
       if (!queued.ok) return { status: 'delayed', channel: 'sms' };
 
       const dispatched = await dispatchNotification(caller, ports, {
@@ -313,6 +369,9 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
     const credentialAdapters = createCredentialAdapters(platform.config.credentials);
     const pendingRegistrations = createPendingRegistrationRepository(database.db);
     const members = createMemberRepository(database.db);
+    // One challenge store serves both the sign-in use cases and the code boundary's freshness check;
+    // it is built over the platform's cache seam, so both reuse the process's one connection.
+    const signInChallenges = createSignInChallengeStore(platform.cache);
     const ports: IdentityPorts = {
       pendingRegistrations,
       members,
@@ -323,10 +382,11 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       memberSessions: platform.sessions.memberSessions,
       staffSessions: platform.sessions.staffSessions,
       codes: platform.sessions.codes,
-      // `C-002`, `C-076`: registration hands the one-time code to the notification boundary, which
-      // owns the queue, the hold and the retry. The destination is resolved from the pending record at
-      // the moment of the send and dropped (`NFR-024`); the body is the code store's.
-      notifications: createRegistrationNotification({
+      // `C-002`, `C-004`, `C-005`, `C-076`: every one-time code leaves through the notification
+      // boundary, which owns the queue, the hold and the retry. The destination is resolved from the
+      // pending record or the account at the moment of the send and dropped (`NFR-024`); the body is
+      // the code store's.
+      notifications: createOneTimeCodeNotification({
         queue: createOutboundNotificationRepository(database.db),
         recipients: {
           async resolve(reference) {
@@ -356,6 +416,19 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
             });
           },
         },
+        freshness: {
+          async isCurrent({ recipient, targetId, queuedAt }) {
+            // A resend moves the pending registration's `codeSentAt`; a fresh sign-in request opens a
+            // new challenge and the old one closes. A message queued before that instant has been
+            // superseded, and rendering it would void the code the newer message delivered.
+            const issuedAt =
+              recipient.kind === 'pending_registration'
+                ? (await pendingRegistrations.findById(recipient.id))?.codeSentAt
+                : (await signInChallenges.findById(targetId))?.codeSentAt;
+            if (issuedAt === undefined) return false;
+            return Date.parse(issuedAt) <= Date.parse(queuedAt);
+          },
+        },
         sms: platform.sms,
         clock: platform.clock,
         identifiers: platform.ids,
@@ -374,9 +447,9 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       }),
       clock: platform.clock,
       identifiers: platform.ids,
+      signInChallenges,
       // The remaining ports are type-complete but unwired: this slice's contracts never reach
       // them. Each refusal names the effect, so an accidental reach is attributable immediately.
-      signInChallenges: notWiredYet('the sign-in challenge store'),
       memberContent: notWiredYet('the member content port'),
       legalHolds: notWiredYet('the legal-hold port'),
       idempotency: notWiredYet('the durable idempotency store'),

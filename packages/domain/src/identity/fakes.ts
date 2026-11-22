@@ -22,6 +22,7 @@ import type {
   IdentityAnalyticsEvent,
   IdentityPorts,
   MemberSubmissionRow,
+  OneTimeCodeDeliveryRequest,
   RecordedAnswer,
   ResolvedMemberSession,
   ResolvedStaffSession,
@@ -93,6 +94,8 @@ export interface IdentityHarnessOptions {
   readonly codeStoreUnavailable?: boolean;
   /** Makes the SMS dispatch refuse, for the `delayed` and `SMS_CHANNEL_UNAVAILABLE` paths. */
   readonly smsUnavailable?: boolean;
+  /** Makes the notification boundary itself unreachable, as a queue that cannot take the call does. */
+  readonly notificationsUnavailable?: boolean;
   /** Makes the session store throw. */
   readonly sessionStoreUnavailable?: boolean;
   /** Makes the credential store throw. */
@@ -130,6 +133,25 @@ export interface IdentityHarness {
     readonly body: string;
     readonly dedupeKey: string;
   }[];
+  /** Every target the code store issued for directly; the use cases must leave this empty. */
+  readonly codeIssues: readonly string[];
+  /** Every target the boundary rendered a body for, so a stale retry can be proven silent. */
+  readonly codeRenders: readonly string[];
+  /** The boundary's queue rows, keyed by dedupe key, as no destination and no digits (`C-076`). */
+  readonly notificationQueue: ReadonlyMap<
+    string,
+    {
+      readonly queuedAt: string;
+      readonly target: 'pending_registration' | 'sign_in';
+      readonly targetId: string;
+      readonly state: 'queued' | 'sent' | 'failed';
+      readonly delivery: { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' };
+    }
+  >;
+  /** Moves the fake clock, for a resend or a retry that happens later than the last call. */
+  readonly setNow: (instant: string) => void;
+  /** Opens or closes the SMS double, as a provider outage starting or ending does. */
+  readonly setSmsUnavailable: (unavailable: boolean) => void;
   readonly idempotency: Map<string, RecordedAnswer>;
   readonly queued: {
     readonly kind: string;
@@ -209,6 +231,8 @@ function credentialState(credential: FakeStaffCredential): StaffCredentialState 
 /** Builds the port bundle and the state a test can assert against. */
 export function createIdentityHarness(options: IdentityHarnessOptions = {}): IdentityHarness {
   const now = options.now ?? FAKE_NOW;
+  let nowInstant = now;
+  let smsUnavailable = options.smsUnavailable === true;
   const members: MemberRecord[] = options.members?.map((member) => ({ ...member })) ?? [];
   const pending: PendingRegistration[] = options.pending?.map((row) => ({ ...row })) ?? [];
   const challenges: SignInChallenge[] = [];
@@ -227,10 +251,19 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
   const audit: AuditEventRecord[] = [];
   const analytics: IdentityAnalyticsEvent[] = [];
   const codes = new Map<string, { code: string; attempts: number; cooldownUntil?: string }>();
+  /** One row per dedupe key, as the boundary's queue would hold it (`C-076`). */
   const deliveries = new Map<
     string,
-    { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' }
+    {
+      readonly queuedAt: string;
+      readonly target: 'pending_registration' | 'sign_in';
+      readonly targetId: string;
+      state: 'queued' | 'sent' | 'failed';
+      delivery: { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' };
+    }
   >();
+  const codeIssues: string[] = [];
+  const codeRenders: string[] = [];
   const smsSent: { destination: string; body: string; dedupeKey: string }[] = [];
   const memberSessions = new Map<string, ResolvedMemberSession>();
   const endedSessionIds = new Set<string>();
@@ -249,6 +282,30 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
   const guard = (flag: boolean | undefined, message: string): void => {
     if (flag === true) throw new Error(message);
   };
+
+  /**
+   * Whether a message queued at `queuedAt` may still mint a code for its target (`C-076`).
+   *
+   * A newer issue for the same target — a registration resend, or a fresh sign-in request — moves the
+   * target's `codeSentAt` past the queued instant, so the older message is superseded. A target that is
+   * gone or already used has nothing left to prove, so its queued message is finished too.
+   */
+  async function isCurrentCode(
+    target: 'pending_registration' | 'sign_in',
+    targetId: string,
+    queuedAt: string,
+  ): Promise<boolean> {
+    let issuedAt: string | undefined;
+    if (target === 'pending_registration') {
+      const row = pending.find((candidate) => candidate.id === targetId);
+      if (row !== undefined && row.verifiedAt === undefined) issuedAt = row.codeSentAt;
+    } else {
+      const row = challenges.find((candidate) => candidate.id === targetId);
+      if (row !== undefined && row.consumedAt === undefined) issuedAt = row.codeSentAt;
+    }
+    if (issuedAt === undefined) return false;
+    return Date.parse(issuedAt) <= Date.parse(queuedAt);
+  }
 
   const ports: IdentityPorts = {
     pendingRegistrations: {
@@ -274,7 +331,8 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
     codes: {
       async issue(input) {
         guard(options.codeStoreUnavailable, 'the code store is unavailable');
-        guard(options.smsUnavailable, 'the sms gateway is unavailable');
+        guard(smsUnavailable, 'the sms gateway is unavailable');
+        codeIssues.push(input.targetId);
         codes.set(input.targetId, { code: options.code ?? FAKE_CODE, attempts: 0 });
         return { status: 'sent', channel: 'sms' };
       },
@@ -283,6 +341,7 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
         // The fake mints as it renders, as the adapter does: the digits live in this answer only, and a
         // second render voids the first code (`C-076` body rendered at send time).
         const code = options.code ?? FAKE_CODE;
+        codeRenders.push(input.targetId);
         codes.set(input.targetId, { code, attempts: 0 });
         return `Your Oyo Digital Parliament code is ${code}.`;
       },
@@ -323,29 +382,66 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
     },
 
     notifications: {
-      async deliverCode(input) {
-        // `C-076`: the boundary is idempotent under its dedupe key, so a replay reports the recorded
-        // outcome and sends nothing a second time.
-        const recorded = deliveries.get(input.dedupeKey);
-        if (recorded !== undefined) return recorded;
+      async deliverCode(input: OneTimeCodeDeliveryRequest) {
+        // `C-076`: the boundary owns the queue. An unreachable queue is a failed call, not a silent
+        // hold; the caller decides whether its own write still stands.
+        guard(options.notificationsUnavailable, 'the notification boundary is unreachable');
 
-        const row = pending.find((candidate) => candidate.id === input.pendingRegistrationId);
-        let delivery: { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' } = {
-          status: 'delayed',
-          channel: 'sms',
-        };
-        if (row !== undefined && options.smsUnavailable !== true) {
-          // The body is the code store's, minted at send time; the destination comes from the pending
-          // record and never travels back out of this call.
-          const body = await ports.codes.renderOutstanding({
-            targetId: input.pendingRegistrationId,
-            locale: input.locale,
-          });
-          smsSent.push({ destination: row.telephoneNumber, body, dedupeKey: input.dedupeKey });
-          delivery = { status: 'sent', channel: 'sms' };
+        const existing = deliveries.get(input.dedupeKey);
+        // A finished message reports its recorded outcome, so a replay sends nothing a second time.
+        if (existing !== undefined && existing.state !== 'queued') return existing.delivery;
+
+        const registration = input.memberId === undefined;
+        const targetId = input.pendingRegistrationId;
+        const queuedAt = existing?.queuedAt ?? nowInstant;
+
+        let destination: string | null = null;
+        let locale = input.locale;
+        if (registration) {
+          const row = pending.find((candidate) => candidate.id === targetId);
+          if (row !== undefined && row.verifiedAt === undefined) {
+            destination = row.telephoneNumber;
+            locale = row.locale;
+          }
+        } else {
+          const member = members.find(
+            (candidate) => candidate.id === input.memberId && candidate.deletedAt === undefined,
+          );
+          if (member !== undefined) {
+            destination = member.telephoneNumber;
+            locale = member.locale;
+          }
         }
-        deliveries.set(input.dedupeKey, delivery);
-        return delivery;
+
+        const record = (
+          state: 'queued' | 'sent' | 'failed',
+          delivery: { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' },
+        ) => {
+          deliveries.set(input.dedupeKey, {
+            queuedAt,
+            target: registration ? 'pending_registration' : 'sign_in',
+            targetId,
+            state,
+            delivery,
+          });
+          return delivery;
+        };
+
+        if (destination === null || smsUnavailable) {
+          // Held, not lost: the row stays queued for its next attempt, and nothing was rendered.
+          return record('queued', { status: 'delayed', channel: 'sms' });
+        }
+        // A newer code for this target supersedes a message that was queued before it: rendering this
+        // one would void the code the newer message delivered, so the message is finished instead.
+        if (!(await isCurrentCode(registration ? 'pending_registration' : 'sign_in', targetId, queuedAt))) {
+          return record('failed', { status: 'delayed', channel: 'sms' });
+        }
+
+        // The body is the code store's, minted at send time; the destination comes from the record and
+        // never travels back out of this call.
+        const body = await ports.codes.renderOutstanding({ targetId, locale });
+        smsSent.push({ destination, body, dedupeKey: input.dedupeKey });
+        return record('sent', { status: 'sent', channel: 'sms' });
       },
     },
 
@@ -748,7 +844,7 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
         guard(options.rateLimitUnavailable, 'the limiter is unavailable');
         // The adapter always reports its cap, remainder and reset, so the double does too: a refusal
         // built from this answer can be rendered as the `C-001` headers without a second consult.
-        const resetAt = new Date(Date.parse(now) + FAKE_RATE_WINDOW_SECONDS * 1000)
+        const resetAt = new Date(Date.parse(nowInstant) + FAKE_RATE_WINDOW_SECONDS * 1000)
           .toISOString()
           .replace(/\.\d{3}Z$/, 'Z');
         return options.rateLimited === undefined
@@ -814,7 +910,7 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
     },
 
     clock: {
-      now: () => new Date(Date.parse(now)),
+      now: () => new Date(Date.parse(nowInstant)),
     },
 
     identifiers: {
@@ -842,6 +938,15 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
     staffSessions,
     codes,
     smsSent,
+    codeIssues,
+    codeRenders,
+    notificationQueue: deliveries,
+    setNow: (instant: string) => {
+      nowInstant = instant;
+    },
+    setSmsUnavailable: (unavailable: boolean) => {
+      smsUnavailable = unavailable;
+    },
     idempotency,
     queued,
     signedUrlCalls,

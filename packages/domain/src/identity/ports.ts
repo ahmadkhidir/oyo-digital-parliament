@@ -65,12 +65,13 @@ export interface VerificationCodePort {
   /**
    * Voids any outstanding code, issues a fresh six-digit one, stores it hashed and sends it.
    *
-   * This is the direct dispatch the sign-in and resend steps still make. Registration hands its code
-   * to the notification boundary instead, which retries and holds it (`C-076`), and takes the body
-   * from {@link renderOutstanding}.
+   * This is the adapter's direct-dispatch path. No identity use case reaches for it: registration,
+   * a registration resend and a sign-in code all leave through {@link IdentityNotificationPort},
+   * which owns the queue, the hold and the retry (`C-076`) and takes the body from
+   * {@link renderOutstanding}. It remains on the port for a deployment that must send without a
+   * durable queue, and because the store's contract must still state what one dispatch means.
    *
-   * @throws when neither the store nor the SMS gateway took the dispatch. The caller answers
-   *   `delayed` at registration and `SERVICE_DEGRADED` on a resend, as those entries state.
+   * @throws when neither the store nor the SMS gateway took the dispatch.
    */
   issue(input: {
     readonly targetId: string;
@@ -672,7 +673,40 @@ export interface IdentityAnalyticsPort {
 }
 
 /**
- * The notification boundary as identity hands it a one-time code (`C-002`, `C-004`, `C-076`).
+ * One one-time code the identity module hands to the notification boundary (`C-002`, `C-004`,
+ * `C-005`, `C-076`).
+ *
+ * The two flows differ only in whom the message reaches: a pending registration has no account yet, so
+ * the code's own `prg_` reference is also the recipient, while a sign-in challenge belongs to the one
+ * account its number resolves to and that account receives the message. The challenge's `sic_`
+ * identifier travels as the code's target, never as a destination.
+ */
+export interface OneTimeCodeDeliveryRequest {
+  /**
+   * The identifier the code is proved against: the `prg_` at registration, the `sic_` at sign-in.
+   *
+   * The field keeps the name `C-002` and `C-004` first gave it, and is always an opaque code target —
+   * never a telephone number. At registration it is also the recipient.
+   */
+  readonly pendingRegistrationId: string;
+  /**
+   * The account that receives a sign-in code (`C-005`). Absent for a registration code, which is
+   * addressed to the pending registration itself.
+   */
+  readonly memberId?: string;
+  readonly locale: Locale;
+  /**
+   * The caller's stable identity for this message (`C-076` `dedupeKey`): a namespace, then opaque
+   * identifiers. A replay under the same key sends nothing twice; a later issue names its own instant
+   * and is a new message.
+   */
+  readonly dedupeKey: string;
+  /** Carried for the boundary's own correlation; identifies the request, never a person. */
+  readonly correlationId?: string;
+}
+
+/**
+ * The notification boundary as identity hands it a one-time code (`C-002`, `C-004`, `C-005`, `C-076`).
  *
  * Delivery is not this module's work: the boundary owns the queue, the claim that makes a replay send
  * nothing twice, the hold that survives a gateway outage and the backoff that retries it. Identity asks
@@ -680,30 +714,28 @@ export interface IdentityAnalyticsPort {
  * the message, `delayed` when the message is retained for a later attempt. `C-002` answers 201 either
  * way and the pending registration is untouched by a hold.
  *
- * The body is the code store's, rendered at send time ({@link VerificationCodePort.renderOutstanding}),
- * so neither this port nor the queue ever holds the digits.
+ * The same rule covers every one-time code, registration or sign-in: no use case calls the code store's
+ * dispatch directly. The body is the code store's, rendered at send time
+ * ({@link VerificationCodePort.renderOutstanding}), so neither this port nor the queue ever holds the
+ * digits. A message still queued after a newer code was issued for its target is finished rather than
+ * rendered again, so a retry can never mint over the code the newer message delivered.
  */
 export interface IdentityNotificationPort {
   /**
-   * Queue one registration code and attempt it once, now (`C-076` `enqueue`, then one dispatch).
+   * Queue one one-time code and attempt it once, now (`C-076` `enqueue`, then one dispatch).
    *
    * A second call under the same `dedupeKey` reports the stored message's state instead of sending a
    * second message, and a dispatch the boundary already holds is not attempted again.
    *
-   * @throws when the boundary itself could not answer. The caller answers `delayed` and keeps the
-   *   pending registration, exactly as it does for a hold.
+   * A `delayed` answer means the message is retained for its next attempt. Registration reports it as
+   * `delayed` and keeps the pending registration (`C-002`); a resend or a sign-in request answers
+   * `SERVICE_DEGRADED` with `SMS_CHANNEL_UNAVAILABLE`, because that request was the delivery
+   * (`C-004`, `C-005`).
+   *
+   * @throws when the boundary itself could not take the message; the caller answers
+   *   `SERVICE_DEGRADED` and leaves its own record in place.
    */
-  deliverCode(input: {
-    readonly pendingRegistrationId: string;
-    readonly locale: Locale;
-    /**
-     * The caller's stable identity for this message (`C-076` `dedupeKey`): a namespace, then opaque
-     * identifiers. A replay under the same key sends nothing twice.
-     */
-    readonly dedupeKey: string;
-    /** Carried for the boundary's own correlation; identifies the request, never a person. */
-    readonly correlationId?: string;
-  }): Promise<CodeDelivery>;
+  deliverCode(input: OneTimeCodeDeliveryRequest): Promise<CodeDelivery>;
 }
 
 /**

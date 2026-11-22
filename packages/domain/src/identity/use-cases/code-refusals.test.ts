@@ -11,6 +11,10 @@
  * They also pin what a limiter-driven refusal carries: the cap, the remainder and the reset instant are
  * on the refusal itself, so the action layer prints `RateLimit-Limit`, `RateLimit-Remaining`,
  * `RateLimit-Reset` and `Retry-After` from one answer instead of consulting the limiter twice.
+ *
+ * The last group pins the delivery rule every one-time code follows: a resend and a sign-in code leave
+ * through the notification boundary, so sent, held and unreachable-queue outcomes are the same shape
+ * for both, a replay sends once, and a retried message cannot mint over a newer code.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -220,5 +224,243 @@ describe('the header values a limiter refusal carries (C-001, C-004 to C-006)', 
       code: 'SERVICE_DEGRADED',
       cause: 'RATE_LIMIT_UNAVAILABLE',
     });
+  });
+});
+
+/**
+ * One delivery rule for every one-time code (`C-004`, `C-005`, `C-076`).
+ *
+ * A resend and a sign-in code leave through the notification boundary exactly as the first
+ * registration code does, so one hold, retry and dedupe rule covers all three. These cases pin the
+ * three delivery outcomes each flow must survive — sent, held, and a boundary that cannot take the
+ * message — plus the two properties the queue owes: a replay sends once, and a retried message never
+ * mints over a code a newer message delivered.
+ */
+describe('one-time code delivery through the notification boundary (C-004, C-005, C-076)', () => {
+  /** A harness whose number belongs to one live account, as a sign-in request needs. */
+  const memberHarness = (options: Parameters<typeof createIdentityHarness>[0] = {}) =>
+    createIdentityHarness({ members: [fakeMember({ id: 'mbr_0001' })], ...options });
+
+  /** A pending registration whose resend cooldown has already lapsed. */
+  const resendablePending = () => pendingRow({ codeSentAt: '2026-11-18T08:50:00Z' });
+
+  it('sends a registration resend through the boundary and never issues the code directly', async () => {
+    const fakes = createIdentityHarness({ pending: [resendablePending()] });
+
+    const result = await resendRegistrationCode(publicCaller, fakes.ports, {
+      pendingRegistrationId: 'prg_0001',
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      codeDelivery: { status: 'sent', channel: 'sms' },
+      codeSentAt: FAKE_NOW,
+    });
+    if (!result.ok) return;
+    // One message, to the pending registration's own number, carrying the code the confirm step
+    // accepts; the code store's direct dispatch was never reached.
+    expect(fakes.smsSent).toHaveLength(1);
+    expect(fakes.smsSent[0]?.destination).toBe('+2348031234567');
+    expect(fakes.codeIssues).toEqual([]);
+    await expect(fakes.ports.codes.matches(result.pendingRegistrationId, FAKE_CODE)).resolves.toBe(
+      'match',
+    );
+  });
+
+  it('holds a registration resend and reports the failed delivery, keeping the pending record', async () => {
+    const fakes = createIdentityHarness({
+      pending: [resendablePending()],
+      smsUnavailable: true,
+    });
+
+    const result = await resendRegistrationCode(publicCaller, fakes.ports, {
+      pendingRegistrationId: 'prg_0001',
+    });
+
+    // `C-004`, `C-076`: the boundary retained the message for its next attempt, and the resident is
+    // told the delivery did not happen; the pending registration stands and the window does not move.
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'SERVICE_DEGRADED',
+      cause: 'SMS_CHANNEL_UNAVAILABLE',
+      meta: { pendingRegistrationPreserved: true },
+    });
+    expect(fakes.pending).toHaveLength(1);
+    expect(fakes.pending[0]?.codeSentAt).toBe('2026-11-18T08:50:00Z');
+    expect(fakes.smsSent).toEqual([]);
+  });
+
+  it('refuses a resend when the boundary cannot take the message at all', async () => {
+    const fakes = createIdentityHarness({
+      pending: [resendablePending()],
+      notificationsUnavailable: true,
+    });
+
+    const result = await resendRegistrationCode(publicCaller, fakes.ports, {
+      pendingRegistrationId: 'prg_0001',
+    });
+
+    // `C-004`: the refusal names the channel and says the pending registration survives it; the
+    // resend window must not restart, because no message was queued.
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'SERVICE_DEGRADED',
+      cause: 'SMS_CHANNEL_UNAVAILABLE',
+      meta: { pendingRegistrationPreserved: true },
+    });
+    expect(fakes.pending[0]?.codeSentAt).toBe('2026-11-18T08:50:00Z');
+    expect(fakes.smsSent).toEqual([]);
+  });
+
+  it('sends a registration resend once under one dedupe key', async () => {
+    const fakes = createIdentityHarness({ pending: [resendablePending()] });
+    const input = {
+      pendingRegistrationId: 'prg_0001',
+      locale: 'en-NG' as const,
+      dedupeKey: `registration_code:prg_0001:${FAKE_NOW}`,
+    };
+
+    const first = await fakes.ports.notifications.deliverCode(input);
+    const replay = await fakes.ports.notifications.deliverCode(input);
+
+    expect(first).toEqual({ status: 'sent', channel: 'sms' });
+    expect(replay).toEqual({ status: 'sent', channel: 'sms' });
+    expect(fakes.smsSent).toHaveLength(1);
+  });
+
+  it('does not re-mint over a newer resend when the held message is retried', async () => {
+    const fakes = createIdentityHarness({
+      pending: [pendingRow({ codeSentAt: '2026-11-18T08:00:00Z' })],
+      smsUnavailable: true,
+    });
+    const heldKey = `registration_code:prg_0001:${FAKE_NOW}`;
+
+    const held = await resendRegistrationCode(publicCaller, fakes.ports, {
+      pendingRegistrationId: 'prg_0001',
+    });
+    expect(held).toMatchObject({ ok: false, cause: 'SMS_CHANNEL_UNAVAILABLE' });
+
+    // The channel returns and the resident asks again: a newer code is minted and delivered.
+    fakes.setSmsUnavailable(false);
+    fakes.setNow('2026-11-18T09:02:00Z');
+    const newer = await resendRegistrationCode(publicCaller, fakes.ports, {
+      pendingRegistrationId: 'prg_0001',
+    });
+    expect(newer).toMatchObject({ ok: true, codeDelivery: { status: 'sent' } });
+    expect(fakes.smsSent).toHaveLength(1);
+    const renders = fakes.codeRenders.length;
+    const [delivered] = fakes.smsSent;
+    if (delivered === undefined) throw new Error('the newer message was expected to be sent');
+
+    // The older message is retried under its own dedupe key. It is superseded, so it neither renders
+    // — which would void the code just delivered — nor sends a second message.
+    const retry = await fakes.ports.notifications.deliverCode({
+      pendingRegistrationId: 'prg_0001',
+      locale: 'en-NG',
+      dedupeKey: heldKey,
+    });
+    expect(retry).toEqual({ status: 'delayed', channel: 'sms' });
+    expect(fakes.codeRenders).toHaveLength(renders);
+    expect(fakes.smsSent).toHaveLength(1);
+    await expect(fakes.ports.codes.matches('prg_0001', FAKE_CODE)).resolves.toBe('match');
+  });
+
+  it('sends a sign-in code through the boundary to the account that holds the number', async () => {
+    const fakes = memberHarness();
+
+    const result = await requestSignInCode(publicCaller, fakes.ports, {
+      telephoneNumber: '+2348031234567',
+    });
+
+    expect(result).toMatchObject({ ok: true, codeDelivery: { status: 'sent', channel: 'sms' } });
+    if (!result.ok) return;
+    expect(fakes.smsSent).toHaveLength(1);
+    expect(fakes.smsSent[0]?.destination).toBe('+2348031234567');
+    expect(fakes.codeIssues).toEqual([]);
+    // The challenge is the code's target, and the code the message carried is the one it accepts.
+    expect(fakes.smsSent[0]?.dedupeKey).toContain(result.signInChallengeId);
+    await expect(fakes.ports.codes.matches(result.signInChallengeId, FAKE_CODE)).resolves.toBe(
+      'match',
+    );
+  });
+
+  it('holds a sign-in code and still starts the challenge', async () => {
+    const fakes = memberHarness({ smsUnavailable: true });
+
+    const result = await requestSignInCode(publicCaller, fakes.ports, {
+      telephoneNumber: '+2348031234567',
+    });
+
+    // `C-005`, `C-076`: the message is retained, but no code reached the resident, so the request is
+    // degraded while the challenge it opened stands for its own window.
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'SERVICE_DEGRADED',
+      cause: 'SMS_CHANNEL_UNAVAILABLE',
+      retryAfterSeconds: 30,
+    });
+    expect(fakes.challenges).toHaveLength(1);
+    expect(fakes.smsSent).toEqual([]);
+  });
+
+  it('refuses a sign-in code when the boundary cannot take the message at all', async () => {
+    const fakes = memberHarness({ notificationsUnavailable: true });
+
+    const result = await requestSignInCode(publicCaller, fakes.ports, {
+      telephoneNumber: '+2348031234567',
+    });
+
+    // `C-005`: no code was queued or sent, so the request is degraded rather than accepted.
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'SERVICE_DEGRADED',
+      cause: 'SMS_CHANNEL_UNAVAILABLE',
+      retryAfterSeconds: 30,
+    });
+    expect(fakes.smsSent).toEqual([]);
+  });
+
+  it('sends a sign-in code once under one dedupe key', async () => {
+    const fakes = memberHarness();
+    const requested = await requestSignInCode(publicCaller, fakes.ports, {
+      telephoneNumber: '+2348031234567',
+    });
+    if (!requested.ok) throw new Error('the sign-in code was expected to be sent');
+    const [message] = fakes.smsSent;
+    if (message === undefined) throw new Error('the boundary was expected to send one message');
+
+    const replay = await fakes.ports.notifications.deliverCode({
+      pendingRegistrationId: requested.signInChallengeId,
+      memberId: 'mbr_0001',
+      locale: 'en-NG',
+      dedupeKey: message.dedupeKey,
+    });
+
+    expect(replay).toEqual({ status: 'sent', channel: 'sms' });
+    expect(fakes.smsSent).toHaveLength(1);
+  });
+
+  it('carries no destination number and no code in a queue row, a key or an event', async () => {
+    const fakes = memberHarness();
+
+    const result = await requestSignInCode(publicCaller, fakes.ports, {
+      telephoneNumber: '+2348031234567',
+    });
+    if (!result.ok) throw new Error('the sign-in code was expected to be sent');
+
+    const [message] = fakes.smsSent;
+    expect(message?.dedupeKey).toMatch(/^sign_in_code:/);
+    expect(message?.dedupeKey).not.toContain('+2348031234567');
+    expect(message?.dedupeKey).not.toContain(FAKE_CODE);
+
+    // `C-076`, `NFR-024`: the row holds the target and the window, never the digits or a number.
+    const queued = JSON.stringify([...fakes.notificationQueue]);
+    expect(queued).not.toContain('+2348031234567');
+    expect(queued).not.toContain(FAKE_CODE);
+
+    // `EVT-002`, `C-089`: the event names the attempt and the account, nothing about the person.
+    const emitted = JSON.stringify(fakes.analytics);
+    expect(emitted).not.toContain('+2348031234567');
+    expect(emitted).not.toContain(FAKE_CODE);
   });
 });

@@ -1,9 +1,10 @@
 /**
- * Requesting a sign-in code (`C-005`, `FEAT-001`, `NFR-020`, `NFR-027`, `EVT-002`).
+ * Requesting a sign-in code (`C-005`, `FEAT-001`, `NFR-020`, `NFR-027`, `C-076`, `EVT-002`).
  *
  * Starts a challenge for a number that belongs to a Member. A number belongs to at most one account
  * (`FEAT-001`), so the answer names no account count and no account list: the challenge already
- * resolves the one account the code will open a session for.
+ * resolves the one account the code will open a session for. The code leaves through the notification
+ * boundary, so the same hold and retry rule that carries a registration code carries this one.
  */
 import {
   identityFailure,
@@ -18,7 +19,7 @@ import {
   signInChallengeExpiry,
   toIsoSeconds,
 } from '../policies.ts';
-import type { IdentityPorts } from '../ports.ts';
+import type { CodeDelivery, IdentityPorts } from '../ports.ts';
 import { rateLimitHeaders, type RateLimitOutcome } from '../../ports/session.ts';
 import { emitIdentityAnalytics } from './support.ts';
 
@@ -147,14 +148,26 @@ export async function requestSignInCode(
     );
   }
 
+  // `C-005`, `C-076`: the code leaves through the notification boundary, the same queue, hold and
+  // retry that carries a registration code. The challenge is the code's target and the account is the
+  // message's recipient; the dedupe key names the challenge and its issue instant.
+  let delivery: CodeDelivery = { status: 'delayed', channel: 'sms' };
   try {
-    await deps.codes.issue({
-      targetId: challengeId,
-      telephoneNumber: telephoneNumber.value,
+    delivery = await deps.notifications.deliverCode({
+      pendingRegistrationId: challengeId,
+      memberId: account.id,
       locale: account.locale,
-      at: now,
+      dedupeKey: `sign_in_code:${challengeId}:${now}`,
+      ...(caller.correlationId === undefined ? {} : { correlationId: caller.correlationId }),
     });
   } catch {
+    // A boundary that cannot take the call is the same answer as a hold: nothing reached the resident.
+    delivery = { status: 'delayed', channel: 'sms' };
+  }
+  if (delivery.status !== 'sent') {
+    // `C-005`, `C-076`: the boundary retained the message for a later attempt (or could not take it),
+    // but no code reached the resident. The request is degraded rather than accepted so the screen
+    // offers the retry at once.
     return identityFailure(
       'SERVICE_DEGRADED',
       'SMS_CHANNEL_UNAVAILABLE',
@@ -179,7 +192,7 @@ export async function requestSignInCode(
     ok: true,
     signInChallengeId: challengeId,
     codeDelivery: {
-      status: 'sent',
+      status: delivery.status,
       channel: 'sms',
       resendAvailableAt: resendAvailableAt(now),
     },
