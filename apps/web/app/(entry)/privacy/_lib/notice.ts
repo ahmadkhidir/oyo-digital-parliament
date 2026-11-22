@@ -49,7 +49,7 @@ const LAUNCH_EFFECTIVE_AT = '2026-11-01T00:00:00Z';
  *
  * The screen files name a published contact address for privacy questions but the specification
  * does not fix its value. It is held here, in one place, so the coordinator can settle the address
- * without touching copy or markup; the task that introduced this file reports the gap.
+ * without touching copy or markup; the gap is reported as issue #135.
  */
 export const PUBLISHED_PRIVACY_CONTACT = 'privacy@oyodigitalparliament.ng';
 
