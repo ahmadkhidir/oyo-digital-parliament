@@ -136,19 +136,16 @@ export interface PendingRegistrationPort {
  *
  * There is no method that lists members by ward, by local government area or by any other grouping,
  * and there never may be: `FEAT-012` makes that operation absent rather than forbidden
- * (`packages/domain/AGENTS.md` Discipline). `findByTelephone` exists because a shared handset must list
- * its accounts after a code, and returns them without merging anything.
+ * (`packages/domain/AGENTS.md` Discipline). `findByTelephone` exists to resolve the one account that
+ * holds a number after a code is accepted (`FEAT-001`).
  */
 export interface MemberPort {
-  /** Every live account on one number, oldest first. An anonymised row is not a sign-in account. */
+  /** The live account that holds one number, or an empty list when no account does. */
   findByTelephone(telephoneNumber: string): Promise<readonly MemberRecord[]>;
 
   get(memberId: string): Promise<MemberRecord | null>;
 
   create(member: MemberRecord): Promise<void>;
-
-  /** Marks every live account on the number as sharing it, never merging two of them (`FEAT-001`). */
-  markSharedNumber(telephoneNumber: string): Promise<void>;
 
   /** Rewrites the three fields `C-033` may change on the caller's own row. */
   updateProfile(
@@ -546,8 +543,7 @@ export type IdentityAnalyticsSubject =
        * Before the account exists: the identifier the platform minted for this visitor's record.
        *
        * At registration that is the PendingRegistration, which exists exactly for the pre-account
-       * window and expires with it; on a shared number's sign-in it is the challenge, because the
-       * resident has not yet said which account is acting.
+       * window and expires with it. Every other identity event is about a resolved member.
        */
       readonly kind: 'anonymous';
       readonly anonymousId: string;

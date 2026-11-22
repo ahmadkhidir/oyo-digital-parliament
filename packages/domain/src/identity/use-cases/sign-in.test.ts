@@ -1,8 +1,8 @@
 /**
  * Sign-in and session tests (`C-005` to `C-008`, `FEAT-001`).
  *
- * A shared number lists its accounts after a code and never signs in automatically; the session read
- * reports both namespaces; signing out ends the current session only.
+ * A number belongs to at most one account, so sign-in resolves that account without an account
+ * choice; the session read reports both namespaces; signing out ends the current session only.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -25,29 +25,24 @@ import {
 const publicCaller = { kind: 'public' as const, locale: 'en-NG' as const };
 
 describe('requestSignInCode (C-005)', () => {
-  it('reports only how many accounts share the number', async () => {
+  it('starts a challenge for the one account that holds the number and names no account', async () => {
     const fakes = createIdentityHarness({
-      members: [
-        fakeMember({ id: 'mbr_0001', displayName: 'Seun A.' }),
-        fakeMember({ id: 'mbr_0002', displayName: 'Tunde O.' }),
-      ],
+      members: [fakeMember({ id: 'mbr_0001', displayName: 'Seun A.' })],
     });
     const result = await requestSignInCode(publicCaller, fakes.ports, {
       telephoneNumber: '+2348031234567',
     });
-    expect(result).toMatchObject({
-      ok: true,
-      accountCount: 2,
-      accountChoiceRequired: true,
-    });
+    expect(result.ok).toBe(true);
+    // `C-005`: no account count, no account list, and no name before the code is accepted.
+    expect(result).not.toHaveProperty('accountCount');
+    expect(result).not.toHaveProperty('accountChoiceRequired');
     expect(JSON.stringify(result)).not.toContain('Seun A.');
     expect(fakes.analytics).toEqual([
       {
         name: 'sign_in_started',
         properties: { attempt: 1 },
-        // `C-089`: a shared number has no single subject before the resident chooses, so the challenge
-        // this attempt minted is the event's subject.
-        subject: { kind: 'anonymous', anonymousId: 'sic_0001' },
+        // `C-089`: the number resolves to one account, so that account is the event's subject.
+        subject: { kind: 'member', memberId: 'mbr_0001' },
         locale: 'en-NG',
       },
     ]);
@@ -80,12 +75,9 @@ describe('requestSignInCode (C-005)', () => {
 });
 
 describe('completeSignIn (C-006)', () => {
-  const sharedSetup = async () => {
+  const signInSetup = async () => {
     const fakes = createIdentityHarness({
-      members: [
-        fakeMember({ id: 'mbr_0001', displayName: 'Seun A.' }),
-        fakeMember({ id: 'mbr_0002', displayName: 'Tunde O.' }),
-      ],
+      members: [fakeMember({ id: 'mbr_0001', displayName: 'Seun A.' })],
     });
     const request = await requestSignInCode(publicCaller, fakes.ports, {
       telephoneNumber: '+2348031234567',
@@ -96,41 +88,28 @@ describe('completeSignIn (C-006)', () => {
     return { fakes, challengeId };
   };
 
-  it('requires an explicit account when the number is shared', async () => {
-    const { fakes, challengeId } = await sharedSetup();
-    const refusal = await completeSignIn(publicCaller, fakes.ports, {
+  it('opens the session for the one account that holds the number', async () => {
+    const { fakes, challengeId } = await signInSetup();
+    const result = await completeSignIn(publicCaller, fakes.ports, {
       signInChallengeId: challengeId,
       code: FAKE_CODE,
-    });
-    expect(refusal).toMatchObject({
-      ok: false,
-      code: 'VALIDATION_FAILED',
-      cause: 'ACCOUNT_CHOICE_REQUIRED',
-      fields: { memberId: 'REQUIRED' },
-    });
-
-    const chosen = await completeSignIn(publicCaller, fakes.ports, {
-      signInChallengeId: challengeId,
-      code: FAKE_CODE,
-      memberId: 'mbr_0002',
       returnTo: '/s/ODP-004821',
     });
-    expect(chosen).toMatchObject({
+    expect(result).toMatchObject({
       ok: true,
-      member: { id: 'mbr_0002', sharedNumber: false },
+      member: { id: 'mbr_0001' },
       session: { established: true },
       returnTo: '/s/ODP-004821',
     });
     expect(fakes.memberSessions.size).toBe(1);
-    expect(fakes.audit[0]).toMatchObject({ action: 'member.signed_in', entityId: 'mbr_0002' });
+    expect(fakes.audit[0]).toMatchObject({ action: 'member.signed_in', entityId: 'mbr_0001' });
   });
 
   it('refuses a wrong code with the attempts remaining', async () => {
-    const { fakes, challengeId } = await sharedSetup();
+    const { fakes, challengeId } = await signInSetup();
     const result = await completeSignIn(publicCaller, fakes.ports, {
       signInChallengeId: challengeId,
       code: '000000',
-      memberId: 'mbr_0001',
     });
     expect(result).toMatchObject({
       ok: false,
@@ -141,16 +120,14 @@ describe('completeSignIn (C-006)', () => {
   });
 
   it('refuses a challenge that has already been used', async () => {
-    const { fakes, challengeId } = await sharedSetup();
+    const { fakes, challengeId } = await signInSetup();
     await completeSignIn(publicCaller, fakes.ports, {
       signInChallengeId: challengeId,
       code: FAKE_CODE,
-      memberId: 'mbr_0001',
     });
     const again = await completeSignIn(publicCaller, fakes.ports, {
       signInChallengeId: challengeId,
       code: FAKE_CODE,
-      memberId: 'mbr_0001',
     });
     expect(again).toMatchObject({ ok: false, cause: 'CODE_ALREADY_USED' });
   });

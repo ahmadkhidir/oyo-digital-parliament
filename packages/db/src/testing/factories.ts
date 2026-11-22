@@ -22,6 +22,7 @@ export const T0 = '2026-01-05T09:00:00Z';
 
 let counter = 0;
 let submissionCounter = 0;
+let memberNumberCounter = 0;
 
 /** A deterministic `C-001` identifier with the given three-letter prefix. */
 export function testId(prefix: string): string {
@@ -32,6 +33,7 @@ export function testId(prefix: string): string {
 /** Resets the identifier counter. Called by a suite that asserts exact values. */
 export function resetTestIds(): void {
   counter = 0;
+  memberNumberCounter = 0;
 }
 
 export interface WardOverrides {
@@ -110,9 +112,13 @@ export async function createMember(
 ): Promise<string> {
   const id = overrides.id ?? testId('mbr');
   const wardId = overrides.wardId ?? null;
+  // `FEAT-001`: a number belongs to at most one live account, so the default is unique per member
+  // and deterministic across a run.
+  memberNumberCounter += 1;
   await db.insert(member).values({
     id,
-    telephoneNumber: overrides.telephoneNumber ?? '+2348012345678',
+    telephoneNumber:
+      overrides.telephoneNumber ?? `+23480${String(memberNumberCounter).padStart(8, '0')}`,
     fullName: overrides.fullName ?? `Resident ${id}`,
     displayName: overrides.displayName ?? `Resident ${id}`,
     declaredAge: overrides.declaredAge ?? 24,
@@ -120,7 +126,6 @@ export async function createMember(
     wardStatus: wardId === null ? 'unresolved' : 'resolved',
     identityState: overrides.identityState ?? 'registered',
     verificationMethod: 'self_code',
-    sharedNumber: false,
     attestedById: null,
     attestedAt: null,
     locale: 'en-NG',

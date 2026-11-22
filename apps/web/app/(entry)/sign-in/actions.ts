@@ -9,9 +9,8 @@
  * posts to a navigation reset that touches no contract.
  *
  * The pending challenge's identifier comes from the flow's cookie, never from the request body: a
- * browser can only ever complete the sign-in it started. The chosen account travels as an ordinal
- * — the browser never holds a member identifier, and the action resolves it against the challenge
- * record server-side (`C-005` reveals the count, never the names).
+ * browser can only ever complete the sign-in it started. A number belongs to at most one account
+ * (`FEAT-001`), so the browser never holds or sends an account reference at all.
  *
  * As on the join flow, every exit is a redirect. A refusal writes the submitted values and one
  * cause token into the flow's cookies, and the redirected render turns it into the state the
@@ -197,8 +196,6 @@ function pendingFromResult(
   return {
     challengeId: result.signInChallengeId,
     telephoneNumber,
-    accountChoiceRequired: result.accountChoiceRequired,
-    accountCount: result.accountCount,
     returnTo,
     resendAvailableAt: result.codeDelivery.resendAvailableAt,
   };
@@ -316,10 +313,10 @@ export async function resendSignInCodeAction(): Promise<void> {
  * Maps a `C-006` refusal onto the status grain the code step renders.
  *
  * The screen's states name the causes: an incorrect code (with the tries remaining), the cooldown
- * after the tries are used up, an expired code (with the resend as the lead action), a code that
- * already opened a session, and the missing account choice on a shared number. A challenge the
- * store no longer holds — expired, or consumed by an earlier confirmation — renders as the
- * expired state, which is the same recovery either way: a fresh code.
+ * after the tries are used up, an expired code (with the resend as the lead action), and a code that
+ * already opened a session. A challenge the store no longer holds — expired, or consumed by an
+ * earlier confirmation — renders as the expired state, which is the same recovery either way: a
+ * fresh code.
  */
 function confirmRefusal(failure: IdentityFailure): Omit<SignInStatusState, 'at'> {
   switch (failure.cause) {
@@ -342,21 +339,17 @@ function confirmRefusal(failure: IdentityFailure): Omit<SignInStatusState, 'at'>
       return { cause: 'CODE_EXPIRED' };
     case 'CODE_ALREADY_USED':
       return { cause: 'CODE_ALREADY_USED' };
-    case 'ACCOUNT_CHOICE_REQUIRED':
-      return { cause: 'ACCOUNT_CHOICE_REQUIRED' };
     default:
-      // `ACCOUNT_NOT_ON_CHALLENGE` and `MEMBER_NOT_FOUND` are integrity refusals the UI cannot
-      // invite: nothing changed, and the member either retries or re-requests a code.
+      // `MEMBER_NOT_FOUND` and the degraded answers are integrity refusals the UI cannot invite:
+      // nothing changed, and the member either retries or re-requests a code.
       return { cause: 'DEGRADED' };
   }
 }
 
 /**
- * Proves the code, applies the account choice and opens the session (`C-006`).
+ * Proves the code and opens the session for the account that holds the number (`C-006`).
  *
- * The chosen account arrives as an ordinal. It is resolved against the challenge's own accounts
- * here, so a posted value that names no account on the challenge is exactly the missing-choice
- * refusal the contract defines — a shared number never signs in automatically (`FEAT-001`).
+ * The challenge resolves the one account (`FEAT-001`), so no account reference is posted or read.
  */
 export async function completeSignInAction(formData: FormData): Promise<void> {
   const pending = await readSignInPending();
@@ -365,7 +358,6 @@ export async function completeSignInAction(formData: FormData): Promise<void> {
   const ports = await getSignInDependencies();
   const correlationId = newCorrelationId();
   const code = String(formData.get('code') ?? '');
-  const choice = String(formData.get('memberId') ?? '');
 
   const reading = readCode(code);
   if (!reading.ok) {
@@ -378,26 +370,12 @@ export async function completeSignInAction(formData: FormData): Promise<void> {
     redirect('/sign-in');
   }
 
-  // The ordinal → account mapping happens against the challenge record, server-side. The browser
-  // never learns an identifier, and an out-of-range ordinal is the same as no choice at all.
-  let memberId: string | undefined;
-  if (choice !== '' && pending.accountChoiceRequired) {
-    const position = Number(choice);
-    if (Number.isSafeInteger(position) && position >= 1) {
-      const challenge = await ports.signInChallenges.findById(pending.challengeId);
-      const accounts = challenge?.memberIds ?? [];
-      const chosen = accounts[position - 1];
-      if (chosen !== undefined) memberId = chosen;
-    }
-  }
-
   const result: CompleteSignInResult = await completeSignIn(
     { kind: 'public', correlationId },
     ports,
     {
       signInChallengeId: pending.challengeId,
       code: reading.value,
-      ...(memberId === undefined ? {} : { memberId }),
       returnTo: pending.returnTo,
     },
   );

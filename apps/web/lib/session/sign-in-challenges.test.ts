@@ -20,7 +20,7 @@ function store() {
 const input = {
   id: 'sic_TEST00000000000000000001',
   telephoneNumber: '+2348031234567',
-  memberIds: ['mbr_0001', 'mbr_0002'],
+  memberIds: ['mbr_0001'],
   at: NOW,
   expiresAt: LATER,
 };
@@ -40,7 +40,7 @@ describe('createSignInChallengeStore (C-005, C-006)', () => {
     expect(read).toEqual({
       id: input.id,
       telephoneNumber: '+2348031234567',
-      memberIds: ['mbr_0001', 'mbr_0002'],
+      memberIds: ['mbr_0001'],
       codeSentAt: NOW,
       expiresAt: LATER,
     });

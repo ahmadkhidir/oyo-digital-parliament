@@ -99,7 +99,6 @@ describe('durable analytics sink', () => {
     const outcome = await dispatcher.emit('account_registered', {
       identity_state: 'registered',
       verification_method: 'self_code',
-      shared_number: false,
       ward_resolved: false,
       locale: 'en-NG',
     });

@@ -1,9 +1,9 @@
 /**
  * The member repository (`schema.md` Member, `C-032`, `C-033`, `FEAT-001`, `FEAT-012`).
  *
- * Proves the account round-trip, the shared-handset rule (two accounts, never merged), the narrow
- * profile correction, deletion as a state change that keeps the public author reference, and the
- * absence of any ward-grouped operation or supporting index.
+ * Proves the account round-trip, the one-live-account-per-number rule, the narrow profile correction,
+ * deletion as a state change that keeps the public author reference, and the absence of any
+ * ward-grouped operation or supporting index.
  */
 import { describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
@@ -34,7 +34,6 @@ describe('member repository', () => {
         wardStatus: 'resolved',
         identityState: 'checked',
         verificationMethod: 'self_code',
-        sharedNumber: false,
       });
       const open = await repository.get(unresolved);
       expect(open?.wardStatus).toBe('unresolved');
@@ -46,7 +45,7 @@ describe('member repository', () => {
     }
   });
 
-  it('lists every live account on a shared number oldest first and never merges them', async () => {
+  it('holds one live account per number and frees the number when that account is anonymised', async () => {
     const database = await createTestDatabase();
     try {
       const repository = createMemberRepository(database.db);
@@ -56,27 +55,26 @@ describe('member repository', () => {
         displayName: 'Seun A.',
         createdAt: '2026-01-01T09:00:00Z',
       });
+      const elsewhere = await createMember(database.db, { telephoneNumber: '+2348099999999' });
+
+      // `FEAT-001`: the number resolves to exactly the one account that holds it.
+      expect((await repository.findByTelephone(number)).map((row) => row.id)).toEqual([first]);
+      expect((await repository.findByTelephone('+2348000000000')).length).toBe(0);
+
+      // A second live account on the same number is refused by `member_telephone_live_key`.
+      await expect(
+        createMember(database.db, { telephoneNumber: number, displayName: 'Bisi A.' }),
+      ).rejects.toMatchObject({ cause: { code: '23505' } });
+
+      // An anonymised row no longer holds the number, so the number is free for a new live account.
+      await repository.anonymise(first, '2026-03-01T09:00:00Z');
+      expect(await repository.findByTelephone(number)).toEqual([]);
       const second = await createMember(database.db, {
         telephoneNumber: number,
         displayName: 'Bisi A.',
-        createdAt: '2026-02-01T09:00:00Z',
       });
-      const elsewhere = await createMember(database.db, { telephoneNumber: '+2348099999999' });
-
-      expect((await repository.findByTelephone(number)).map((row) => row.id)).toEqual([
-        first,
-        second,
-      ]);
-      expect((await repository.findByTelephone('+2348000000000')).length).toBe(0);
-
-      await repository.markSharedNumber(number);
-      expect((await repository.get(first))?.sharedNumber).toBe(true);
-      expect((await repository.get(second))?.sharedNumber).toBe(true);
-      expect((await repository.get(elsewhere))?.sharedNumber).toBe(false);
-
-      // An anonymised row is no longer a sign-in account on the handset.
-      await repository.anonymise(first, '2026-03-01T09:00:00Z');
       expect((await repository.findByTelephone(number)).map((row) => row.id)).toEqual([second]);
+      expect((await repository.get(elsewhere))?.telephoneNumber).toBe('+2348099999999');
     } finally {
       await database.dispose();
     }

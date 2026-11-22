@@ -32,6 +32,9 @@ const QUEUE_MIGRATION = '0002_outbound_notification_queue';
 /** The fourth migration: the durable analytics sink (`C-089`). */
 const ANALYTICS_MIGRATION = '0003_analytics_event_sink';
 
+/** The fifth migration: one live account per number (`FEAT-001`). */
+const ONE_ACCOUNT_MIGRATION = '0004_one_account_per_number';
+
 describe('initial migration', () => {
   it('builds every table, then drops them all through the down path and builds again', async () => {
     const database = await createTestDatabase();
@@ -42,16 +45,19 @@ describe('initial migration', () => {
       expect(tablesBefore.rows.map((row) => row.tablename)).toContain('ward');
       expect(tablesBefore.rows).toHaveLength(35);
 
-      const downCredential = await readDownMigration(CREDENTIAL_MIGRATION);
-      await database.pool.query(downCredential);
+      // Each down path must run before the one it built on: the one-account rule is dropped first, then
+      // the analytics sink, the outbound queue, the credential and the initial schema.
+      const downOneAccount = await readDownMigration(ONE_ACCOUNT_MIGRATION);
+      await database.pool.query(downOneAccount);
 
-      // Each down path must run before the one it built on: the analytics sink and the outbound
-      // queue are dropped first, then the credential, then the initial schema.
       const downAnalytics = await readDownMigration(ANALYTICS_MIGRATION);
       await database.pool.query(downAnalytics);
 
       const downQueue = await readDownMigration(QUEUE_MIGRATION);
       await database.pool.query(downQueue);
+
+      const downCredential = await readDownMigration(CREDENTIAL_MIGRATION);
+      await database.pool.query(downCredential);
 
       const down = await readDownMigration('0000_initial');
       await database.pool.query(down);
@@ -101,6 +107,8 @@ describe('initial migration', () => {
         'decision_successor_key',
         // C-017: one active backing per member and submission.
         'backing_active_member_key',
+        // FEAT-001 / C-005: a number belongs to at most one live account.
+        'member_telephone_live_key',
         // C-089: the funnel count, the deletion-propagation rewrite and the retention sweep.
         'analytics_event_name_occurred_idx',
         'analytics_event_user_idx',
@@ -245,6 +253,58 @@ describe('staff credential migration', () => {
           order by column_name`,
       );
       expect(nullable.rows.map((row) => row.is_nullable)).toEqual(['YES', 'YES', 'YES']);
+    } finally {
+      await database.dispose();
+    }
+  });
+});
+
+describe('one account per number migration', () => {
+  it('drops the shared-number flag, enforces the live-number rule, and reverses both', async () => {
+    const database = await createTestDatabase();
+    try {
+      const number = '+2348031234567';
+      const first = await createMember(database.db, { telephoneNumber: number });
+
+      // `FEAT-001`: a second live account on the same number is refused by the database itself.
+      await expect(
+        createMember(database.db, { telephoneNumber: number, displayName: 'Bisi A.' }),
+      ).rejects.toMatchObject({ cause: { code: '23505' } });
+
+      const flag = await database.pool.query<{ column_name: string }>(
+        `select column_name from information_schema.columns
+          where table_schema = 'public' and table_name = 'member'
+            and column_name = 'shared_number'`,
+      );
+      expect(flag.rows).toHaveLength(0);
+
+      const unique = await database.pool.query<{ indexdef: string }>(
+        `select indexdef from pg_indexes
+          where schemaname = 'public' and indexname = 'member_telephone_live_key'`,
+      );
+      expect(unique.rows[0]?.indexdef).toMatch(/unique index/i);
+      expect(unique.rows[0]?.indexdef).toMatch(/deleted_at is null/i);
+
+      // The rollback restores the flag for every row and the plain lookup index.
+      await database.pool.query(await readDownMigration(ONE_ACCOUNT_MIGRATION));
+      const restored = await database.pool.query<{ shared_number: boolean }>(
+        'select shared_number from member where id = $1',
+        [first],
+      );
+      expect(restored.rows[0]?.shared_number).toBe(false);
+      const plain = await database.pool.query<{ indexdef: string }>(
+        `select indexdef from pg_indexes
+          where schemaname = 'public' and indexname = 'member_telephone_idx'`,
+      );
+      expect(plain.rows[0]?.indexdef).not.toMatch(/unique/i);
+
+      // The forward migration applies again over the rolled-back shape.
+      await database.pool.query(await readMigration(ONE_ACCOUNT_MIGRATION));
+      const enforced = await database.pool.query<{ indexdef: string }>(
+        `select indexdef from pg_indexes
+          where schemaname = 'public' and indexname = 'member_telephone_live_key'`,
+      );
+      expect(enforced.rows[0]?.indexdef).toMatch(/unique index/i);
     } finally {
       await database.dispose();
     }

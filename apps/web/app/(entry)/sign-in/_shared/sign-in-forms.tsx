@@ -9,9 +9,8 @@
  * plain requests to their server actions, the code field is always empty on arrival (a wrong code
  * clears the field, as the confirmation screen states), and the countdown shows as the static note.
  *
- * The account choice is a plain radio group: the ordinals the member picks are the only thing the
- * browser holds — the accounts themselves stay on the server (`C-005` reveals the count, never the
- * names, and no member identifier enters the client).
+ * The account choice is gone: a number belongs to at most one account (`FEAT-001`), so the code
+ * step only needs the digits — no account reference enters the client.
  *
  * All copy arrives already translated; the countdown formats its own live numbers through the
  * shared helpers, so the catalogue does not ship with the client bundle.
@@ -101,8 +100,6 @@ export interface SignInCodeCopy {
   offlineSubmit: string;
   /** The code control's copy, its failure sentence included when the digits were refused. */
   code: { label: string; hint: string; error?: string | undefined };
-  /** The account-choice group's copy, present only when the number is shared. */
-  choice?: { legend: string; option: string } | undefined;
   confirm: string;
   confirming: string;
 }
@@ -111,8 +108,6 @@ export interface SignInCodeFormProps {
   /** The `C-006` server action. */
   action: (formData: FormData) => void | Promise<void>;
   copy: SignInCodeCopy;
-  /** How many accounts share the number, when the member must choose. */
-  accountCount?: number | undefined;
   /** The confirm control's variant; it yields to the resend when the code has expired. */
   confirmVariant?: ButtonVariant;
 }
@@ -120,46 +115,17 @@ export interface SignInCodeFormProps {
 /** The code form's body, inside the form element, where pending and offline are readable. */
 function SignInCodeBody({
   copy,
-  accountCount,
   confirmVariant,
 }: {
   copy: SignInCodeCopy;
-  accountCount?: number | undefined;
   confirmVariant: ButtonVariant;
 }) {
   const offline = useOffline();
   const { pending } = useFormStatus();
   const locked = offline || pending;
-  const choice = copy.choice;
-  const count = accountCount;
   return (
     <>
       {offline ? <OfflineNote message={copy.offline} /> : null}
-      {choice !== undefined && count !== undefined && count > 1 ? (
-        <fieldset disabled={locked} className="border-0 p-0">
-          {/* The explicit choice before sign-in (`screens/02` Account choice; FEAT-001: a shared
-              number never signs in automatically). Ordinal labels only: the names stay on the
-              server until the code is accepted (`C-005` Authority). */}
-          <legend className="mb-sm text-body-strong text-text-primary">{choice.legend}</legend>
-          <div className="flex flex-col gap-xs">
-            {Array.from({ length: count }, (_, index) => (
-              <label
-                key={index + 1}
-                className={`flex min-h-button cursor-pointer items-center gap-sm rounded-md border border-border bg-surface px-md py-sm text-body text-text-primary hover:border-primary-300 hover:bg-primary-100 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-100 ${focusRingClasses}`}
-              >
-                <input
-                  type="radio"
-                  name="memberId"
-                  value={String(index + 1)}
-                  required
-                  className="shrink-0 accent-primary-700"
-                />
-                {interpolate(choice.option, { position: index + 1, count })}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ) : null}
       <fieldset disabled={locked} className="mt-lg border-0 p-0">
         <FlowField
           id="code"
@@ -193,15 +159,10 @@ function SignInCodeBody({
   );
 }
 
-export function SignInCodeForm({
-  action,
-  copy,
-  accountCount,
-  confirmVariant = 'primary',
-}: SignInCodeFormProps) {
+export function SignInCodeForm({ action, copy, confirmVariant = 'primary' }: SignInCodeFormProps) {
   return (
     <form action={action}>
-      <SignInCodeBody copy={copy} accountCount={accountCount} confirmVariant={confirmVariant} />
+      <SignInCodeBody copy={copy} confirmVariant={confirmVariant} />
     </form>
   );
 }

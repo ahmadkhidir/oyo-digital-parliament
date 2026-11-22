@@ -263,7 +263,6 @@ describe('no member register by ward', () => {
       'findByTelephone',
       'get',
       'isDisplayNameTaken',
-      'markSharedNumber',
       'updateProfile',
     ]);
     for (const method of methods) {

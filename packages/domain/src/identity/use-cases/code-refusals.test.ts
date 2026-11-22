@@ -123,7 +123,6 @@ describe('a code whose window has closed (C-003)', () => {
     const result = await completeSignIn(publicCaller, fakes.ports, {
       signInChallengeId: requested.signInChallengeId,
       code: FAKE_CODE,
-      memberId: 'mbr_0001',
     });
 
     expect(result).toMatchObject({

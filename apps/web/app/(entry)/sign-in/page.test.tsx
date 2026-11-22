@@ -7,7 +7,7 @@
  * render every state, and a live session never leaves the member on this screen (`NFR-026`).
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import type { IdentityPorts } from '@odp/domain';
 import { createPortsDouble, doubleMember, FIXED_NOW } from '../../../test/identity-double';
 import { catalogues } from '../../../messages';
@@ -124,8 +124,6 @@ function signInDouble(
 function seedPending(state: {
   challengeId: string;
   telephoneNumber: string;
-  accountChoiceRequired: boolean;
-  accountCount: number;
   returnTo: string;
   resendAvailableAt?: string;
 }): void {
@@ -247,8 +245,6 @@ describe('SignInPage (screens/02-sign-in.md)', () => {
     seedPending({
       challengeId: row.id,
       telephoneNumber: '+2348031234567',
-      accountChoiceRequired: false,
-      accountCount: 1,
       returnTo: '/',
       resendAvailableAt: '2026-11-18T09:01:00Z',
     });
@@ -263,39 +259,24 @@ describe('SignInPage (screens/02-sign-in.md)', () => {
     expect(screen.getByText(copy.useDifferentNumber)).toBeInTheDocument();
   });
 
-  it('renders the account choice as positions, never as names (Account choice; C-005)', async () => {
-    const copy = catalogues['en-NG'].signIn;
-    signInDouble({
-      members: [
-        doubleMember({ id: 'mbr_0001', displayName: 'Seun A.' }),
-        doubleMember({ id: 'mbr_0002', displayName: 'Tunde O.' }),
-      ],
-    });
-    const row = challengeRow({ memberIds: ['mbr_0001', 'mbr_0002'] });
+  it('never asks which account is signing in, and names none (C-005, C-006; FEAT-001)', async () => {
+    signInDouble({ members: [doubleMember({ id: 'mbr_0001', displayName: 'Seun A.' })] });
+    const row = challengeRow();
     const ports = holder.ports as IdentityPorts;
     await ports.signInChallenges.create({ ...row, at: row.codeSentAt });
     seedPending({
       challengeId: row.id,
       telephoneNumber: '+2348031234567',
-      accountChoiceRequired: true,
-      accountCount: 2,
       returnTo: '/',
-      resendAvailableAt: '2026-11-18T09:01:00Z',
     });
 
     render(await SignInPage(pageProps()));
 
-    expect(
-      screen.getByText(
-        'More than one account uses +2348031234567. Enter the code, then choose the account.',
-      ),
-    ).toBeInTheDocument();
-    const group = screen.getByRole('group', { name: copy.accountChoice.legend });
-    expect(within(group).getByRole('radio', { name: 'Account 1 of 2' })).toBeInTheDocument();
-    expect(within(group).getByRole('radio', { name: 'Account 2 of 2' })).toBeInTheDocument();
-    // The contract reveals the count of a shared number, never the names (`C-005` Authority).
+    // A number belongs to at most one account, so there is no account choice and no account list.
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(catalogues['en-NG'].signIn.code.label)).toBeInTheDocument();
     expect(screen.queryByText('Seun A.')).not.toBeInTheDocument();
-    expect(screen.queryByText('Tunde O.')).not.toBeInTheDocument();
   });
 
   it('renders the expired state with the resend as the lead action (Expired)', async () => {
@@ -304,8 +285,6 @@ describe('SignInPage (screens/02-sign-in.md)', () => {
     seedPending({
       challengeId: 'sic_GONE0000000000000000001',
       telephoneNumber: '+2348031234567',
-      accountChoiceRequired: false,
-      accountCount: 1,
       returnTo: '/',
     });
 

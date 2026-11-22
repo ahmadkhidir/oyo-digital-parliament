@@ -38,8 +38,6 @@ export interface RegisterResidentInput {
   readonly telephoneNumber: string;
   readonly displayName?: string;
   readonly locale?: Locale;
-  /** `true` only when the resident states the handset and number are shared (`FEAT-001`). */
-  readonly sharedNumberDeclaration?: boolean;
 }
 
 /** The `C-002` answer, or the refusal that stopped it. */
@@ -73,7 +71,7 @@ function fieldsOf(readings: readonly Reading<unknown>[]): Record<string, Identit
  *
  * @param caller - The visitor; a staff session may not register a resident.
  * @param deps - The pending-registration, code, member, limiter, audit and analytics ports.
- * @param input - The four facts the form collects, plus the shared-number declaration.
+ * @param input - The four facts the form collects.
  */
 export async function registerResident(
   caller: IdentityCaller,
@@ -100,12 +98,6 @@ export async function registerResident(
     const reading = readLocale(input.locale);
     if (!reading.ok) fields[reading.field] = reading.reason;
     else locale = reading.value;
-  }
-  if (
-    input.sharedNumberDeclaration !== undefined &&
-    typeof input.sharedNumberDeclaration !== 'boolean'
-  ) {
-    fields['sharedNumberDeclaration'] = 'PATTERN_MISMATCH';
   }
   if (Object.keys(fields).length > 0) {
     return identityFailure(
@@ -151,9 +143,9 @@ export async function registerResident(
       'The account store could not be read, so nothing was created.',
     );
   }
-  const sharedNumber = existing.length > 0;
-  if (sharedNumber && input.sharedNumberDeclaration !== true) {
-    // `C-002`: an already-registered number offers recovery of the existing account, never a duplicate.
+  if (existing.length > 0) {
+    // `C-002`: a number belongs to at most one account, so an already-registered number offers
+    // recovery of that account rather than a second registration (`FEAT-001`).
     return identityFailure(
       'VALIDATION_FAILED',
       'ALREADY_REGISTERED',

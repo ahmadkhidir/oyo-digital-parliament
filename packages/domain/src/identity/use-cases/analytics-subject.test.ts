@@ -92,14 +92,15 @@ describe('identity analytics subject (C-089)', () => {
     expect(fakes.analytics[0]?.name).toBe('registration_started');
   });
 
-  it('attributes a single-account sign-in to that member', async () => {
+  it('attributes sign-in to the one member that holds the number', async () => {
     const fakes = createIdentityHarness({
       members: [fakeMember({ id: 'mbr_0001', displayName: 'Seun A.' })],
     });
     const result = await requestSignInCode(publicCaller, fakes.ports, {
       telephoneNumber: '+2348031234567',
     });
-    expect(result).toMatchObject({ ok: true, accountCount: 1 });
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('accountCount');
 
     expect(fakes.analytics).toHaveLength(1);
     expect(fakes.analytics[0]?.subject).toEqual({ kind: 'member', memberId: 'mbr_0001' });

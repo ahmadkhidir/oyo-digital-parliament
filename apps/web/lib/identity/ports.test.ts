@@ -97,7 +97,6 @@ const ACCOUNT_REGISTERED: IdentityAnalyticsEvent = {
   properties: {
     identity_state: 'registered',
     verification_method: 'self_code',
-    shared_number: false,
     ward_resolved: false,
     locale: 'yo-NG',
   },
@@ -139,7 +138,6 @@ describe('identity analytics adapter (C-089)', () => {
       properties: {
         identity_state: 'registered',
         verification_method: 'self_code',
-        shared_number: false,
         ward_resolved: false,
         locale: 'yo-NG',
       },

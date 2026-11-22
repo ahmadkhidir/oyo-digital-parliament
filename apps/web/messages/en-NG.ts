@@ -208,7 +208,6 @@ export const enNG = {
     sendCode: 'Send the code',
     sending: 'Sending the code',
     codeIntro: 'We sent a six-digit code to {number}.',
-    sharedIntro: 'More than one account uses {number}. Enter the code, then choose the account.',
     code: {
       label: 'The six digits from the message',
       hint: 'It can take a minute to arrive.',
@@ -217,11 +216,6 @@ export const enNG = {
       REQUIRED: 'Enter the six digits from the message.',
       PATTERN_MISMATCH: 'Enter six digits, numbers only.',
     },
-    accountChoice: {
-      legend: 'Which account is signing in?',
-      option: 'Account {position} of {count}',
-    },
-    choiceRequired: 'Choose which account is signing in.',
     confirm: 'Sign in',
     confirming: 'Signing in',
     incorrectTwo: 'That code is not right. You have {attempts} tries left.',

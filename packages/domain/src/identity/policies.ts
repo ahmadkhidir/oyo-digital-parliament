@@ -4,7 +4,7 @@
  *
  * Everything here is a pure, total function: no I/O, no clock read, no mutation. The windows, the
  * attempt limits and the membership rules are written down once, so a registration, a sign-in and a
- * staff challenge cannot disagree about how long a code lives or what "shared number" means.
+ * staff challenge cannot disagree about how long a code lives or which account a number resolves to.
  */
 import {
   CONSENT_PURPOSE_VALUES,
@@ -293,7 +293,7 @@ export function readDataRequestType(raw: unknown): Reading<DataRequestType> {
     : { ok: false, field: 'type', reason: 'ENUM_MISMATCH' };
 }
 
-/** Reads a boolean flag such as `granted` or `sharedNumberDeclaration`. */
+/** Reads a boolean flag such as `granted` or `offline_replay`. */
 export function readBoolean(raw: unknown, field: string): Reading<boolean> {
   if (raw === undefined || raw === null) {
     return { ok: false, field, reason: 'REQUIRED' };
@@ -571,7 +571,6 @@ export interface RegistrationMemberProjection {
   readonly displayName: string;
   readonly identityState: 'registered';
   readonly verificationMethod: VerificationMethod;
-  readonly sharedNumber: boolean;
   readonly wardStatus: MemberWardStatus;
   readonly locale: Locale;
   readonly createdAt: string;
@@ -584,7 +583,6 @@ export function registrationProjection(member: MemberRecord): RegistrationMember
     displayName: member.displayName,
     identityState: 'registered',
     verificationMethod: member.verificationMethod,
-    sharedNumber: member.sharedNumber,
     wardStatus: member.wardStatus,
     locale: member.locale,
     createdAt: member.createdAt,
@@ -599,7 +597,6 @@ export interface SessionMemberProjection {
   readonly wardStatus: MemberWardStatus;
   readonly wardId?: string;
   readonly locale: Locale;
-  readonly sharedNumber: boolean;
 }
 
 /** Projects a member for the `C-006` answer and the `C-007` session read. */
@@ -611,7 +608,6 @@ export function sessionMemberProjection(member: MemberRecord): SessionMemberProj
     wardStatus: member.wardStatus,
     ...(member.wardId === undefined ? {} : { wardId: member.wardId }),
     locale: member.locale,
-    sharedNumber: member.sharedNumber,
   };
 }
 

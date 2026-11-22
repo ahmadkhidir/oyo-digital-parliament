@@ -156,7 +156,6 @@ export interface AnalyticsPayloads {
   readonly account_registered: {
     readonly identity_state: string;
     readonly verification_method: string;
-    readonly shared_number: boolean;
     readonly ward_resolved: boolean;
     readonly locale: string;
   };
@@ -341,7 +340,6 @@ export const ANALYTICS_EVENTS: { readonly [K in AnalyticsEventName]: AnalyticsEv
       properties: {
         identity_state: enumKind(IDENTITY_STATES),
         verification_method: enumKind(VERIFICATION_METHODS),
-        shared_number: booleanKind(),
         ward_resolved: booleanKind(),
         locale: enumKind(ANALYTICS_LOCALES),
       },

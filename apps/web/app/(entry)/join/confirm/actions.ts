@@ -85,9 +85,12 @@ async function holdStatus(status: Omit<ConfirmStatusState, 'at'>): Promise<void>
  * The screen's states name the causes: incorrect (with attempts remaining), expired, the cooldown
  * after the tries are used up, and a code that already made an account. Anything the contract
  * answers `SERVICE_DEGRADED` for is one degraded sentence; a pending registration the use case has
- * reported gone ends the flow with the notice on `/join`.
+ * reported gone ends the flow with the notice on `/join`. A number that has come to belong to an
+ * account since the form was sent is `C-003`'s recovery path, so the flow ends at sign-in.
  */
-function confirmRefusal(failure: IdentityFailure): Omit<ConfirmStatusState, 'at'> | 'gone' {
+function confirmRefusal(
+  failure: IdentityFailure,
+): Omit<ConfirmStatusState, 'at'> | 'gone' | 'recover' {
   switch (failure.cause) {
     case 'CODE_INCORRECT':
       return {
@@ -107,6 +110,9 @@ function confirmRefusal(failure: IdentityFailure): Omit<ConfirmStatusState, 'at'
       };
     case 'CODE_ALREADY_USED':
       return { cause: 'CODE_ALREADY_USED' };
+    case 'NUMBER_ALREADY_REGISTERED':
+      // `C-003`: the number now belongs to an account, so the one recovery is that account's sign-in.
+      return 'recover';
     case 'PENDING_REGISTRATION_EXPIRED':
       return 'gone';
     default:
@@ -148,6 +154,13 @@ export async function confirmRegistrationAction(formData: FormData): Promise<voi
     if (refusal === 'gone') {
       await expireRegistration();
       redirect('/join');
+    }
+    if (refusal === 'recover') {
+      // `C-003` `meta.recoveryPath:"/sign-in"`: no account and no session were created here.
+      await clearConfirmStatus();
+      await clearJoinPending();
+      await clearJoinRetry();
+      redirect('/sign-in');
     }
     await holdStatus(refusal);
     redirect('/join/confirm');

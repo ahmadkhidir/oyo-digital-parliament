@@ -6,7 +6,12 @@
  * screen hands the action after `/join` has run.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { createPortsDouble, DOUBLE_CODE, FIXED_NOW } from '../../../../test/identity-double';
+import {
+  createPortsDouble,
+  doubleMember,
+  DOUBLE_CODE,
+  FIXED_NOW,
+} from '../../../../test/identity-double';
 import type { IdentityPorts, PendingRegistration } from '@odp/domain';
 
 /** The redirect the action answers with; Next throws it out of the action. */
@@ -128,6 +133,22 @@ describe('confirmRegistrationAction (C-003)', () => {
     expect(flowCookie('odp_join_pending')).toBeNull();
     expect(flowCookie('odp_join_status')).toBeNull();
     expect(theDouble().events.map((event) => event.name)).toContain('account_registered');
+  });
+
+  it('offers sign-in instead of a second account when the number now belongs to one (C-003)', async () => {
+    // `FEAT-001`: the number was free when the form was sent and belongs to an account by now.
+    holder.double = createPortsDouble({
+      members: [doubleMember({ id: 'mbr_EXISTING', telephoneNumber: '+2348031234567' })],
+    });
+    holder.ports = holder.double.ports;
+    seedPending();
+
+    const redirect = await run(confirmRegistrationAction, codeForm(DOUBLE_CODE));
+
+    expect(redirect.url).toBe('/sign-in');
+    expect(theDouble().members).toHaveLength(1); // No second account, and nothing merged.
+    expect(theDouble().sessions.size).toBe(0);
+    expect(flowCookie('odp_join_pending')).toBeNull();
   });
 
   it('states the attempts remaining and clears the field on a wrong code (Incorrect)', async () => {
