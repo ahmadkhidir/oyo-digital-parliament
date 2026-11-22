@@ -139,6 +139,58 @@ export const enNG = {
     signIn: 'Sign in',
     backToForm: 'Back to the registration form',
   },
+  ward: {
+    title: 'Your ward',
+    heading: 'Which ward do you live in?',
+    intro:
+      'Describe your area the way you would say it out loud. We suggest ward names; you choose the one that fits.',
+    areaLabel: 'Local government area',
+    areaHint:
+      'Choose the local government area first. It narrows the list and tells apart wards that share a name.',
+    areaPlaceholder: 'Select a local government area',
+    descriptionLabel: 'Describe your area',
+    descriptionHint:
+      'A landmark, a street or the name you use for the area. Your own words are enough.',
+    descriptionPlaceholder: 'For example: behind Agbowo market, near the express',
+    suggesting: 'Looking for your ward',
+    candidatesLegend: 'Ward suggestions',
+    candidateOption: '{name} — {area}',
+    noCandidates:
+      'No ward in the reference matches those words. Your area is still accepted; send it for review below.',
+    candidateError:
+      'The ward list could not be read just now. Your words are still enough; send them for review below.',
+    areaRequired:
+      'More than one ward carries that name. Choose your local government area above so the right one can be offered.',
+    confirm: 'Confirm ward',
+    confirming: 'Recording your ward',
+    noneOfThese: 'None of these',
+    noneOfTheseHint:
+      'Choose this if no suggestion is your area. A reviewer will confirm it, and you can carry on.',
+    unresolvedHeading: 'If your area is not on the list',
+    unresolvedNote:
+      'It is still accepted. It stays unresolved until a reviewer confirms it, and your account keeps working.',
+    recordedHeading: 'Your ward is recorded',
+    recordedBody: 'Your record is placed in {ward}. You can change it below if that is wrong.',
+    sentHeading: 'Area sent for confirmation',
+    sentBody:
+      'Your area will be reviewed and confirmed. You can carry on now; nothing is blocked while it is unresolved.',
+    sentContinue: 'Continue to the record',
+    errors: {
+      descriptionRequired: 'Describe your area before sending.',
+      descriptionLong: 'That description is too long. Keep it under 500 characters.',
+      areaLong: 'That local government area is too long.',
+      choiceRequired: 'Choose a suggested ward, or choose None of these.',
+      wardUnknown:
+        'That ward is no longer in the reference. Choose another suggestion, or send your words for review.',
+      writeFailed:
+        'The ward could not be recorded just now. Nothing changed, and your words are still here. Try again.',
+      idempotencyRequired: 'The form expired before it was sent. Check your words and try again.',
+      idempotencyConflict:
+        'This form was already sent with different words. Check them and try again.',
+    },
+    offline: 'You are offline. Your words are held; the form sends when the connection returns.',
+    offlineSubmit: 'Send when back online',
+  },
   signIn: {
     title: 'Sign in',
     heading: 'Sign in',
