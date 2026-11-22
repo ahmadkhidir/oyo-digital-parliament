@@ -713,9 +713,16 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
         endedSessionIds.add(sessionId);
       },
       async endAllForStaff(staffUserId) {
+        // `C-093` reports how many sessions the reset ended, so the double counts rather than
+        // answering a bare success; a second sweep finds nothing and answers zero.
+        let ended = 0;
         for (const [sessionId, row] of staffSessions) {
-          if (row.staffId === staffUserId) endedSessionIds.add(sessionId);
+          if (row.staffId !== staffUserId) continue;
+          if (endedSessionIds.has(sessionId)) continue;
+          endedSessionIds.add(sessionId);
+          ended += 1;
         }
+        return ended;
       },
     },
 

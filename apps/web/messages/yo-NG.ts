@@ -489,8 +489,7 @@ export const yoNG: Messages = {
     signIn: {
       title: 'Ìwọlé òṣìṣẹ́',
       heading: 'Ìwọlé òṣìṣẹ́',
-      accessNote:
-        'Ilẹ̀kùn yìí jẹ́ ti òṣìṣẹ́ ìpolongo. Aráàlú máa ń wọlé pẹ̀lú nọ́mbá fọ́òntù.',
+      accessNote: 'Ilẹ̀kùn yìí jẹ́ ti òṣìṣẹ́ ìpolongo. Aráàlú máa ń wọlé pẹ̀lú nọ́mbá fọ́òntù.',
       username: { label: 'Orúkọ olùṣe', hint: 'Orúkọ òṣìṣẹ́ tí a fún ọ.' },
       password: { label: 'Ọ̀rọ̀ ìpamọ́', hint: 'A kì í fi hàn lẹ́yìn tí o bá ránṣẹ́.' },
       submit: 'Wọlé',
@@ -500,8 +499,7 @@ export const yoNG: Messages = {
       note: 'Orúkọ, nọ́mbá tàbí àpèjúwe agbègbè aráàlú kò sí nínú ìwọlé òṣìṣẹ́.',
       invalid: 'Orúkọ olùṣe àti ọ̀rọ̀ ìpamọ́ yẹn kò bára mu.',
       locked: 'A dá ìgbìyànjú dúró títí di {time}. Béèrè lọ́wọ́ olùṣàkóso bí o bá nílò ìwọlé kíákíá.',
-      deliveryFailed:
-        'A kò lè dé iṣẹ́ ìwọlé. Gbìyànjú lẹ́ẹ̀kan sí i, tàbí béèrè lọ́wọ́ olùṣàkóso.',
+      deliveryFailed: 'A kò lè dé iṣẹ́ ìwọlé. Gbìyànjú lẹ́ẹ̀kan sí i, tàbí béèrè lọ́wọ́ olùṣàkóso.',
       sessionEnded: 'Ìgbà òṣìṣẹ́ rẹ parí. Wọlé lẹ́ẹ̀kan sí i.',
       passwordRequired: 'Tẹ ọ̀rọ̀ ìpamọ́ rẹ lẹ́ẹ̀kan sí i kí o tó tẹ̀síwájú.',
       memberSession:
@@ -515,13 +513,15 @@ export const yoNG: Messages = {
       heading: 'Jẹ́rìí ẹ̀rí kejì rẹ',
       stepNote: 'A gba ọ̀rọ̀ ìpamọ́ rẹ. Ẹ̀rí kejì ni ìgbésẹ̀ tó kù.',
       code: { label: 'Nọ́mbá mẹ́fà', hint: 'Láti inú àpù ẹ̀rí rẹ.' },
-      recoveryCode: { label: 'Kóòdù ìpadàbọ̀', hint: 'Ọ̀kan nínú àwọn kóòdù tí a fún ọ nígbà ìforúkọsílẹ̀.' },
+      recoveryCode: {
+        label: 'Kóòdù ìpadàbọ̀',
+        hint: 'Ọ̀kan nínú àwọn kóòdù tí a fún ọ nígbà ìforúkọsílẹ̀.',
+      },
       useRecovery: 'Lo kóòdù ìpadàbọ̀',
       useAuthenticator: 'Lo ẹ̀rọ ẹ̀rí',
       confirm: 'Jẹ́rìí kóòdù',
       confirming: 'Ń ṣàyẹ̀wò kóòdù',
-      enrolmentNote:
-        'Ẹ̀rí kejì pọn dandan fún gbogbo ipa òṣìṣẹ́, a sì forúkọsílẹ̀ rẹ̀ lẹ́ẹ̀kan.',
+      enrolmentNote: 'Ẹ̀rí kejì pọn dandan fún gbogbo ipa òṣìṣẹ́, a sì forúkọsílẹ̀ rẹ̀ lẹ́ẹ̀kan.',
       secretLabel: 'Fi àṣírí yìí kún ẹ̀rọ ẹ̀rí rẹ',
       secretHint: 'A fi í hàn lẹ́ẹ̀kan, kò sì ní padà wá.',
       copySecret: 'Da àṣírí kọ́pì',
@@ -558,15 +558,42 @@ export const yoNG: Messages = {
         operator: 'Olùṣàkóso',
       },
       destinationsHeading: 'Ohun tí o lè ṣiṣẹ́',
-      empty:
-        'Kò sí ohun tí a yàn fún ipa yìí. Béèrè lọ́wọ́ olùṣàkóso bí o bá retí ibi kan níbí.',
+      empty: 'Kò sí ohun tí a yàn fún ipa yìí. Béèrè lọ́wọ́ olùṣàkóso bí o bá retí ibi kan níbí.',
       open: 'Ṣí',
       credentialsHeading: 'Ẹ̀rí òṣìṣẹ́',
       credentialsBody:
         'Olùṣàkóso ń tún ọ̀rọ̀ ìpamọ́ àti ẹ̀rí kejì òṣìṣẹ́ mìíràn ṣe níbí. A kì í fi ọ̀rọ̀ ìpamọ́, àṣírí tàbí kóòdù ìpadàbọ̀ hàn.',
       credentialsEntry: 'Pánẹ́ẹ̀lì ẹ̀rí òṣìṣẹ́',
-      note:
-        'Ilé iṣẹ́ kò gbé dátà ara ẹni aráàlú ju ohun tí iṣẹ́ ipa rẹ nílò lọ. A ń kọ gbogbo ìgbésẹ̀ pẹ̀lú ẹni tó ṣe é, àfojúsùn, àkókò àti ìdí.',
+      credentialsLoading: 'Ń ka àkọsílẹ̀ àwọn òṣìṣẹ́',
+      credentials: {
+        empty: 'Kò sí ẹ̀rí òṣìṣẹ́ tí a lè tún ṣe.',
+        choose: 'Yan òṣìṣẹ́ tí wàá tún ṣe',
+        active: 'Ń ṣiṣẹ́',
+        inactive: 'Kò ṣiṣẹ́',
+        enrolled: 'A ti forúkọ ẹ̀rí kejì',
+        notEnrolled: 'Kò sí ẹ̀rí kejì',
+        newPassword: 'Ọ̀rọ̀ ìpamọ́ tuntun',
+        newPasswordHint: 'Lẹ́tà 12 sí 128. Fi lé e lọ́wọ́ ní ojúkọjú; a kì í fi í hàn lẹ́ẹ̀kan sí i.',
+        reason: 'Ìdí àtúntò náà',
+        reasonHint:
+          'A ó kọ ọ́ pẹ̀lú orúkọ rẹ, òṣìṣẹ́ náà àti àkókò. Má ṣe fi ọ̀rọ̀ ìpamọ́ tàbí kóòdù kún un.',
+        reset: 'Tún ẹ̀rí ṣe',
+        resetting: 'Ń tún ẹ̀rí ṣe',
+        offline: 'O kò lórí íńtánẹ́ẹ̀tì. Padà sí orí íńtánẹ́ẹ̀tì kí o tó tún ẹ̀rí ṣe.',
+        confirmHeading: 'Ṣé kí a tún ẹ̀rí òṣìṣẹ́ yìí ṣe?',
+        confirmBody:
+          '{name} yóò pàdánù ọ̀rọ̀ ìpamọ́ àti ẹ̀rí kejì rẹ̀. Gbogbo ìgbà tó ní yóò parí, yóò sì ní láti forúkọ ẹ̀rí kejì tuntun kí ó tó padà sí iṣẹ́.',
+        confirm: 'Tún ẹ̀rí náà ṣe',
+        cancel: 'Padà',
+        applied:
+          'A tún ẹ̀rí ṣe. Ìgbà {count} parí. Òṣìṣẹ́ náà gbọ́dọ̀ forúkọ ẹ̀rí kejì tuntun kí ó tó padà sí iṣẹ́.',
+        self: 'O kò lè tún ẹ̀rí ara rẹ ṣe níbí. Olùṣàkóso kejì gbọ́dọ̀ ṣe é.',
+        errorHeading: 'A kò lè tún ẹ̀rí náà ṣe',
+        errorBody:
+          'Ṣàyẹ̀wò ipò òṣìṣẹ́ náà kí o tó gbìyànjú lẹ́ẹ̀kan sí i. A kò fi ọ̀rọ̀ ìpamọ́, àṣírí tàbí kóòdù ìpadàbọ̀ hàn.',
+        retry: 'Gbìyànjú lẹ́ẹ̀kan sí i',
+      },
+      note: 'Ilé iṣẹ́ kò gbé dátà ara ẹni aráàlú ju ohun tí iṣẹ́ ipa rẹ nílò lọ. A ń kọ gbogbo ìgbésẹ̀ pẹ̀lú ẹni tó ṣe é, àfojúsùn, àkókò àti ìdí.',
       signOut: 'Jáde',
       errorHeading: 'A kò lè ka ipa rẹ',
       errorBody: 'A kò fi ibi kankan ṣe àròsọ. Gbìyànjú lẹ́ẹ̀kan sí i; ìgbà náà kò yí padà.',
@@ -586,8 +613,7 @@ export const yoNG: Messages = {
       errorHeading: 'A kò lè ka ìlà náà',
       errorBody: 'Ìlà tó kẹ́yìn tó ṣiṣẹ́ ni ó dúró. Gbìyànjú lẹ́ẹ̀kan sí i.',
       retry: 'Gbìyànjú lẹ́ẹ̀kan sí i',
-      noPermission:
-        'Òṣìṣẹ́ ìdáhùn ni ó ń ṣiṣẹ́ ìlà ìṣàyẹ̀wò agbègbè. Ipa rẹ kò ṣí i.',
+      noPermission: 'Òṣìṣẹ́ ìdáhùn ni ó ń ṣiṣẹ́ ìlà ìṣàyẹ̀wò agbègbè. Ipa rẹ kò ṣí i.',
       descriptionHeading: 'Àpèjúwe aráàlú',
       areaHeading: 'Ìjọba ìbílẹ̀',
       contextHeading: 'Ìrísí aráàlú',
@@ -621,7 +647,8 @@ export const yoNG: Messages = {
       recordingResidence: 'Ń kọ ìṣàyẹ̀wò náà',
       resolved: 'A kọ agbègbè náà, aráàlú àti àwọn ìfilọ́lẹ̀ rẹ̀ tí kò tíì ní agbègbè lọ síbẹ̀.',
       rejected: 'A kọ̀ àpèjúwe náà. A ó sọ fún aráàlú ohun tí ó yẹ kó tún ṣe.',
-      checked: 'A ti ṣàyẹ̀wò ibùgbé. Aráàlú yóò hàn gẹ́gẹ́ bí ẹni tí a ṣàyẹ̀wò lórí àwọn ìfilọ́lẹ̀ àti àtìlẹ́yìn rẹ̀.',
+      checked:
+        'A ti ṣàyẹ̀wò ibùgbé. Aráàlú yóò hàn gẹ́gẹ́ bí ẹni tí a ṣàyẹ̀wò lórí àwọn ìfilọ́lẹ̀ àti àtìlẹ́yìn rẹ̀.',
       residenceRejected: 'A kọ̀ ìṣàyẹ̀wò ibùgbé. Aráàlú ṣì wà gẹ́gẹ́ bí ẹni tí a kọ orúkọ.',
       moved: 'Ìfilọ́lẹ̀ {moved} lọ; {unchanged} ti ní agbègbè tẹ́lẹ̀.',
       nextCase: 'Ọ̀ràn tó kàn',

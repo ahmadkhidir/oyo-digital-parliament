@@ -341,8 +341,13 @@ export interface StaffSessionPort {
 
   end(sessionId: string): Promise<void>;
 
-  /** Ends every session for a staff user, used when the credential is reset or the role changes. */
-  endAllForStaff(staffUserId: string): Promise<void>;
+  /**
+   * Ends every session for a staff user, used when the credential is reset or the role changes.
+   *
+   * @returns How many live sessions ended, which `C-093` reports as `sessionsEnded`. A second sweep
+   *   after a reset answers `0` because the index is already empty.
+   */
+  endAllForStaff(staffUserId: string): Promise<number>;
 }
 
 /** A TOTP enrolment as `C-092` prints it once. The secret is returned by this answer only. */
@@ -472,6 +477,56 @@ export interface StaffUserPort {
 
   /** Writes `StaffUser.secondFactorEnrolled`; only `C-092` enrolment confirmation sets it true. */
   setSecondFactorEnrolled(staffId: string, enrolled: boolean, at: string): Promise<void>;
+}
+
+/**
+ * One staff account the operator's credentials panel may reset (`C-093`, screen 26).
+ *
+ * The panel reads the name, the role, the active state and the second-factor status and nothing else:
+ * no password hash, no TOTP secret and no recovery code ever leaves the credential store, so there is
+ * no field here that could carry one.
+ */
+export interface StaffResetTarget {
+  readonly staffUserId: string;
+  readonly fullName: string;
+  readonly role: StaffUser['role'];
+  readonly active: boolean;
+  readonly secondFactorEnrolled: boolean;
+}
+
+/**
+ * The operator's credential-reset write (`C-093`).
+ *
+ * A separate port rather than two more methods on {@link StaffCredentialPort}: sign-in reads a
+ * credential through that port and must not be handed a reset write, while the panel is the only
+ * caller of this one. The adapter hashes the password with the same Argon2id hasher sign-in compares
+ * against, and clears every secret the reset replaces, so the plaintext never reaches the row.
+ */
+export interface StaffCredentialResetPort {
+  /**
+   * The staff accounts the operator may reset: those that hold a credential.
+   *
+   * `C-093` refuses a reset whose credential does not exist, so an account without one is not a
+   * target. The caller is included rather than excluded, because a self-targeted reset is a refusal
+   * `C-093` names and the panel states it.
+   */
+  listResetTargets(): Promise<readonly StaffResetTarget[]>;
+
+  /**
+   * Replaces the credential with the `C-093` end state and returns it as the domain projects it.
+   *
+   * The password hash is replaced and `passwordChangedAt` set; the TOTP secret, the enrolment instant,
+   * every recovery code, the failure count and the lock are cleared. Nothing is returned that could
+   * carry a secret.
+   *
+   * @throws when the credential no longer exists or the store refused the write. The caller answers
+   *   `SERVICE_DEGRADED` and changes nothing else.
+   */
+  resetCredential(input: {
+    readonly credentialId: string;
+    readonly newPassword: string;
+    readonly at: string;
+  }): Promise<StaffCredentialState>;
 }
 
 /** A rate-limited subject. The adapter derives a non-personal key from it; none is stored raw. */
@@ -703,10 +758,7 @@ export interface DataRequestResolutionPort {
    *
    * @returns The updated request, or `null` when it does not exist or is already completed/refused.
    */
-  transition(
-    requestId: string,
-    input: DataRequestTransitionInput,
-  ): Promise<DataRequest | null>;
+  transition(requestId: string, input: DataRequestTransitionInput): Promise<DataRequest | null>;
 }
 
 /**

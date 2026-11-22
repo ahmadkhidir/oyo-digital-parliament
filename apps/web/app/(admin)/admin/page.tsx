@@ -3,28 +3,50 @@
  *
  * The landing answers what the signed-in role may work now. It reads no member record: the greeting
  * and the destination list come from the staff session and the role's own mapping. The Staff
- * credentials panel lives on this screen; its reset form is `C-093` and lands with the credential-reset
- * task, so this page carries the panel's heading, explanation and stable anchor without inventing a
- * second form here.
+ * credentials panel is the operator's own destination and renders here (`C-093`); its list is read
+ * inside a Suspense boundary so the panel has its declared loading state while the destinations are
+ * already readable.
  */
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { Notice, focusRingClasses } from '@odp/ui';
 import { getMessages } from '../../../messages';
 import { resolveLocale } from '../../../lib/i18n/locale';
-import { readStaffAccess } from '../../../lib/staff-session/session';
-import { destinationsForRole, type AdminDestinationKey } from '../../../lib/staff-session/destinations';
+import { readStaffAccess, staffCaller } from '../../../lib/staff-session/session';
+import {
+  destinationsForRole,
+  type AdminDestinationKey,
+} from '../../../lib/staff-session/destinations';
+import { StaffCredentialsPanel, type CredentialsOutcome } from './_credentials/panel';
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await resolveLocale();
   return { title: getMessages(locale).staff.admin.title };
 }
 
+/**
+ * The credential-reset state the panel states after its action's redirect.
+ *
+ * Only the outcome and the session count travel: no password, staff name or identifier enters the
+ * URL, and the count is not personal data.
+ */
+function credentialsOutcome(
+  query: Readonly<Record<string, string | string[] | undefined>>,
+): CredentialsOutcome {
+  const outcome = query['reset'];
+  if (outcome === 'applied') {
+    const raw = typeof query['ended'] === 'string' ? Number.parseInt(query['ended'], 10) : 0;
+    const ended = Number.isSafeInteger(raw) && raw > 0 ? raw : 0;
+    return { kind: 'applied', ended };
+  }
+  if (outcome === 'self') return { kind: 'self' };
+  if (outcome === 'error') return { kind: 'error' };
+  return null;
+}
+
 /** The catalogue key for one destination's label. */
-function labelFor(
-  key: AdminDestinationKey,
-  messages: ReturnType<typeof getMessages>,
-): string {
+function labelFor(key: AdminDestinationKey, messages: ReturnType<typeof getMessages>): string {
   switch (key) {
     case 'ward-review':
       return messages.staff.wards.title;
@@ -59,6 +81,7 @@ export default async function AdminHomePage({
   const messages = getMessages(locale);
   const copy = messages.staff.admin;
   const destinations = destinationsForRole(access.staff.role);
+  const outcome = credentialsOutcome(query);
 
   return (
     <div className="flex flex-col gap-xl">
@@ -91,7 +114,9 @@ export default async function AdminHomePage({
                   href={destination.href}
                   className={`flex min-h-button flex-col justify-between gap-sm rounded-sm border border-border bg-surface p-md text-text-primary hover:bg-surface-muted ${focusRingClasses}`}
                 >
-                  <span className="font-display text-h3">{labelFor(destination.key, messages)}</span>
+                  <span className="font-display text-h3">
+                    {labelFor(destination.key, messages)}
+                  </span>
                   <span className="text-small text-text-secondary">{copy.open}</span>
                 </a>
               </li>
@@ -101,16 +126,25 @@ export default async function AdminHomePage({
       </section>
 
       {access.staff.role === 'operator' ? (
-        <section
-          id="staff-credentials"
-          aria-labelledby="credentials-heading"
-          className="flex scroll-mt-xl flex-col gap-xs border-t border-border pt-lg"
+        <Suspense
+          fallback={
+            <section
+              id="staff-credentials"
+              aria-labelledby="credentials-heading"
+              aria-busy="true"
+              className="flex scroll-mt-xl flex-col gap-md border-t border-border pt-lg"
+            >
+              <h2 id="credentials-heading" className="font-display text-h2 text-text-primary">
+                {copy.credentialsHeading}
+              </h2>
+              <p className="max-w-prose text-body text-text-secondary">{copy.credentialsBody}</p>
+              <p className="text-small text-text-secondary">{copy.credentialsLoading}</p>
+              <div className="h-24 animate-pulse rounded-sm bg-surface-muted" aria-hidden="true" />
+            </section>
+          }
         >
-          <h2 id="credentials-heading" className="font-display text-h2 text-text-primary">
-            {copy.credentialsHeading}
-          </h2>
-          <p className="max-w-prose text-body text-text-secondary">{copy.credentialsBody}</p>
-        </section>
+          <StaffCredentialsPanel caller={staffCaller(access, locale)} outcome={outcome} />
+        </Suspense>
       ) : null}
     </div>
   );

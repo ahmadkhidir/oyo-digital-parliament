@@ -20,11 +20,17 @@
  *
  * `C-093` clears the enrolled factor by setting `totp_secret_encrypted` to null, clearing
  * `second_factor_enrolled_at`, `recovery_codes`, `failed_attempt_count` and `locked_until`, and
- * replacing the password hash. That end state is expressible in this table; the reset use case itself
- * belongs to the identity module and is not part of this port.
+ * replacing the password hash. That end state is expressed by {@link StaffCredentialResetPort} on the
+ * same repository: the panel's list and the one reset write. The identity use case decides who may
+ * call it, why, and what is audited; this module performs the SQL.
  */
 import { eq, sql } from 'drizzle-orm';
-import type { StaffCredentialPort, StaffCredentialState, TotpEnrolment } from '@odp/domain';
+import type {
+  StaffCredentialPort,
+  StaffCredentialResetPort,
+  StaffCredentialState,
+  TotpEnrolment,
+} from '@odp/domain';
 import type {
   PasswordHasherPort,
   SecondFactorPort,
@@ -32,6 +38,7 @@ import type {
 } from '../../../domain/src/ports/password.ts';
 import { executorOf, type Executor } from '../client.ts';
 import { staffCredential, type RecoveryCodeHash } from '../schema/staff-credential.ts';
+import { staffUser } from '../schema/staff-user.ts';
 
 /**
  * The credential-material seams this repository needs.
@@ -49,8 +56,8 @@ export interface StaffCredentialSeams {
   readonly secondFactor: SecondFactorPort;
 }
 
-/** One repository implements the credential port; nothing else writes this table. */
-export type StaffCredentialRepository = StaffCredentialPort;
+/** One repository implements the credential port and the operator's reset write (`C-092`, `C-093`). */
+export type StaffCredentialRepository = StaffCredentialPort & StaffCredentialResetPort;
 
 /**
  * The projection the domain reads: identifiers and state, never a hash, a secret or a code.
@@ -312,6 +319,49 @@ export function createStaffCredentialRepository(
         .returning({ id: staffCredential.id });
 
       return rows.length > 0;
+    },
+
+    async listResetTargets() {
+      // Read path: the operator's credentials panel lists every staff account that holds a credential
+      // (`C-093`, screen 26). A left join is deliberately not used: an account without a credential is
+      // not a reset target, because `C-093` refuses a reset whose credential does not exist.
+      const rows = await db
+        .select({
+          staffUserId: staffUser.id,
+          fullName: staffUser.fullName,
+          role: staffUser.role,
+          active: staffUser.active,
+          secondFactorEnrolled: staffUser.secondFactorEnrolled,
+        })
+        .from(staffCredential)
+        .innerJoin(staffUser, eq(staffCredential.staffUserId, staffUser.id))
+        .orderBy(staffUser.fullName);
+
+      return rows;
+    },
+
+    async resetCredential(input) {
+      // `C-093`: one write replaces the first factor and clears the second factor, its recovery codes,
+      // the failure count and the lock. The password is hashed here rather than stored, and the
+      // returned projection carries state only — never the hash that was just written.
+      const passwordHash = await seams.hasher.hash(input.newPassword);
+      const rows = await db
+        .update(staffCredential)
+        .set({
+          passwordHash,
+          passwordChangedAt: input.at,
+          totpSecretEncrypted: null,
+          secondFactorEnrolledAt: null,
+          recoveryCodes: [],
+          failedAttemptCount: 0,
+          lockedUntil: null,
+        })
+        .where(eq(staffCredential.id, input.credentialId))
+        .returning();
+
+      const row = rows[0];
+      if (row === undefined) throw new Error('the credential to reset is gone');
+      return toCredentialState(row);
     },
   };
 }

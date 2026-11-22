@@ -304,8 +304,11 @@ export function createStaffSessionStore(options: StaffSessionStoreOptions): Staf
     async endAllForStaff(staffUserId) {
       const indexKey = staffSessionIndexKey(staffUserId);
       const keys = await store.members(indexKey);
-      await store.delete(keys);
+      // `C-093` reports how many live sessions the reset ended. The index may name a session that has
+      // already lapsed, so the count is what the store actually removed rather than the index length.
+      const ended = await store.delete(keys);
       await store.delete([indexKey]);
+      return ended;
     },
   };
 }

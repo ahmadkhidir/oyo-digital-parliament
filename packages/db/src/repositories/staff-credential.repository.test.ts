@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SecondFactorPort } from '../../../domain/src/ports/password.ts';
 import { staffCredential } from '../schema/staff-credential.ts';
+import { staffUser } from '../schema/staff-user.ts';
 import {
   createStaffCredentialRepository,
   type StaffCredentialSeams,
@@ -92,9 +93,11 @@ async function insertCredential(
     readonly username?: string;
     readonly failedAttemptCount?: number;
     readonly lockedUntil?: string | null;
+    /** The staff user to attach to, when the test already created one. */
+    readonly staffId?: string;
   },
 ): Promise<{ staffId: string; credentialId: string }> {
-  const staffId = await createStaffUser(db);
+  const staffId = overrides.staffId ?? (await createStaffUser(db));
   const credentialId = testId('scd');
   await db.insert(staffCredential).values({
     id: credentialId,
@@ -453,6 +456,132 @@ describe('staff credential repository', () => {
           createdAt: T0,
         }),
       ).rejects.toMatchObject({ cause: { code: '23503' } });
+    } finally {
+      await database.dispose();
+    }
+  });
+
+  it('lists the credentialed staff accounts the operator may reset', async () => {
+    const database = await createTestDatabase();
+    try {
+      const { seams, hashPassword } = doubles();
+      const repository = createStaffCredentialRepository(database.db, seams);
+
+      const operatorId = await createStaffUser(database.db, {
+        fullName: 'Campaign Operator',
+        role: 'operator',
+      });
+      const targetId = await createStaffUser(database.db, {
+        fullName: 'B. Adebayo',
+        role: 'response_staff',
+      });
+      // An account with no credential is not a reset target: C-093 refuses a reset whose credential
+      // does not exist, so the panel must not offer one.
+      await createStaffUser(database.db, { fullName: 'C. Oke', role: 'moderator' });
+
+      await insertCredential(database.db, {
+        passwordHash: hashPassword(PASSWORD),
+        username: 'operator.one',
+        staffId: operatorId,
+      });
+      await insertCredential(database.db, {
+        passwordHash: hashPassword(PASSWORD),
+        username: 'b.adebayo',
+        staffId: targetId,
+      });
+
+      expect(await repository.listResetTargets()).toEqual([
+        {
+          staffUserId: targetId,
+          fullName: 'B. Adebayo',
+          role: 'response_staff',
+          active: true,
+          secondFactorEnrolled: true,
+        },
+        {
+          staffUserId: operatorId,
+          fullName: 'Campaign Operator',
+          role: 'operator',
+          active: true,
+          secondFactorEnrolled: true,
+        },
+      ]);
+
+      // The active state and the factor status are the staff record's, so the panel states follow it.
+      await database.db
+        .update(staffUser)
+        .set({ active: false, secondFactorEnrolled: false })
+        .where(eq(staffUser.id, targetId));
+      const [deactivated] = await repository.listResetTargets();
+      expect(deactivated?.staffUserId).toBe(targetId);
+      expect(deactivated?.active).toBe(false);
+      expect(deactivated?.secondFactorEnrolled).toBe(false);
+    } finally {
+      await database.dispose();
+    }
+  });
+
+  it('resets a credential to the C-093 end state without returning a secret', async () => {
+    const database = await createTestDatabase();
+    try {
+      const { seams, hashPassword } = doubles();
+      const repository = createStaffCredentialRepository(database.db, seams);
+      const { staffId, credentialId } = await insertCredential(database.db, {
+        passwordHash: hashPassword(PASSWORD),
+        failedAttemptCount: 4,
+        lockedUntil: '2026-11-18T09:35:00Z',
+      });
+      // Enrol the factor so the reset has something to clear.
+      await database.db
+        .update(staffCredential)
+        .set({
+          totpSecretEncrypted: 'sealed.secret',
+          secondFactorEnrolledAt: T0,
+          recoveryCodes: [{ codeHash: 'a'.repeat(64) }],
+        })
+        .where(eq(staffCredential.id, credentialId));
+
+      const NEW_PASSWORD = 'harbour-lantern-quiet-2026';
+      const reset = await repository.resetCredential({
+        credentialId,
+        newPassword: NEW_PASSWORD,
+        at: '2026-11-18T10:00:00Z',
+      });
+
+      expect(reset).toMatchObject({
+        id: credentialId,
+        staffUserId: staffId,
+        passwordChangedAt: '2026-11-18T10:00:00Z',
+        failedAttemptCount: 0,
+        recoveryCodes: [],
+      });
+      expect(reset.secondFactorEnrolledAt).toBeUndefined();
+      expect(reset.lockedUntil).toBeUndefined();
+      expect(reset).not.toHaveProperty('passwordHash');
+      expect(reset).not.toHaveProperty('totpSecretEncrypted');
+
+      const [stored] = await database.db
+        .select()
+        .from(staffCredential)
+        .where(eq(staffCredential.id, credentialId));
+      expect(stored?.passwordHash).toBe(hashPassword(NEW_PASSWORD));
+      expect(stored?.passwordHash).not.toBe(hashPassword(PASSWORD));
+      expect(stored?.totpSecretEncrypted).toBeNull();
+      expect(stored?.secondFactorEnrolledAt).toBeNull();
+      expect(stored?.recoveryCodes).toEqual([]);
+      expect(stored?.failedAttemptCount).toBe(0);
+      expect(stored?.lockedUntil).toBeNull();
+      // The new password is the one the sign-in path now accepts.
+      expect(await repository.verifyPassword(credentialId, NEW_PASSWORD)).toBe(true);
+      expect(await repository.verifyPassword(credentialId, PASSWORD)).toBe(false);
+
+      await expect(
+        repository.resetCredential({
+          credentialId: testId('scd'),
+          newPassword: NEW_PASSWORD,
+          at: '2026-11-18T10:00:00Z',
+        }),
+      ).rejects.toThrow('the credential to reset is gone');
     } finally {
       await database.dispose();
     }
