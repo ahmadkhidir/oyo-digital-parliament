@@ -12,7 +12,7 @@
  */
 import type { NextRequest } from 'next/server';
 import { identityFailure, readMyRecord, readSession, toIsoSeconds } from '@odp/domain';
-import { correlationIdFrom } from '../../../lib/logging';
+import { readCorrelationId } from '../../../lib/logging/correlation';
 import { presentedSessionTokens } from '../../../lib/session/session-cookies';
 import { getMyRecordRuntime, resolveMyRecordSession } from '../../(record)/me/_lib/runtime';
 import {
@@ -26,7 +26,20 @@ export const dynamic = 'force-dynamic';
 
 /** Answers one page of the caller's own record. */
 export async function GET(request: NextRequest): Promise<Response> {
-  const correlationId = correlationIdFrom(request.headers);
+  const correlation = readCorrelationId(request.headers);
+  const correlationId = correlation.correlationId;
+  if (!correlation.ok) {
+    return jsonAnswer(
+      validationAnswer(
+        correlationId,
+        'CORRELATION_ID_INVALID',
+        'The correlation identifier is not in the contract\'s form.',
+        { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+      ),
+      correlationId,
+    );
+  }
+
   const params = request.nextUrl.searchParams;
 
   const rawLimit = params.get('submissionLimit');

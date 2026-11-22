@@ -9,7 +9,7 @@
 import type { NextRequest } from 'next/server';
 import { identityFailure, readDataRequestQueue, toIsoSeconds } from '@odp/domain';
 import { resolveLocale } from '../../../../lib/i18n/locale';
-import { correlationIdFrom } from '../../../../lib/logging';
+import { readCorrelationId } from '../../../../lib/logging/correlation';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { readStaffAccess, staffCaller } from '../../../../lib/staff-session/session';
 import {
@@ -30,7 +30,20 @@ function readLimit(value: string | null): number | undefined {
 
 /** Answers one page of the operator's queue. */
 export async function GET(request: NextRequest): Promise<Response> {
-  const correlationId = correlationIdFrom(request.headers);
+  const correlation = readCorrelationId(request.headers);
+  const correlationId = correlation.correlationId;
+  if (!correlation.ok) {
+    return jsonQueueAnswer(
+      queueValidationAnswer(
+        correlationId,
+        'CORRELATION_ID_INVALID',
+        'The correlation identifier is not in the contract\'s form.',
+        { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+      ),
+      correlationId,
+    );
+  }
+
   const access = await readStaffAccess();
 
   if (access.kind === 'signed_out') {

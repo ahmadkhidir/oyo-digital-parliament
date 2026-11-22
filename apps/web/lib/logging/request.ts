@@ -5,6 +5,10 @@
  * is absent or malformed. The value is attached to every line the request writes, which is the only
  * way an operator can follow one request through a log index without printing the request itself.
  *
+ * This is the tolerant reading on purpose: `C-091` says a probe never fails on its input, so a probe
+ * that carried a stray header still answers. An ordinary `/api` surface refuses the malformed value
+ * instead and reads the header through `readCorrelationId`.
+ *
  * The method and path are recorded; the query string, headers and body are not. A query string is a
  * place personal data can arrive, and a probe handler must not become a second copy of it.
  */

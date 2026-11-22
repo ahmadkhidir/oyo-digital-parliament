@@ -11,13 +11,13 @@
  */
 import type { NextRequest } from 'next/server';
 import { downloadExport, identityFailure } from '@odp/domain';
-import { correlationIdFrom } from '../../../../../../lib/logging';
+import { readCorrelationId } from '../../../../../../lib/logging/correlation';
 import { presentedMemberSessionToken } from '../../../../../../lib/session/session-cookies';
 import {
   getMyRecordRuntime,
   resolveMyRecordSession,
 } from '../../../../../(record)/me/_lib/runtime';
-import { failureAnswer, jsonAnswer } from '../../../../../(record)/me/_lib/envelope';
+import { failureAnswer, jsonAnswer, validationAnswer } from '../../../../../(record)/me/_lib/envelope';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,20 @@ interface ExportRouteContext {
 
 /** Serves the caller's own completed export. */
 export async function GET(request: NextRequest, context: ExportRouteContext): Promise<Response> {
-  const correlationId = correlationIdFrom(request.headers);
+  const correlation = readCorrelationId(request.headers);
+  const correlationId = correlation.correlationId;
+  if (!correlation.ok) {
+    return jsonAnswer(
+      validationAnswer(
+        correlationId,
+        'CORRELATION_ID_INVALID',
+        'The correlation identifier is not in the contract\'s form.',
+        { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+      ),
+      correlationId,
+    );
+  }
+
   const { requestId } = await context.params;
 
   const token = await presentedMemberSessionToken();

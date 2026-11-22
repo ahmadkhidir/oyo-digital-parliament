@@ -11,7 +11,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { readStaffSession, toIsoSeconds } from '@odp/domain';
-import { correlationIdFrom } from '../../../../lib/logging';
+import { readCorrelationId } from '../../../../lib/logging/correlation';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { applyStaffSessionCookie, presentedStaffSessionToken } from '../../../../lib/staff-session/cookies';
 
@@ -19,8 +19,27 @@ export const dynamic = 'force-dynamic';
 
 /** Answers the caller's staff session state in the `C-092` body. */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const correlation = readCorrelationId(request.headers);
+  const correlationId = correlation.correlationId;
+  if (!correlation.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'VALIDATION_FAILED',
+          cause: 'CORRELATION_ID_INVALID',
+          message: 'The correlation identifier is not in the contract\'s form.',
+          correlationId,
+          fields: { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+        },
+      },
+      {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store', 'X-Correlation-Id': correlationId },
+      },
+    );
+  }
+
   const dependencies = await getStaffAdminDependencies();
-  const correlationId = correlationIdFrom(request.headers);
   const token = await presentedStaffSessionToken();
 
   const result = await readStaffSession(dependencies.identity, {
