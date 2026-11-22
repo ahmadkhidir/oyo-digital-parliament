@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.5.0
+**Contract version:** 1.6.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -29,6 +29,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.3.0 | Adds `C-092` staff authentication: the public sign-in challenge, second-factor verification, one-time enrolment, the staff session read and staff sign-out, with the lockout, timeout, idempotency and audit rules ADR-004 requires, and the staff cookie recorded in `C-001`. Enumerates `C-010`'s candidate `source` as `model`, `exact` or `alias` and gives `C-071`'s `matchType` the same three values. Defines `C-055`'s `candidateWards` scope and `C-056`'s `submissionsUnchanged`, and states that a re-description by a member whose ward is already recorded queues the description and keeps the ward. States that a confirmation records `fallback` as its source on the deterministic path and `model` when `C-080` produced the set. Corrects `C-068` so a new staff account is created unenrolled and only `C-092` sets enrolment, and adds the staff actions to `C-090`. |
 | 1.4.0 | Adds `C-093` operator credential and second-factor reset: one operator resets another staff user's password and factor, clears the lockout, ends that user's sessions and requires re-enrolment before any admin screen, with the reset audited and no credential returned. Bans self-reset without a second operator and makes a repeat idempotent. Adds `staff.credential_reset` and `staff.credential_reset_refused` to `C-090`, and records the reset as the session-ending event `C-092` names. |
 | 1.5.0 | Reconciles the identity entries with the implementation. `C-001` admits `REUSED_WITH_DIFFERENT_PAYLOAD` to the field-reason set it already printed, records the `scd_` prefix for StaffCredential, and defines `attemptsRemaining` beside `retryAfterSeconds` on a refusal. `C-003` names `attemptsRemaining` on the incorrect-code and cooldown answers. `C-008` drops a sign-out scope the entry never defined. `C-032` defines each `heldItems` entry. `C-035` drops the unused `note`, because `outcomeReason` and `legalHoldNote` already record a deferred or refused request and no schema column is added. `C-092` names the `scd_` credential identifier and states that a repeated enrolment confirmation never replays the recovery codes. |
+| 1.6.0 | Holds one account per number. `C-002` drops the shared-number declaration from its request and applies the already-registered refusal to every number held on an account; `C-003` refuses a verification whose number has come to belong to an account and drops `sharedNumber` from its member payload; `C-005` drops `accountCount` and `accountChoiceRequired`; `C-006` drops `memberId` from its request and `sharedNumber` from its member payload; `C-032`, `C-058` and `C-070` drop `sharedNumber`, and `C-058` no longer describes two accounts sharing a number. Gives the legal hold a structured review date: `C-035` returns it when a hold is detected, `C-036` names it on the legal-hold failure, `C-032` and `C-066` carry it on a deferred request, and `C-067` requires and records it on a defer. |
 
 ## Contract Index
 
@@ -286,7 +287,7 @@ A queued write is durable before the response returns. The submitted text is nev
 
 **Spec anchors:** FEAT-001, NFR-004, NFR-020, NFR-027, EVT-042, `screens/03-registration-form.md`, `screens/04-number-confirmation.md`
 
-**Authority:** Creates a PendingRegistration and requests a code. Creates no Member, no session and no public record.
+**Authority:** Creates a PendingRegistration and requests a code. Creates no Member, no session and no public record. A telephone number belongs to at most one account, so a number that already belongs to one is refused rather than accepted a second time.
 
 **Request:**
 ```json
@@ -295,11 +296,10 @@ A queued write is durable before the response returns. The submitted text is nev
   "declaredAge": 24,
   "telephoneNumber": "+2348031234567",
   "displayName": "Seun A.",
-  "locale": "en-NG",
-  "sharedNumberDeclaration": false
+  "locale": "en-NG"
 }
 ```
-`displayName` may be omitted; the server then generates one from the first name and a number. `sharedNumberDeclaration` is `true` only when the resident states the handset and number are shared.
+`displayName` may be omitted; the server then generates one from the first name and a number.
 
 **Response 201:**
 ```json
@@ -318,7 +318,7 @@ A queued write is durable before the response returns. The submitted text is nev
 ```
 When the SMS gateway is unavailable the response is still `201`, with `codeDelivery.status` set to `"delayed"` and `resendAvailableAt` present; the PendingRegistration is held for 24 hours and no account exists.
 
-**Errors:** `VALIDATION_FAILED` with `fields` covering `fullName` (`REQUIRED`, `TOO_LONG`), `declaredAge` (`REQUIRED`, `OUT_OF_BAND` for outside 18–35), `telephoneNumber` (`REQUIRED`, `PATTERN_MISMATCH` against `^\+234[0-9]{10}$`), `displayName` (`TOO_LONG`), `locale` (`ENUM_MISMATCH`), and `cause:"ALREADY_REGISTERED"` with `fields:{"telephoneNumber":"ALREADY_SET"}` and `meta.recoveryPath:"/sign-in"` when the number belongs to an account and `sharedNumberDeclaration` is not `true`. `RATE_LIMITED` per number and per IP. `SERVICE_DEGRADED` only when both the store and the SMS gateway refuse, in which case nothing is created.
+**Errors:** `VALIDATION_FAILED` with `fields` covering `fullName` (`REQUIRED`, `TOO_LONG`), `declaredAge` (`REQUIRED`, `OUT_OF_BAND` for outside 18–35), `telephoneNumber` (`REQUIRED`, `PATTERN_MISMATCH` against `^\+234[0-9]{10}$`), `displayName` (`TOO_LONG`), `locale` (`ENUM_MISMATCH`), and `cause:"ALREADY_REGISTERED"` with `fields:{"telephoneNumber":"ALREADY_SET"}` and `meta.recoveryPath:"/sign-in"` when the number belongs to an account. `RATE_LIMITED` per number and per IP. `SERVICE_DEGRADED` only when both the store and the SMS gateway refuse, in which case nothing is created.
 
 ---
 
@@ -332,7 +332,7 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Spec anchors:** FEAT-001, NFR-020, EVT-003, EVT-004, `screens/04-number-confirmation.md`
 
-**Authority:** Accepts a one-time code, marks the PendingRegistration verified and creates the Member in `registered`. Establishes the session. Does not assign a ward.
+**Authority:** Accepts a one-time code, marks the PendingRegistration verified and creates the Member in `registered`. Establishes the session. Does not assign a ward. Creates no account when the number has come to belong to an account since the pending registration was made.
 
 **Request:**
 ```json
@@ -349,7 +349,6 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
       "displayName": "Seun A.",
       "identityState": "registered",
       "verificationMethod": "self_code",
-      "sharedNumber": false,
       "wardStatus": "unresolved",
       "locale": "en-NG",
       "createdAt": "2026-11-18T09:16:00Z"
@@ -361,7 +360,7 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 }
 ```
 
-**Errors:** `VALIDATION_FAILED` with `fields:{"code":["REQUIRED","PATTERN_MISMATCH"]}`; a well-formed code that does not match answers `cause:"CODE_INCORRECT"` with `attemptsRemaining` on the failure envelope — `2` after the first wrong code and `1` after the second — and `cause:"CODE_EXPIRED"` where the code window has closed. `NOT_FOUND` when the PendingRegistration is unknown or already expired (`cause:"PENDING_REGISTRATION_EXPIRED"`). `CONFLICT_ALREADY_DECIDED` with `cause:"CODE_ALREADY_USED"` when the same code would create a second account. `RATE_LIMITED` after three wrong attempts, with `attemptsRemaining:0`, a short cooldown in `retryAfterSeconds`, and `meta.recoveryPath:"/join/confirm"` so the screen offers a resend.
+**Errors:** `VALIDATION_FAILED` with `fields:{"code":["REQUIRED","PATTERN_MISMATCH"]}`; a well-formed code that does not match answers `cause:"CODE_INCORRECT"` with `attemptsRemaining` on the failure envelope — `2` after the first wrong code and `1` after the second — and `cause:"CODE_EXPIRED"` where the code window has closed. `NOT_FOUND` when the PendingRegistration is unknown or already expired (`cause:"PENDING_REGISTRATION_EXPIRED"`). `CONFLICT_ALREADY_DECIDED` with `cause:"CODE_ALREADY_USED"` when the same code would create a second account, and with `cause:"NUMBER_ALREADY_REGISTERED"` and `meta.recoveryPath:"/sign-in"` when the number has come to belong to an account since the pending registration was made, in which case no account and no session are created. `RATE_LIMITED` after three wrong attempts, with `attemptsRemaining:0`, a short cooldown in `retryAfterSeconds`, and `meta.recoveryPath:"/join/confirm"` so the screen offers a resend.
 
 ---
 
@@ -411,7 +410,7 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Spec anchors:** FEAT-001, NFR-020, NFR-027, EVT-002, `screens/02-sign-in.md`
 
-**Authority:** Starts a sign-in challenge for a number that belongs to at least one Member. Reveals only the count of accounts, never their names, until the code is accepted.
+**Authority:** Starts a sign-in challenge for a number that belongs to a Member. Answers with the challenge and the delivery state, and reveals no account name and no account list, because a number belongs to at most one account.
 
 **Request:**
 ```json
@@ -424,8 +423,6 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
   "ok": true,
   "data": {
     "signInChallengeId": "sic_01J9Z6R4F7H2J9K1L3M5N7P0Q2",
-    "accountCount": 2,
-    "accountChoiceRequired": true,
     "codeDelivery": { "status": "sent", "channel": "sms", "resendAvailableAt": "2026-11-18T09:15:00Z" },
     "expiresAt": "2026-11-18T09:24:00Z"
   },
@@ -447,17 +444,15 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Spec anchors:** FEAT-001, NFR-020, NFR-026, `screens/02-sign-in.md`
 
-**Authority:** Verifies the code, resolves which account is signing in, and opens a session. Never signs in automatically when more than one account shares the number.
+**Authority:** Verifies the code, resolves the account that holds the number, and opens a session.
 
 **Request:**
 ```json
 {
   "signInChallengeId": "sic_01J9Z6R4F7H2J9K1L3M5N7P0Q2",
-  "code": "720418",
-  "memberId": "mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA"
+  "code": "720418"
 }
 ```
-`memberId` is required when `accountChoiceRequired` was `true`.
 
 **Response 200:**
 ```json
@@ -470,8 +465,7 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
       "identityState": "registered",
       "wardStatus": "resolved",
       "wardId": "wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM",
-      "locale": "en-NG",
-      "sharedNumber": true
+      "locale": "en-NG"
     },
     "session": { "established": true, "expiresAt": "2026-11-18T21:16:00Z" },
     "returnTo": "/s/ODP-004821"
@@ -480,7 +474,7 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 }
 ```
 
-**Errors:** `VALIDATION_FAILED` with `cause:"ACCOUNT_CHOICE_REQUIRED"` and `fields:{"memberId":"REQUIRED"}` when the number is shared and no account was chosen; `cause:"CODE_INCORRECT"`; `cause:"CODE_EXPIRED"`. `RATE_LIMITED` after three wrong attempts. `NOT_FOUND` when the challenge is unknown or has expired.
+**Errors:** `VALIDATION_FAILED` with `cause:"CODE_INCORRECT"`; `cause:"CODE_EXPIRED"`. `RATE_LIMITED` after three wrong attempts. `NOT_FOUND` when the challenge is unknown or has expired.
 
 ---
 
@@ -1631,8 +1625,7 @@ A repeat call for the same member and session returns `200` with the existing re
       "wardStatus": "resolved",
       "wardId": "wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM",
       "locale": "en-NG",
-      "createdAt": "2026-11-18T09:16:00Z",
-      "sharedNumber": false
+      "createdAt": "2026-11-18T09:16:00Z"
     },
     "consents": [
       { "id": "cns_01J9ZE1F3G5H7J9K1L3M5N7PQR", "purpose": "decision_notices", "granted": true, "recordedAt": "2026-11-18T09:16:00Z", "withdrawnAt": null }
@@ -1644,7 +1637,7 @@ A repeat call for the same member and session returns `200` with the existing re
       { "submissionReference": "ODP-004102", "submissionStatus": "awaiting_decision", "backingState": "active" }
     ],
     "dataRequests": [
-      { "id": "drq_01J9ZE2G4H6J8K1L3M5N7P9QRS", "type": "export", "status": "completed", "requestedAt": "2026-11-20T09:00:00Z", "fileReference": "exports/mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA/2026-11-20.zip" }
+      { "id": "drq_01J9ZE2G4H6J8K1L3M5N7P9QRS", "type": "export", "status": "completed", "requestedAt": "2026-11-20T09:00:00Z", "fileReference": "exports/mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA/2026-11-20.zip", "legalHoldNote": null, "legalHoldReviewAt": null }
     ],
     "heldItems": [
       { "reference": "cmt_01J9ZJ8K2M4N6P8Q1R3S5T7V9W", "reason": "Withheld while a legal review checks a complaint about it." }
@@ -1654,7 +1647,7 @@ A repeat call for the same member and session returns `200` with the existing re
   "page": { "nextCursor": null, "hasMore": false }
 }
 ```
-Each `heldItems` entry names one thing the member wrote that is currently withheld from publication, and carries exactly two fields. `reference` is the value the member knows the item by: the `ODP-` public reference for a submission and the `cmt_` identifier for a comment. `reason` is the member-facing sentence stating why the item is withheld, never the reviewer's internal case notes and never a citation of the held text. The entry carries no title, body or excerpt, because the member wrote the item and returning it here would keep a second copy of material under review. `heldItems` is not paginated and is `[]` when nothing the member wrote is withheld; an empty list is not an error.
+Each `dataRequests` entry carries `legalHoldNote` and `legalHoldReviewAt`, each `null` unless the request is deferred for a legal hold, where they give the reason for the hold and the date it will next be reviewed. Each `heldItems` entry names one thing the member wrote that is currently withheld from publication, and carries exactly two fields. `reference` is the value the member knows the item by: the `ODP-` public reference for a submission and the `cmt_` identifier for a comment. `reason` is the member-facing sentence stating why the item is withheld, never the reviewer's internal case notes and never a citation of the held text. The entry carries no title, body or excerpt, because the member wrote the item and returning it here would keep a second copy of material under review. `heldItems` is not paginated and is `[]` when nothing the member wrote is withheld; an empty list is not an error.
 
 **Errors:** `UNAUTHENTICATED`. `FORBIDDEN_ROLE` for any staff session; there is no staff view of this response. `SERVICE_DEGRADED` with `cause:"IDENTITY_STORE_UNAVAILABLE"`; no partial personal data is returned.
 
@@ -1768,12 +1761,13 @@ The request carries its type and nothing else. `DataRequest` has no field for th
       "requestedAt": "2026-11-21T07:20:00Z"
     },
     "dueAt": "2026-12-21T07:20:00Z",
-    "legalHoldDetected": false
+    "legalHoldDetected": false,
+    "legalHoldReviewAt": null
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-21T07:20:00Z" }
 }
 ```
-`dueAt` is seven days for `access` and `correction`, thirty days for `export` and `deletion`. When a legal hold applies, `legalHoldDetected` is `true`, the request is still created, and the member is told the hold has a review date.
+`dueAt` is seven days for `access` and `correction`, thirty days for `export` and `deletion`. When a legal hold applies, `legalHoldDetected` is `true`, `legalHoldReviewAt` carries the date the hold will next be reviewed, the request is still created, and the member is told when the hold will be reviewed.
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"type":["REQUIRED","ENUM_MISMATCH"]}`. `CONFLICT_ALREADY_DECIDED` with `cause:"DUPLICATE_EXPORT_REQUEST"` when an export is already open; the existing request id is returned in `meta.existingDataRequestId`. `RATE_LIMITED`. `WRITE_QUEUED`.
 
@@ -1798,7 +1792,7 @@ The request carries its type and nothing else. `DataRequest` has no field for th
 
 **Response 200:** binary body, `Content-Type: application/zip`, `Content-Disposition: attachment; filename="odp-export-mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA.zip"`, and a signed object-storage URL valid for five minutes.
 
-**Errors:** `NOT_FOUND` when the request is unknown, belongs to another member, or is not an export. `LEGAL_HOLD` when the request is `deferred_for_legal_hold`, with `meta.legalHoldNote` and `meta.reviewDate`. `SERVICE_DEGRADED` with `cause:"OBJECT_STORAGE_UNAVAILABLE"`.
+**Errors:** `NOT_FOUND` when the request is unknown, belongs to another member, or is not an export. `LEGAL_HOLD` when the request is `deferred_for_legal_hold`, with `meta.legalHoldNote` and `meta.legalHoldReviewAt`. `SERVICE_DEGRADED` with `cause:"OBJECT_STORAGE_UNAVAILABLE"`.
 
 ---
 
@@ -2754,7 +2748,7 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Spec anchors:** FEAT-004, FEAT-001, FEAT-003, EVT-018, EVT-019, `screens/14-assisted-intake.md`
 
-**Authority:** Records the resident's consent, creates an organiser-attested Member when no account exists or attaches to the one that does, and publishes the Submission with `recorderId` set. Beyond forty submissions for one ward in one day, the submission is held as a SubmissionDraft with `status:"held_for_review"` and no public reference is issued. Never merges two accounts that share a number.
+**Authority:** Records the resident's consent, creates an organiser-attested Member when no account exists or attaches to the one that does, and publishes the Submission with `recorderId` set. Beyond forty submissions for one ward in one day, the submission is held as a SubmissionDraft with `status:"held_for_review"` and no public reference is issued. Never creates a second account for a number that already belongs to one.
 
 **Request:**
 ```json
@@ -2798,7 +2792,7 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
       "source": "assisted_intake",
       "submittedAt": "2026-11-19T11:58:00Z"
     },
-    "account": { "created": true, "verificationMethod": "organiser_attestation", "sharedNumber": false },
+    "account": { "created": true, "verificationMethod": "organiser_attestation" },
     "consent": { "id": "cns_01J9ZJ4N6P8Q1R3S5T7V9WXY", "purpose": "assisted_recording", "granted": true },
     "referenceSlip": { "reference": "ODP-004902", "wardName": "Ward IV, Agbowo", "recordedAt": "2026-11-19T12:00:00Z" }
   },
@@ -3125,7 +3119,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Spec anchors:** FEAT-012, NFR-040, `screens/22-data-request-queue.md`
 
-**Authority:** Reads open DataRequests ordered by statutory deadline. Returns the request type, state, hold note and outcome reason only. Never returns `fullName`, `telephoneNumber` or any other personal data; the operator works the request through the Identity and Access Service.
+**Authority:** Reads open DataRequests ordered by statutory deadline. Returns the request type, state, hold note, hold review date and outcome reason only. Never returns `fullName`, `telephoneNumber` or any other personal data; the operator works the request through the Identity and Access Service.
 
 **Request:**
 ```json
@@ -3145,6 +3139,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
         "dueAt": "2026-12-21T07:20:00Z",
         "overdue": false,
         "legalHoldNote": null,
+        "legalHoldReviewAt": null,
         "outcomeReason": null,
         "fileReference": null
       }
@@ -3178,12 +3173,13 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 {
   "requestId": "drq_01J9ZE4J6K8L1M3N5P7Q9R1STU",
   "action": "defer",
-  "outcomeReason": "One submission is under an open legal review; the hold is reviewed on 2026-12-19.",
-  "legalHoldNote": "Held for legal review, reference ODP-004821; review date 2026-12-19.",
+  "outcomeReason": "One submission is under an open legal review.",
+  "legalHoldNote": "Held for legal review, reference ODP-004821.",
+  "legalHoldReviewAt": "2026-12-19T00:00:00Z",
   "fileReference": null
 }
 ```
-`action` is `start`, `complete`, `defer` or `refuse`.
+`action` is `start`, `complete`, `defer` or `refuse`. `legalHoldReviewAt` is required for `defer` and carries the date the hold will next be reviewed; it is absent for every other action.
 
 **Response 200:**
 ```json
@@ -3194,8 +3190,9 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
       "id": "drq_01J9ZE4J6K8L1M3N5P7Q9R1STU",
       "type": "deletion",
       "status": "deferred_for_legal_hold",
-      "legalHoldNote": "Held for legal review, reference ODP-004821; review date 2026-12-19.",
-      "outcomeReason": "One submission is under an open legal review; the hold is reviewed on 2026-12-19.",
+      "legalHoldNote": "Held for legal review, reference ODP-004821.",
+      "legalHoldReviewAt": "2026-12-19T00:00:00Z",
+      "outcomeReason": "One submission is under an open legal review.",
       "completedById": "stf_01J9Z4G3H5J7K9L1M3N5P7Q9RS",
       "completedAt": "2026-11-22T10:00:00Z"
     },
@@ -3205,7 +3202,7 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 }
 ```
 
-**Errors:** `VALIDATION_FAILED` with `fields` for `action` (`REQUIRED`, `ENUM_MISMATCH`), `outcomeReason` (`REQUIRED` for `defer`, `refuse` and `deletion` completion, `TOO_LONG`), `legalHoldNote` (`REQUIRED` for `defer`, `TOO_LONG` at 500), `fileReference` (`REQUIRED` for a completed `export`). `CONFLICT_ALREADY_DECIDED` when the request is already closed. `LEGAL_HOLD` with `cause:"DELETION_DEFERRED"` when a deletion is blocked by an open LegalReview; use `defer` and record the review date. `FORBIDDEN_ROLE`.
+**Errors:** `VALIDATION_FAILED` with `fields` for `action` (`REQUIRED`, `ENUM_MISMATCH`), `outcomeReason` (`REQUIRED` for `defer`, `refuse` and `deletion` completion, `TOO_LONG`), `legalHoldNote` (`REQUIRED` for `defer`, `TOO_LONG` at 500), `legalHoldReviewAt` (`REQUIRED` for `defer`, `PATTERN_MISMATCH` when it is not a date-time), `fileReference` (`REQUIRED` for a completed `export`). `CONFLICT_ALREADY_DECIDED` when the request is already closed. `LEGAL_HOLD` with `cause:"DELETION_DEFERRED"` when a deletion is blocked by an open LegalReview; use `defer` and record the review date. `FORBIDDEN_ROLE`.
 
 ---
 
@@ -3507,7 +3504,6 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
     "wardId": "wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM",
     "wardStatus": "resolved",
     "locale": "en-NG",
-    "sharedNumber": false,
     "sessionExpiresAt": "2026-11-18T21:16:00Z"
   },
   "personalDataReturned": false
