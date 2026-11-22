@@ -10,6 +10,11 @@
  * answers `delayed` at registration and `SERVICE_DEGRADED` on a resend, exactly as `C-002` and `C-004`
  * state, and the resident is never left with digits that were stored but never sent.
  *
+ * Registration does not send from here: it hands the code to the notification boundary (`C-076`), which
+ * renders the body at send time through {@link VerificationCodePort.renderOutstanding}. That render mints
+ * the code as it writes it, so the digits exist for the length of one call and in the message the
+ * gateway carries — never in a queue row, a backup or a stored record.
+ *
  * A comparison answers with one of three results, never a boolean: the digits matched, they did not
  * match a code that is still live, or no code is left to compare. The last is what lets `C-003` and
  * `C-006` answer `CODE_EXPIRED` instead of counting a closed window as another wrong guess. The store
@@ -140,6 +145,27 @@ export function createVerificationCodeStore(
       }
 
       return { status: 'sent', channel: 'sms' };
+    },
+
+    async renderOutstanding(input) {
+      // `C-076`: the boundary renders at send time, so the body is minted here rather than stored. The
+      // write is the same digest-only record `issue` leaves, which means each render voids the code a
+      // previous attempt minted: the message that arrives last carries the only code that matches.
+      const code = issueCode();
+      const record: CodeRecord = { v: 1, digest: digestCode(code) };
+
+      await resetAttempts(input.targetId);
+      await store.set(
+        verificationCodeKey(input.targetId),
+        JSON.stringify(record),
+        options.ttlSeconds,
+      );
+
+      return renderMessage({
+        locale: input.locale,
+        code,
+        expiresInMinutes: Math.max(1, Math.round(options.ttlSeconds / 60)),
+      });
     },
 
     async matches(targetId, code) {

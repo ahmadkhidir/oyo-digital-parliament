@@ -123,6 +123,11 @@ export function createPortsDouble(options: PortsDoubleOptions = {}): PortsDouble
         codes.set(input.targetId, { code: DOUBLE_CODE, attempts: 0 });
         return { status: 'sent', channel: 'sms' };
       },
+      // `C-076`: the boundary renders the body at send time, so the double mints as it renders.
+      renderOutstanding: async (input) => {
+        codes.set(input.targetId, { code: DOUBLE_CODE, attempts: 0 });
+        return `Your Oyo Digital Parliament code is ${DOUBLE_CODE}.`;
+      },
       matches: async (targetId, code): Promise<'match' | 'mismatch' | 'absent'> => {
         const stored = codes.get(targetId);
         if (stored === undefined) return 'absent';
@@ -147,6 +152,18 @@ export function createPortsDouble(options: PortsDoubleOptions = {}): PortsDouble
       startCooldown: async (targetId, until) => {
         const stored = codes.get(targetId);
         if (stored !== undefined) codes.set(targetId, { ...stored, cooldownUntil: until });
+      },
+    },
+    // `C-002`, `C-076`: registration hands the code here; the double records the send as the domain's
+    // own fake does, and holds the message when the gateway is scripted to refuse.
+    notifications: {
+      deliverCode: async (input) => {
+        if (options.smsUnavailable === true) return { status: 'delayed', channel: 'sms' };
+        await ports.codes.renderOutstanding({
+          targetId: input.pendingRegistrationId,
+          locale: input.locale,
+        });
+        return { status: 'sent', channel: 'sms' };
       },
     },
     members: {

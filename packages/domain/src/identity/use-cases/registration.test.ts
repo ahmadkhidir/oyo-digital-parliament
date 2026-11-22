@@ -146,6 +146,79 @@ describe('registerResident (C-002)', () => {
   });
 });
 
+describe('registration code delivery (C-002, C-076)', () => {
+  const register = (fakes: ReturnType<typeof createIdentityHarness>) =>
+    registerResident(publicCaller, fakes.ports, {
+      fullName: 'Oluwaseun Adeyemi',
+      declaredAge: 24,
+      telephoneNumber: '+2348031234567',
+      displayName: 'Seun A.',
+    });
+
+  it('hands the code to the notification boundary, which sends it through the SMS port', async () => {
+    const fakes = createIdentityHarness();
+    const result = await register(fakes);
+
+    expect(result).toMatchObject({ ok: true, codeDelivery: { status: 'sent', channel: 'sms' } });
+    if (!result.ok) return;
+
+    // One message, to the pending registration's own number, and the digits in it are the code the
+    // confirmation step accepts (`C-002`, `C-003`).
+    expect(fakes.smsSent).toHaveLength(1);
+    expect(fakes.smsSent[0]?.destination).toBe(result.telephoneNumber);
+    await expect(fakes.ports.codes.matches(result.pendingRegistrationId, FAKE_CODE)).resolves.toBe(
+      'match',
+    );
+  });
+
+  it('holds the message and keeps the pending registration when the channel is down', async () => {
+    const fakes = createIdentityHarness({ smsUnavailable: true });
+    const result = await register(fakes);
+
+    // `C-002`: still 201, with `delayed` and a registration that stands for its twenty-four hours.
+    expect(result).toMatchObject({ ok: true, codeDelivery: { status: 'delayed' } });
+    if (!result.ok) return;
+    expect(fakes.pending).toHaveLength(1);
+
+    // Nothing was sent, so nothing may be accepted: there is no code to prove.
+    await expect(fakes.ports.codes.matches(result.pendingRegistrationId, FAKE_CODE)).resolves.toBe(
+      'absent',
+    );
+  });
+
+  it('does not send twice under one dedupe key', async () => {
+    const fakes = createIdentityHarness();
+    const result = await register(fakes);
+    if (!result.ok) throw new Error('registration was expected to succeed');
+    const [message] = fakes.smsSent;
+    if (message === undefined) throw new Error('the boundary was expected to send one message');
+
+    const replay = await fakes.ports.notifications.deliverCode({
+      pendingRegistrationId: result.pendingRegistrationId,
+      locale: 'en-NG',
+      dedupeKey: message.dedupeKey,
+    });
+
+    expect(replay).toEqual({ status: 'sent', channel: 'sms' });
+    expect(fakes.smsSent).toHaveLength(1);
+  });
+
+  it('carries no destination number and no code in the queue key or an event', async () => {
+    const fakes = createIdentityHarness();
+    await register(fakes);
+
+    const [message] = fakes.smsSent;
+    expect(message?.dedupeKey).toMatch(/^registration_code:/);
+    expect(message?.dedupeKey).not.toContain('+2348031234567');
+    expect(message?.dedupeKey).not.toContain(FAKE_CODE);
+
+    // `EVT-042`, `NFR-024`: the event names the pending registration and nothing about the person.
+    const emitted = JSON.stringify(fakes.analytics);
+    expect(emitted).not.toContain('+2348031234567');
+    expect(emitted).not.toContain(FAKE_CODE);
+  });
+});
+
 describe('confirmRegistration (C-003)', () => {
   const harnessWithPending = (options: Parameters<typeof createIdentityHarness>[0] = {}) => {
     const fakes = createIdentityHarness({ pending: [pendingRow()], ...options });

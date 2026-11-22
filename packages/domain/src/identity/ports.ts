@@ -55,14 +55,19 @@ export type CodeMatchResult = 'match' | 'mismatch' | 'absent';
 /**
  * The one-time code store, shared by registration and sign-in.
  *
- * The code value never leaves the adapter: the domain asks for an issue, a comparison and a
- * consumption, never for the digits. Attempt accounting lives beside the code because an attempt limit
- * without the code it counts is meaningless. `targetId` is the PendingRegistration or the
- * SignInChallenge identifier, never a telephone number, so a key cannot carry personal data.
+ * The code value never leaves the adapter as a value: the domain asks for an issue, a comparison, a
+ * consumption and — where the notification boundary owns the delivery — a rendered message body,
+ * never for the digits. Attempt accounting lives beside the code because an attempt limit without the
+ * code it counts is meaningless. `targetId` is the PendingRegistration or the SignInChallenge
+ * identifier, never a telephone number, so a key cannot carry personal data.
  */
 export interface VerificationCodePort {
   /**
    * Voids any outstanding code, issues a fresh six-digit one, stores it hashed and sends it.
+   *
+   * This is the direct dispatch the sign-in and resend steps still make. Registration hands its code
+   * to the notification boundary instead, which retries and holds it (`C-076`), and takes the body
+   * from {@link renderOutstanding}.
    *
    * @throws when neither the store nor the SMS gateway took the dispatch. The caller answers
    *   `delayed` at registration and `SERVICE_DEGRADED` on a resend, as those entries state.
@@ -73,6 +78,22 @@ export interface VerificationCodePort {
     readonly locale: Locale;
     readonly at: string;
   }): Promise<CodeDelivery>;
+
+  /**
+   * Renders the message carrying a fresh code for one target, minting the code as it renders.
+   *
+   * This is the body the notification boundary sends: `C-076` renders the message at send time, so a
+   * queue row — and every backup of it — never holds the digits or a rendered code. Each call mints a
+   * fresh code and voids the one before it, so an attempt the gateway did not accept is replaced
+   * rather than leaving a stored code nobody was sent; the message that reaches the resident last
+   * carries the only code that matches.
+   *
+   * @param input - The pending registration or sign-in challenge, and the locale to write in.
+   * @returns The message body, handed to the SMS port and then dropped. It is never logged.
+   * @throws when the store could not hold the code. The boundary then records a held attempt and
+   *   never sends an empty body.
+   */
+  renderOutstanding(input: { readonly targetId: string; readonly locale: Locale }): Promise<string>;
 
   /**
    * Compares a supplied code in constant time and reports which of the three answers it is.
@@ -588,10 +609,46 @@ export interface IdentityAnalyticsPort {
   emit(event: IdentityAnalyticsEvent): Promise<void>;
 }
 
+/**
+ * The notification boundary as identity hands it a one-time code (`C-002`, `C-004`, `C-076`).
+ *
+ * Delivery is not this module's work: the boundary owns the queue, the claim that makes a replay send
+ * nothing twice, the hold that survives a gateway outage and the backoff that retries it. Identity asks
+ * for one code to be queued and attempted now and is told what the gateway did — `sent` when it took
+ * the message, `delayed` when the message is retained for a later attempt. `C-002` answers 201 either
+ * way and the pending registration is untouched by a hold.
+ *
+ * The body is the code store's, rendered at send time ({@link VerificationCodePort.renderOutstanding}),
+ * so neither this port nor the queue ever holds the digits.
+ */
+export interface IdentityNotificationPort {
+  /**
+   * Queue one registration code and attempt it once, now (`C-076` `enqueue`, then one dispatch).
+   *
+   * A second call under the same `dedupeKey` reports the stored message's state instead of sending a
+   * second message, and a dispatch the boundary already holds is not attempted again.
+   *
+   * @throws when the boundary itself could not answer. The caller answers `delayed` and keeps the
+   *   pending registration, exactly as it does for a hold.
+   */
+  deliverCode(input: {
+    readonly pendingRegistrationId: string;
+    readonly locale: Locale;
+    /**
+     * The caller's stable identity for this message (`C-076` `dedupeKey`): a namespace, then opaque
+     * identifiers. A replay under the same key sends nothing twice.
+     */
+    readonly dedupeKey: string;
+    /** Carried for the boundary's own correlation; identifies the request, never a person. */
+    readonly correlationId?: string;
+  }): Promise<CodeDelivery>;
+}
+
 /** The port bundle every identity use case receives. */
 export interface IdentityPorts {
   readonly pendingRegistrations: PendingRegistrationPort;
   readonly codes: VerificationCodePort;
+  readonly notifications: IdentityNotificationPort;
   readonly signInChallenges: SignInChallengePort;
   readonly members: MemberPort;
   readonly consents: ConsentPort;
