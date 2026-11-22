@@ -1,9 +1,10 @@
 /**
  * The seed runner: reference data the platform publishes from, written once and then left alone.
  *
- * Two data sets are seeded, the ward reference (`wards.ts`, `FEAT-002`) and the published discussion
- * rules (`rules.ts`, `FEAT-006`). Both are reference data, not operational data: a seed run creates
- * what is missing and never touches a row that already exists.
+ * Three data sets are seeded: the ward reference (`wards.ts`, `FEAT-002`), the published discussion
+ * rules (`rules.ts`, `FEAT-006`), and the first staff accounts (`staff.ts`, `C-092`, `C-093`). All are
+ * reference data, not operational data: a seed run creates what is missing and never touches a row
+ * that already exists.
  *
  * That rule is what makes a second run a no-op. A resident's confirmed wording, a reviewer's decided
  * match and a retired rule are all later states of the same row, and a seed that rewrote them would
@@ -15,6 +16,7 @@
  */
 import type { RuleSeedRow } from './rules.ts';
 import { ruleSeedRows } from './rules.ts';
+import { seedStaff } from './staff.ts';
 import type { WardSeedRow } from './wards.ts';
 import { wardSeedRows } from './wards.ts';
 import { executorOf, isTransactionScope, withTransaction, type Executor } from '../client.ts';
@@ -87,10 +89,13 @@ export async function runSeeds(executor: Executor): Promise<SeedReport> {
   return withTransaction((scope) => runSeedsInScope(scope), executorOf(executor));
 }
 
-/** Seeds both data sets inside the transaction the caller already opened. */
+/** Seeds every data set inside the transaction the caller already opened. */
 async function runSeedsInScope(executor: Executor): Promise<SeedReport> {
-  return {
-    wards: await seedWards(executor),
-    rules: await seedRules(executor),
-  };
+  const wards = await seedWards(executor);
+  const rules = await seedRules(executor);
+  // The first staff accounts are reference data too, but the report keeps its published shape:
+  // callers that print it do not gain a field, and the accounts are still created in the same unit
+  // of work.
+  await seedStaff(executor);
+  return { wards, rules };
 }

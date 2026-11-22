@@ -10,13 +10,13 @@
  * clock and the identifier factory. Nothing in this module opens a vendor client, reads an
  * environment variable or decides a rule.
  *
- * The bundle satisfies the whole `IdentityPorts` shape, but this slice's flows (`C-002` to
- * `C-004`) touch only the pending registrations, the members, the codes, the notification boundary,
- * the member sessions, the limiter, the audit log, the analytics emitter, the clock and the
- * identifier factory. The ports a later task wires — the sign-in challenges, the consents and
- * data-request reads, the member's authored content, the legal holds, the object store, the
- * idempotency store and the durable write queue — are present but refuse to answer, so a port that
- * is reached before its task lands fails loudly instead of pretending.
+ * The bundle satisfies the whole `IdentityPorts` shape. Registration and sign-in touch the pending
+ * registrations, the members, the codes, the notification boundary, the member sessions, the limiter,
+ * the audit log, the analytics emitter, the clock and the identifier factory. The staff credential
+ * port is wired to its repository and the three credential-material adapters, so `C-092` has a real
+ * store rather than a refusing stub. The ports a later task wires — the sign-in challenges, the
+ * member's authored content, the legal holds and the durable write queue — are present but refuse to
+ * answer, so a port that is reached before its task lands fails loudly instead of pretending.
  */
 import {
   createAnalyticsEventRepository,
@@ -28,6 +28,7 @@ import {
   createMemberRepository,
   createOutboundNotificationRepository,
   createPendingRegistrationRepository,
+  createStaffCredentialRepository,
   createStaffUserRepository,
   type DatabaseHandle,
 } from '@odp/db';
@@ -45,7 +46,7 @@ import {
   type OutboundQueuePort,
   type SmsDeliveryPort,
 } from '@odp/domain';
-import { createPlatform, type Platform } from '@odp/platform';
+import { createCredentialAdapters, createPlatform, type Platform } from '@odp/platform';
 import { createJsonLogger, type Logger } from '../logging';
 import {
   createDurableAnalyticsSink,
@@ -309,6 +310,7 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
   cached ??= (async () => {
     const platform = createPlatform();
     const database = createDatabase({ applicationName: 'odp-web-identity' });
+    const credentialAdapters = createCredentialAdapters(platform.config.credentials);
     const pendingRegistrations = createPendingRegistrationRepository(database.db);
     const members = createMemberRepository(database.db);
     const ports: IdentityPorts = {
@@ -317,9 +319,7 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       consents: createConsentRepository(database.db),
       dataRequests: createDataRequestRepository(database.db),
       staffUsers: createStaffUserRepository(database.db),
-      credentials: notWiredYet(
-        'the staff credential store (its seams arrive with the staff-auth task)',
-      ),
+      credentials: createStaffCredentialRepository(database.db, credentialAdapters),
       memberSessions: platform.sessions.memberSessions,
       staffSessions: platform.sessions.staffSessions,
       codes: platform.sessions.codes,
