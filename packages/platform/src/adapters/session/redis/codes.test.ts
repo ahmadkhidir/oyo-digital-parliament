@@ -158,3 +158,60 @@ describe('one-time codes', () => {
     expect(body).toMatch(/\d{6}/);
   });
 });
+
+describe('rendered code bodies (C-076)', () => {
+  it('mints the code it renders and matches the digits in that body', async () => {
+    const { memory, codes } = harness();
+
+    const body = await codes.renderOutstanding({ targetId: PENDING_ID, locale: 'en-NG' });
+    const code = codeFrom(body);
+
+    // The digits are the body's only copy: no key holds them, only the digest they produce.
+    for (const key of memory.keys()) {
+      expect(memory.raw(key) ?? '').not.toContain(code);
+    }
+    await expect(codes.matches(PENDING_ID, code)).resolves.toBe('match');
+  });
+
+  it('keeps one outstanding code: a fresh render starts the attempt count again', async () => {
+    const { memory, codes, clock } = harness();
+    await codes.renderOutstanding({ targetId: PENDING_ID, locale: 'en-NG' });
+    await codes.recordFailure(PENDING_ID, clock.now().toISOString());
+
+    const body = await codes.renderOutstanding({ targetId: PENDING_ID, locale: 'en-NG' });
+
+    // One code key per target: the render overwrote the previous digest rather than adding a second.
+    expect(memory.keys().filter((key) => key.includes('otp:code'))).toHaveLength(1);
+    await expect(codes.readAttempts(PENDING_ID)).resolves.toEqual({ attempts: 0 });
+    await expect(codes.matches(PENDING_ID, codeFrom(body))).resolves.toBe('match');
+  });
+
+  it('writes the rendered body in the recipient’s locale', async () => {
+    const { codes } = harness();
+
+    const body = await codes.renderOutstanding({ targetId: PENDING_ID, locale: 'yo-NG' });
+
+    expect(body).toContain('Kóòdù Oyo Digital Parliament');
+    expect(body).toMatch(/\d{6}/);
+  });
+
+  it('reports a store that refuses rather than an empty body', async () => {
+    const clock = createFixedClock('2026-11-18T09:00:00Z');
+    const memory = createMemorySessionStore(clock);
+    const codes = createVerificationCodeStore({
+      store: {
+        ...memory,
+        set: async () => {
+          throw new Error('redis is unreachable');
+        },
+      },
+      clock,
+      sms: createFakeSms(),
+      ttlSeconds: 10 * 60,
+    });
+
+    await expect(
+      codes.renderOutstanding({ targetId: PENDING_ID, locale: 'en-NG' }),
+    ).rejects.toThrow('redis is unreachable');
+  });
+});

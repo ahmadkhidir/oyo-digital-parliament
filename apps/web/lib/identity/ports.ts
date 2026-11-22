@@ -5,17 +5,18 @@
  *
  * Server actions and server components on the entry screens receive this bundle once per process
  * and hand it to the `@odp/domain` use cases. Everything here is composed from the two packages
- * that own the effects: `packages/db` owns the durable records, `packages/platform` owns sessions,
- * one-time codes, rate-limit counters, the clock and the identifier factory. Nothing in this
- * module opens a vendor client, reads an environment variable or decides a rule.
+ * that own the effects: `packages/db` owns the durable records and the outbound queue,
+ * `packages/platform` owns sessions, one-time codes, the SMS transport, rate-limit counters, the
+ * clock and the identifier factory. Nothing in this module opens a vendor client, reads an
+ * environment variable or decides a rule.
  *
  * The bundle satisfies the whole `IdentityPorts` shape, but this slice's flows (`C-002` to
- * `C-004`) touch only the pending registrations, the members, the codes, the member sessions, the
- * limiter, the audit log, the analytics emitter, the clock and the identifier factory. The ports a
- * later task wires — the sign-in challenges, the consents and data-request reads, the member's
- * authored content, the legal holds, the object store, the idempotency store and the durable
- * write queue — are present but refuse to answer, so a port that is reached before its task lands
- * fails loudly instead of pretending.
+ * `C-004`) touch only the pending registrations, the members, the codes, the notification boundary,
+ * the member sessions, the limiter, the audit log, the analytics emitter, the clock and the
+ * identifier factory. The ports a later task wires — the sign-in challenges, the consents and
+ * data-request reads, the member's authored content, the legal holds, the object store, the
+ * idempotency store and the durable write queue — are present but refuse to answer, so a port that
+ * is reached before its task lands fails loudly instead of pretending.
  */
 import {
   createAnalyticsEventRepository,
@@ -24,16 +25,24 @@ import {
   createDataRequestRepository,
   createDatabase,
   createMemberRepository,
+  createOutboundNotificationRepository,
   createPendingRegistrationRepository,
   createStaffUserRepository,
   type DatabaseHandle,
 } from '@odp/db';
 import {
   analyticsUserIdFor,
+  dispatchNotification,
+  enqueueNotification,
   type AnalyticsLocale,
   type IdentityAnalyticsEvent,
   type IdentityAnalyticsPort,
   type IdentityPorts,
+  type NotificationBodyPort,
+  type NotificationPorts,
+  type NotificationRecipientPort,
+  type OutboundQueuePort,
+  type SmsDeliveryPort,
 } from '@odp/domain';
 import { createPlatform, type Platform } from '@odp/platform';
 import { createJsonLogger, type Logger } from '../logging';
@@ -180,6 +189,80 @@ export interface IdentityDependencies {
   readonly database: DatabaseHandle;
 }
 
+/**
+ * What the registration code's delivery needs (`C-002`, `C-076`).
+ *
+ * Every seam is passed in rather than opened here, so the same composition runs in production against
+ * the durable queue and the configured gateway, and in a test against a double that records the send.
+ */
+export interface RegistrationNotificationOptions {
+  /** The durable outbound queue (`packages/db`). */
+  readonly queue: OutboundQueuePort;
+  /** Turns a `prg_` reference into a destination and a locale at send time. */
+  readonly recipients: NotificationRecipientPort;
+  /** Renders the body at send time; the one-time code comes from the code store. */
+  readonly bodies: NotificationBodyPort;
+  readonly sms: SmsDeliveryPort;
+  readonly clock: { now(): Date };
+  readonly identifiers: { next(prefix: string): string };
+  /** The code lifetime the store enforces, so the queued window and the message agree. */
+  readonly codeTtlSeconds: number;
+}
+
+/**
+ * Compose the notification boundary as registration hands it a code (`C-002`, `C-076`).
+ *
+ * The use case names the pending registration and the dedupe key and is told whether the gateway took
+ * the message. This adapter does the two calls `C-076` defines — enqueue, then one dispatch — and maps
+ * every answer that is not a delivery to `delayed`, because `C-002` answers 201 with a held
+ * registration rather than failing the write. Nothing here logs: a notification body and a destination
+ * are personal data, and the queue's own rows are the record (`NFR-024`).
+ */
+export function createRegistrationNotification(
+  options: RegistrationNotificationOptions,
+): IdentityPorts['notifications'] {
+  const ports: NotificationPorts = {
+    queue: options.queue,
+    recipients: options.recipients,
+    bodies: options.bodies,
+    sms: options.sms,
+    clock: options.clock,
+    identifiers: options.identifiers,
+  };
+  const expiresInMinutes = Math.max(1, Math.round(options.codeTtlSeconds / 60));
+
+  return {
+    async deliverCode(input) {
+      const caller = {
+        component: 'identity',
+        ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
+      };
+
+      const queued = await enqueueNotification(caller, ports, {
+        channel: 'sms',
+        template: 'registration_code',
+        recipient: { kind: 'pending_registration', id: input.pendingRegistrationId },
+        // `C-076`'s closed payload set for this template: the target and the window, never the digits.
+        payload: {
+          targetId: input.pendingRegistrationId,
+          expiresInMinutes: String(expiresInMinutes),
+        },
+        dedupeKey: input.dedupeKey,
+      });
+      // An unreachable queue or a recipient that has gone leaves the message unsent; the pending
+      // registration stands and `C-002` answers `delayed`.
+      if (!queued.ok) return { status: 'delayed', channel: 'sms' };
+
+      const dispatched = await dispatchNotification(caller, ports, {
+        notificationId: queued.notification.notificationId,
+      });
+      // A hold leaves the message queued for its next attempt, which is the boundary's to schedule.
+      const state = dispatched.ok ? dispatched.notification.state : 'queued';
+      return { status: state === 'sent' ? 'sent' : 'delayed', channel: 'sms' };
+    },
+  };
+}
+
 let cached: Promise<IdentityDependencies> | null = null;
 
 /**
@@ -194,9 +277,11 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
   cached ??= (async () => {
     const platform = createPlatform();
     const database = createDatabase({ applicationName: 'odp-web-identity' });
+    const pendingRegistrations = createPendingRegistrationRepository(database.db);
+    const members = createMemberRepository(database.db);
     const ports: IdentityPorts = {
-      pendingRegistrations: createPendingRegistrationRepository(database.db),
-      members: createMemberRepository(database.db),
+      pendingRegistrations,
+      members,
       consents: createConsentRepository(database.db),
       dataRequests: createDataRequestRepository(database.db),
       staffUsers: createStaffUserRepository(database.db),
@@ -206,6 +291,44 @@ export function getIdentityDependencies(): Promise<IdentityDependencies> {
       memberSessions: platform.sessions.memberSessions,
       staffSessions: platform.sessions.staffSessions,
       codes: platform.sessions.codes,
+      // `C-002`, `C-076`: registration hands the one-time code to the notification boundary, which
+      // owns the queue, the hold and the retry. The destination is resolved from the pending record at
+      // the moment of the send and dropped (`NFR-024`); the body is the code store's.
+      notifications: createRegistrationNotification({
+        queue: createOutboundNotificationRepository(database.db),
+        recipients: {
+          async resolve(reference) {
+            if (reference.kind === 'pending_registration') {
+              const pending = await pendingRegistrations.findById(reference.id);
+              // A verified or discarded registration has no code left to receive (`C-003`, `FEAT-012`).
+              if (pending === null || pending.verifiedAt !== undefined) return null;
+              return { locale: pending.locale, smsDestination: pending.telephoneNumber };
+            }
+            const member = await members.get(reference.id);
+            if (member === null || member.deletedAt !== undefined) return null;
+            return { locale: member.locale, smsDestination: member.telephoneNumber };
+          },
+        },
+        bodies: {
+          async render({ record, recipient }) {
+            // Only this template's copy belongs to this deployment so far: the decision notice, the
+            // appeal outcome and the session reminder are sent by features that have not landed, and
+            // the boundary records an unrenderable template as a failed message rather than an empty
+            // send.
+            if (record.template !== 'registration_code') return null;
+            const targetId = record.payload['targetId'];
+            if (targetId === undefined) return null;
+            return platform.sessions.codes.renderOutstanding({
+              targetId,
+              locale: recipient.locale,
+            });
+          },
+        },
+        sms: platform.sms,
+        clock: platform.clock,
+        identifiers: platform.ids,
+        codeTtlSeconds: platform.config.session.codeTtlSeconds,
+      }),
       rateLimits: platform.sessions.rateLimits,
       objectStore: platform.storage,
       audit: createAuditEventRepository(database.db),

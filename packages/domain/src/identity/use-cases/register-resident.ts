@@ -1,7 +1,8 @@
 /**
- * Registering a resident (`C-002`, `FEAT-001`, `NFR-020`, `NFR-027`, `EVT-042`).
+ * Registering a resident (`C-002`, `FEAT-001`, `NFR-004`, `NFR-020`, `NFR-027`, `EVT-042`, `C-076`).
  *
- * Stores a PendingRegistration and dispatches one one-time code. No Member exists, no session opens
+ * Stores a PendingRegistration and hands one one-time code to the notification boundary, which queues
+ * it, attempts it and holds it when the SMS channel is unavailable. No Member exists, no session opens
  * and nothing is published until a code is accepted: the pending record is the whole of what this
  * action creates, and it is discarded after twenty-four hours if the code is never proved.
  */
@@ -27,7 +28,7 @@ import {
   toIsoSeconds,
   type Reading,
 } from '../policies.ts';
-import type { IdentityPorts } from '../ports.ts';
+import type { CodeDelivery, IdentityPorts } from '../ports.ts';
 import { consumeRateLimit, emitIdentityAnalytics } from './support.ts';
 
 /** The `C-002` request. `displayName` may be omitted and is then generated. */
@@ -221,17 +222,18 @@ export async function registerResident(
     );
   }
 
-  // `C-002`: a gateway that refuses still leaves a held pending registration and a 201 with `delayed`.
-  let delivery: { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' } = {
-    status: 'delayed',
-    channel: 'sms',
-  };
+  // `C-002`, `C-076`: the code leaves through the notification boundary, which queues it, attempts it
+  // once now and holds it when the SMS channel is down. A hold is a delivery failure, not a lost
+  // registration: the pending record stands and the answer is still 201 with `delayed`.
+  let delivery: CodeDelivery = { status: 'delayed', channel: 'sms' };
   try {
-    delivery = await deps.codes.issue({
-      targetId: pending.id,
-      telephoneNumber: pending.telephoneNumber,
+    delivery = await deps.notifications.deliverCode({
+      pendingRegistrationId: pending.id,
       locale,
-      at: createdAt,
+      // `C-076`: the namespace names the fact the notice is about, and the body is opaque identifiers
+      // and the issue instant — never a name, a number or a line of text.
+      dedupeKey: `registration_code:${pending.id}:${createdAt}`,
+      ...(caller.correlationId === undefined ? {} : { correlationId: caller.correlationId }),
     });
   } catch {
     delivery = { status: 'delayed', channel: 'sms' };

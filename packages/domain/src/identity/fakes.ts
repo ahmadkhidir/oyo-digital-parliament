@@ -124,6 +124,12 @@ export interface IdentityHarness {
   readonly endedSessionIds: Set<string>;
   readonly staffSessions: Map<string, ResolvedStaffSession>;
   readonly codes: Map<string, { code: string; attempts: number; cooldownUntil?: string }>;
+  /** Every message the boundary handed to the SMS double, in order (`C-002`, `C-076`). */
+  readonly smsSent: readonly {
+    readonly destination: string;
+    readonly body: string;
+    readonly dedupeKey: string;
+  }[];
   readonly idempotency: Map<string, RecordedAnswer>;
   readonly queued: {
     readonly kind: string;
@@ -222,6 +228,11 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
   const audit: AuditEventRecord[] = [];
   const analytics: IdentityAnalyticsEvent[] = [];
   const codes = new Map<string, { code: string; attempts: number; cooldownUntil?: string }>();
+  const deliveries = new Map<
+    string,
+    { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' }
+  >();
+  const smsSent: { destination: string; body: string; dedupeKey: string }[] = [];
   const memberSessions = new Map<string, ResolvedMemberSession>();
   const endedSessionIds = new Set<string>();
   const staffSessions = new Map<string, ResolvedStaffSession>();
@@ -268,6 +279,14 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
         codes.set(input.targetId, { code: options.code ?? FAKE_CODE, attempts: 0 });
         return { status: 'sent', channel: 'sms' };
       },
+      async renderOutstanding(input) {
+        guard(options.codeStoreUnavailable, 'the code store is unavailable');
+        // The fake mints as it renders, as the adapter does: the digits live in this answer only, and a
+        // second render voids the first code (`C-076` body rendered at send time).
+        const code = options.code ?? FAKE_CODE;
+        codes.set(input.targetId, { code, attempts: 0 });
+        return `Your Oyo Digital Parliament code is ${code}.`;
+      },
       async matches(targetId, code) {
         guard(options.codeStoreUnavailable, 'the code store is unavailable');
         const entry = codes.get(targetId);
@@ -301,6 +320,33 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
         guard(options.codeStoreUnavailable, 'the code store is unavailable');
         const entry = codes.get(targetId) ?? { code: '', attempts: 0 };
         codes.set(targetId, { ...entry, cooldownUntil: until });
+      },
+    },
+
+    notifications: {
+      async deliverCode(input) {
+        // `C-076`: the boundary is idempotent under its dedupe key, so a replay reports the recorded
+        // outcome and sends nothing a second time.
+        const recorded = deliveries.get(input.dedupeKey);
+        if (recorded !== undefined) return recorded;
+
+        const row = pending.find((candidate) => candidate.id === input.pendingRegistrationId);
+        let delivery: { readonly status: 'sent' | 'delayed'; readonly channel: 'sms' } = {
+          status: 'delayed',
+          channel: 'sms',
+        };
+        if (row !== undefined && options.smsUnavailable !== true) {
+          // The body is the code store's, minted at send time; the destination comes from the pending
+          // record and never travels back out of this call.
+          const body = await ports.codes.renderOutstanding({
+            targetId: input.pendingRegistrationId,
+            locale: input.locale,
+          });
+          smsSent.push({ destination: row.telephoneNumber, body, dedupeKey: input.dedupeKey });
+          delivery = { status: 'sent', channel: 'sms' };
+        }
+        deliveries.set(input.dedupeKey, delivery);
+        return delivery;
       },
     },
 
@@ -797,6 +843,7 @@ export function createIdentityHarness(options: IdentityHarnessOptions = {}): Ide
     endedSessionIds,
     staffSessions,
     codes,
+    smsSent,
     idempotency,
     queued,
     signedUrlCalls,
