@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.6.0
+**Contract version:** 1.6.1
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -30,6 +30,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.4.0 | Adds `C-093` operator credential and second-factor reset: one operator resets another staff user's password and factor, clears the lockout, ends that user's sessions and requires re-enrolment before any admin screen, with the reset audited and no credential returned. Bans self-reset without a second operator and makes a repeat idempotent. Adds `staff.credential_reset` and `staff.credential_reset_refused` to `C-090`, and records the reset as the session-ending event `C-092` names. |
 | 1.5.0 | Reconciles the identity entries with the implementation. `C-001` admits `REUSED_WITH_DIFFERENT_PAYLOAD` to the field-reason set it already printed, records the `scd_` prefix for StaffCredential, and defines `attemptsRemaining` beside `retryAfterSeconds` on a refusal. `C-003` names `attemptsRemaining` on the incorrect-code and cooldown answers. `C-008` drops a sign-out scope the entry never defined. `C-032` defines each `heldItems` entry. `C-035` drops the unused `note`, because `outcomeReason` and `legalHoldNote` already record a deferred or refused request and no schema column is added. `C-092` names the `scd_` credential identifier and states that a repeated enrolment confirmation never replays the recovery codes. |
 | 1.6.0 | Holds one account per number. `C-002` drops the shared-number declaration from its request and applies the already-registered refusal to every number held on an account; `C-003` refuses a verification whose number has come to belong to an account and drops `sharedNumber` from its member payload; `C-005` drops `accountCount` and `accountChoiceRequired`; `C-006` drops `memberId` from its request and `sharedNumber` from its member payload; `C-032`, `C-058` and `C-070` drop `sharedNumber`, and `C-058` no longer describes two accounts sharing a number. Gives the legal hold a structured review date: `C-035` returns it when a hold is detected, `C-036` names it on the legal-hold failure, `C-032` and `C-066` carry it on a deferred request, and `C-067` requires and records it on a defer. |
+| 1.6.1 | Aligns `C-092`'s staff sign-in surfaces with the screen specification. The password step is `/staff/sign-in`, and second-factor verification and enrolment are both `/staff/2fa`, replacing the three `/admin/*` paths and every `nextScreen` and `recoveryPath` they printed. |
 
 ## Contract Index
 
@@ -3300,7 +3301,7 @@ The seven flags are `ward_candidate_suggestions`, `similar_submission_suggestion
 
 **Auth:** Public for the sign-in challenge; staff session for every other operation
 
-**Surface:** Server actions `beginStaffSignIn` on `/admin/sign-in`, `verifyStaffSecondFactor` on `/admin/verify`, `enrolStaffSecondFactor` on `/admin/enrol` and `signOutStaff` in the admin shell; route handler `GET /api/staff/session`. The entry groups the five operations of one sign-in flow, and each states its own surface and auth below; no operation inherits another's auth. The staff cookie `odp_staff_session` lives in a namespace separate from the member `odp_session` and is set `HttpOnly`, `SameSite=Lax` and `Secure`; neither cookie authenticates the other's surface.
+**Surface:** Server actions `beginStaffSignIn` on `/staff/sign-in`, `verifyStaffSecondFactor` on `/staff/2fa`, `enrolStaffSecondFactor` on `/staff/2fa` and `signOutStaff` in the admin shell; route handler `GET /api/staff/session`. The entry groups the five operations of one sign-in flow, and each states its own surface and auth below; no operation inherits another's auth. The staff cookie `odp_staff_session` lives in a namespace separate from the member `odp_session` and is set `HttpOnly`, `SameSite=Lax` and `Secure`; neither cookie authenticates the other's surface.
 
 **Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `architecture.md` Cross-Cutting Concerns, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
 
@@ -3319,12 +3320,12 @@ The seven flags are `ward_candidate_suggestions`, `similar_submission_suggestion
   "data": {
     "session": { "established": true, "secondFactorSatisfied": false, "expiresAt": "2026-11-18T09:24:00Z", "absoluteExpiresAt": "2026-11-18T09:24:00Z" },
     "secondFactorEnrolled": true,
-    "nextScreen": "/admin/verify"
+    "nextScreen": "/staff/2fa"
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:14:00Z" }
 }
 ```
-The password step opens the session without satisfying the second factor. The challenge lasts ten minutes, idle and absolute at once, and admits the verification, the enrolment, the session read and the sign-out only. When `secondFactorEnrolled` is `false` the answer carries `nextScreen:"/admin/enrol"` and enrolment is the only screen the session may reach. A `200` here is not a sign-in: no `C-040` to `C-069` operation is admitted until a verification satisfies the factor.
+The password step opens the session without satisfying the second factor. The challenge lasts ten minutes, idle and absolute at once, and admits the verification, the enrolment, the session read and the sign-out only. When `secondFactorEnrolled` is `false` the answer carries `nextScreen:"/staff/2fa"` and enrolment is the only screen the session may reach. A `200` here is not a sign-in: no `C-040` to `C-069` operation is admitted until a verification satisfies the factor.
 
 **Request (second factor, staff session):**
 ```json
@@ -3418,7 +3419,7 @@ Confirmation verifies one code against the secret issued at `begin`, writes `sec
 **Response 200 (signed out):**
 ```json
 {
-  "data": { "signedIn": false, "staff": null, "session": null, "nextScreen": "/admin/sign-in" },
+  "data": { "signedIn": false, "staff": null, "session": null, "nextScreen": "/staff/sign-in" },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:24:30Z", "degraded": false }
 }
 ```
@@ -3438,12 +3439,12 @@ Confirmation verifies one code against the secret issued at `begin`, writes `sec
       "secondFactorEnrolled": false
     },
     "session": { "expiresAt": "2026-11-18T09:26:00Z", "absoluteExpiresAt": "2026-11-18T09:26:00Z" },
-    "nextScreen": "/admin/enrol"
+    "nextScreen": "/staff/2fa"
   },
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-18T09:16:30Z", "degraded": false }
 }
 ```
-The satisfied session answers the same shape with `secondFactorSatisfied:true`, `secondFactorEnrolled:true` and `nextScreen:"/admin"`; a session awaiting its factor names `/admin/verify`. The `staff` object is the `C-007` staff projection with `secondFactorEnrolled` added, and the two entries read one session, so the role, the external flag and the authorised wards cannot disagree between them. The read admits a caller with no session and answers `signedIn:false`, because a signed-out admin caller is a state the shell must render rather than an error; it never returns a member object.
+The satisfied session answers the same shape with `secondFactorSatisfied:true`, `secondFactorEnrolled:true` and `nextScreen:"/admin"`; a session awaiting its factor names `/staff/2fa`. The `staff` object is the `C-007` staff projection with `secondFactorEnrolled` added, and the two entries read one session, so the role, the external flag and the authorised wards cannot disagree between them. The read admits a caller with no session and answers `signedIn:false`, because a signed-out admin caller is a state the shell must render rather than an error; it never returns a member object.
 
 **Request (sign-out, staff session):**
 ```json
@@ -3461,7 +3462,7 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 - Authentication is rate-limited per account and per source address. The five-attempt lockout is the cap the specification fixes; the remaining caps are operator configuration (`NFR-027`).
 - This entry emits no analytics event. A staff username is a staff identifier and never enters analytics; the events in `analytics.md` are product events about residents.
 
-**Errors:** `VALIDATION_FAILED` with `fields` for `username` (`REQUIRED`, `PATTERN_MISMATCH`), `password` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128), `code` (`REQUIRED`, `PATTERN_MISMATCH` outside six digits), `recoveryCode` (`REQUIRED`, `PATTERN_MISMATCH`; `ALREADY_SET` when a code and a recovery code are both supplied), `action` (`REQUIRED`, `ENUM_MISMATCH`), `scope` (`ENUM_MISMATCH`), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` for a wrong username or password (`cause:"STAFF_CREDENTIALS_INVALID"`), no session or a session past its idle or absolute timeout (`cause:"STAFF_SESSION_REQUIRED"`), a challenge past its ten minutes (`cause:"SECOND_FACTOR_CHALLENGE_EXPIRED"`), a wrong code (`cause:"SECOND_FACTOR_INCORRECT"`), and an unknown or spent recovery code (`cause:"RECOVERY_CODE_UNKNOWN"`, `cause:"RECOVERY_CODE_SPENT"`). `FORBIDDEN_ROLE` with `cause:"STAFF_INACTIVE"` for a credential whose account is not active, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls a staff operation. `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_NOT_ENROLLED"` and `meta.recoveryPath:"/admin/enrol"` when verification is attempted before enrolment, and with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` when enrolment is begun or confirmed on an enrolled credential, which is also the answer to a repeated confirmation and carries `meta.recoveryPath:"/admin"`. `RATE_LIMITED` with `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds`, and for the per-address cap. `SERVICE_DEGRADED` with `cause:"SESSION_STORE_UNAVAILABLE"` when the session cannot be read or written, and with `cause:"CREDENTIAL_STORE_UNAVAILABLE"` when the credential cannot be read; either refusal admits nobody and leaves an existing session untouched. No operation in this entry answers `NOT_FOUND`, because an unknown username, an unknown recovery code and a wrong one are deliberately indistinguishable.
+**Errors:** `VALIDATION_FAILED` with `fields` for `username` (`REQUIRED`, `PATTERN_MISMATCH`), `password` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128), `code` (`REQUIRED`, `PATTERN_MISMATCH` outside six digits), `recoveryCode` (`REQUIRED`, `PATTERN_MISMATCH`; `ALREADY_SET` when a code and a recovery code are both supplied), `action` (`REQUIRED`, `ENUM_MISMATCH`), `scope` (`ENUM_MISMATCH`), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` for a wrong username or password (`cause:"STAFF_CREDENTIALS_INVALID"`), no session or a session past its idle or absolute timeout (`cause:"STAFF_SESSION_REQUIRED"`), a challenge past its ten minutes (`cause:"SECOND_FACTOR_CHALLENGE_EXPIRED"`), a wrong code (`cause:"SECOND_FACTOR_INCORRECT"`), and an unknown or spent recovery code (`cause:"RECOVERY_CODE_UNKNOWN"`, `cause:"RECOVERY_CODE_SPENT"`). `FORBIDDEN_ROLE` with `cause:"STAFF_INACTIVE"` for a credential whose account is not active, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls a staff operation. `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_NOT_ENROLLED"` and `meta.recoveryPath:"/staff/2fa"` when verification is attempted before enrolment, and with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` when enrolment is begun or confirmed on an enrolled credential, which is also the answer to a repeated confirmation and carries `meta.recoveryPath:"/admin"`. `RATE_LIMITED` with `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds`, and for the per-address cap. `SERVICE_DEGRADED` with `cause:"SESSION_STORE_UNAVAILABLE"` when the session cannot be read or written, and with `cause:"CREDENTIAL_STORE_UNAVAILABLE"` when the credential cannot be read; either refusal admits nobody and leaves an existing session untouched. No operation in this entry answers `NOT_FOUND`, because an unknown username, an unknown recovery code and a wrong one are deliberately indistinguishable.
 
 ---
 
