@@ -17,6 +17,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { readSession, toIsoSeconds } from '@odp/domain';
+import { rateLimited } from '../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { readCorrelationId } from '../../../lib/logging/correlation';
 import { getSignInDependencies } from '../../../lib/session/deps';
@@ -27,7 +28,7 @@ import { applySessionCookie, presentedSessionTokens } from '../../../lib/session
 export const dynamic = 'force-dynamic';
 
 /** Answers the caller's session state in the `C-007` body. */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function handleGet(request: NextRequest): Promise<NextResponse> {
   const correlation = readCorrelationId(request.headers);
   const correlationId = correlation.correlationId;
   if (!correlation.ok) {
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         error: {
           code: 'VALIDATION_FAILED',
           cause: 'CORRELATION_ID_INVALID',
-          message: 'The correlation identifier is not in the contract\'s form.',
+          message: "The correlation identifier is not in the contract's form.",
           correlationId,
           fields: { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
         },
@@ -74,3 +75,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     headers: { 'Cache-Control': 'no-store' },
   });
 }
+
+/** Every answer carries the `C-001` rate-limit triple, signed-in or signed-out. */
+export const GET: (request: NextRequest) => Promise<Response> = rateLimited(handleGet);

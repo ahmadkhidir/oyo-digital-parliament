@@ -8,6 +8,7 @@
  */
 import type { NextRequest } from 'next/server';
 import { listWards, toIsoSeconds } from '@odp/domain';
+import { rateLimited } from '../../../lib/http/rate-limit';
 import { buildWardReadPorts, getWardDependencies } from '../../(entry)/join/ward/_lib/runtime';
 import {
   failureEnvelope,
@@ -21,7 +22,7 @@ import { parseWardListQuery, wardListData } from '../../(entry)/join/ward/_lib/w
 export const dynamic = 'force-dynamic';
 
 /** Answers one page of the platform's ward reference. */
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGet(request: NextRequest): Promise<Response> {
   const correlation = readCorrelationId(request.headers);
   const context = { correlationId: correlation.correlationId };
   if (!correlation.ok) {
@@ -60,3 +61,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   });
   return jsonResponse(envelope.status, envelope.body, context);
 }
+
+/** Every answer carries the `C-001` rate-limit triple, the reference read included. */
+export const GET: (request: NextRequest) => Promise<Response> = rateLimited(handleGet);

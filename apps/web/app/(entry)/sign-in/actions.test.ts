@@ -231,11 +231,19 @@ describe('requestSignInCodeAction (C-005)', () => {
       telephoneNumber: string;
       returnTo: string;
       resendAvailableAt: string;
+      rateLimit?: object;
     }>('odp_signin_pending');
     expect(pending?.challengeId).toMatch(/^sic_[0-9A-Z]+$/);
     expect(pending?.telephoneNumber).toBe('+2348031234567');
     expect(pending?.returnTo).toBe('/');
     expect(pending?.resendAvailableAt).toBeTruthy();
+    // `C-001`/`NFR-027`: the action's answer carries the limiter's triple. A server action has no
+    // response-header channel in Next.js, so the redirected render reads it from the flow state.
+    expect(pending?.rateLimit).toEqual({
+      limit: 5,
+      remaining: 4,
+      resetSeconds: Date.parse(FIXED_NOW) / 1000,
+    });
     // `C-005`: no account count and no account list travel with the challenge.
     expect(pending).not.toHaveProperty('accountCount');
     expect(pending).not.toHaveProperty('accountChoiceRequired');
@@ -287,9 +295,18 @@ describe('requestSignInCodeAction (C-005)', () => {
     const redirect = await run(requestSignInCodeAction, numberForm());
 
     expect(redirect.url).toBe('/sign-in');
-    const retry = flowCookie<{ status: string; retryAfterSeconds: number }>('odp_signin_retry');
+    const retry = flowCookie<{ status: string; retryAfterSeconds: number; rateLimit?: object }>(
+      'odp_signin_retry',
+    );
     expect(retry?.status).toBe('RATE_LIMITED');
     expect(retry?.retryAfterSeconds).toBe(45);
+    // `C-001`: the refusal's answer carries the headers' own values beside the wait.
+    expect(retry?.rateLimit).toEqual({
+      limit: 5,
+      remaining: 0,
+      resetSeconds: Date.parse(FIXED_NOW) / 1000,
+      retryAfterSeconds: 45,
+    });
     expect(flowCookie('odp_signin_pending')).toBeNull();
   });
 

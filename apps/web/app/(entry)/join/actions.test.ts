@@ -96,10 +96,19 @@ describe('registerResidentAction (C-002)', () => {
     expect(double.pending.size).toBe(1);
     expect(double.members).toHaveLength(0); // No account exists before the code is accepted.
     // The visitor's place in the flow is the pending record, held in an HttpOnly cookie.
-    const pendingCookie = flowCookie<{ id: string; delayed: boolean }>('odp_join_pending');
+    const pendingCookie = flowCookie<{ id: string; delayed: boolean; rateLimit?: object }>(
+      'odp_join_pending',
+    );
     expect(pendingCookie?.delayed).toBe(false);
     expect(pendingCookie?.id).toMatch(/^prg_[0-9A-Z]+$/);
     expect(pendingCookie).not.toBeNull();
+    // `C-001`/`NFR-027`: the write's answer carries the limiter's triple. A server action cannot
+    // write response headers, so the redirected render reads it from the flow state.
+    expect(pendingCookie?.rateLimit).toEqual({
+      limit: 5,
+      remaining: 4,
+      resetSeconds: Date.parse('2026-11-18T09:00:00Z') / 1000,
+    });
     expect(flowCookie('odp_join_retry')).toBeNull();
     expect(double.events.map((event) => event.name)).toContain('registration_started');
   });
@@ -176,8 +185,19 @@ describe('registerResidentAction (C-002)', () => {
 
     expect(redirect.url).toBe('/join');
     expect(double.pending.size).toBe(0);
-    const retry = flowCookie<{ status?: string; retryAfterSeconds?: number }>('odp_join_retry');
+    const retry = flowCookie<{
+      status?: string;
+      retryAfterSeconds?: number;
+      rateLimit?: object;
+    }>('odp_join_retry');
     expect(retry?.status).toBe('RATE_LIMITED');
     expect(retry?.retryAfterSeconds).toBe(120);
+    // `C-001`: the refusal's answer carries the headers' own values beside the wait.
+    expect(retry?.rateLimit).toEqual({
+      limit: 5,
+      remaining: 0,
+      resetSeconds: Date.parse('2026-11-18T09:00:00Z') / 1000,
+      retryAfterSeconds: 120,
+    });
   });
 });

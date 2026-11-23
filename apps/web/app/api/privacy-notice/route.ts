@@ -9,6 +9,7 @@
  */
 import type { NextRequest } from 'next/server';
 import { identityFailure, toIsoSeconds } from '@odp/domain';
+import { rateLimited } from '../../../lib/http/rate-limit';
 import { readCorrelationId } from '../../../lib/logging/correlation';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getMyRecordRuntime } from '../../(record)/me/_lib/runtime';
@@ -23,7 +24,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 /** Answers the published notice, or the version named in the query. */
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGet(request: NextRequest): Promise<Response> {
   const correlation = readCorrelationId(request.headers);
   const correlationId = correlation.correlationId;
   if (!correlation.ok) {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       validationAnswer(
         correlationId,
         'CORRELATION_ID_INVALID',
-        'The correlation identifier is not in the contract\'s form.',
+        "The correlation identifier is not in the contract's form.",
         { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
       ),
       correlationId,
@@ -94,3 +95,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   return jsonAnswer(answer, correlationId);
 }
+
+/**
+ * Every answer carries the `C-001` rate-limit triple, this public read included: it consults no
+ * limiter, so it reports the read allowance with nothing consumed (`C-001`, `NFR-027`).
+ */
+export const GET: (request: NextRequest) => Promise<Response> = rateLimited(handleGet);

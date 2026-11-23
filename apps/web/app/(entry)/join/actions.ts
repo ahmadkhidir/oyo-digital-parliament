@@ -24,7 +24,9 @@ import {
   registerResident,
   type IdentityFailure,
   type IdentityPorts,
+  type RateLimitHeaders,
 } from '@odp/domain';
+import { signalOf } from '../../../lib/http/rate-limit';
 import { newCorrelationId } from '../../../lib/logging';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getIdentityDependencies } from '../../../lib/identity/ports';
@@ -97,20 +99,25 @@ async function consultAddressCap(
   ports: IdentityPorts,
   address: string,
 ): Promise<
-  | { readonly refused: false }
-  | { readonly refused: true; readonly retryAfterSeconds: number | null }
+  | { readonly refused: false; readonly rateLimit: RateLimitHeaders | null }
+  | {
+      readonly refused: true;
+      readonly retryAfterSeconds: number | null;
+      readonly rateLimit: RateLimitHeaders | null;
+    }
 > {
   try {
     const outcome = await ports.rateLimits.consume({
       bucket: 'registration_address',
       subject: { kind: 'address', value: address },
     });
+    const rateLimit = signalOf(outcome);
     return outcome.allowed
-      ? { refused: false }
-      : { refused: true, retryAfterSeconds: outcome.retryAfterSeconds };
+      ? { refused: false, rateLimit }
+      : { refused: true, retryAfterSeconds: outcome.retryAfterSeconds, rateLimit };
   } catch {
     // A limiter that cannot answer is a degraded service, not an admission (`NFR-027`).
-    return { refused: true, retryAfterSeconds: null };
+    return { refused: true, retryAfterSeconds: null, rateLimit: null };
   }
 }
 
@@ -137,6 +144,7 @@ async function holdAttempt(
     readonly fields?: Readonly<Record<string, string>>;
     readonly status?: JoinStatus;
     readonly retryAfterSeconds?: number;
+    readonly rateLimit?: RateLimitHeaders;
   },
 ): Promise<void> {
   await writeJoinRetry({
@@ -146,6 +154,7 @@ async function holdAttempt(
     ...(refusal.retryAfterSeconds === undefined
       ? {}
       : { retryAfterSeconds: refusal.retryAfterSeconds }),
+    ...(refusal.rateLimit === undefined ? {} : { rateLimit: refusal.rateLimit }),
   });
 }
 
@@ -161,6 +170,7 @@ function refusalOf(failure: IdentityFailure): {
   readonly fields: Readonly<Record<string, string>>;
   readonly status?: JoinStatus;
   readonly retryAfterSeconds?: number;
+  readonly rateLimit?: RateLimitHeaders;
 } {
   if (failure.cause === 'ALREADY_REGISTERED') {
     return { fields: failure.fields, status: 'ALREADY_REGISTERED' };
@@ -172,6 +182,7 @@ function refusalOf(failure: IdentityFailure): {
       ...(failure.retryAfterSeconds === undefined
         ? {}
         : { retryAfterSeconds: failure.retryAfterSeconds }),
+      ...(failure.rateLimit === undefined ? {} : { rateLimit: failure.rateLimit }),
     };
   }
   // `REGISTRATION_INVALID` and every `SERVICE_DEGRADED` cause: nothing was created, the form is
@@ -200,6 +211,7 @@ export async function registerResidentAction(formData: FormData): Promise<void> 
       ...(address.retryAfterSeconds === null
         ? {}
         : { retryAfterSeconds: address.retryAfterSeconds }),
+      ...(address.rateLimit === null ? {} : { rateLimit: address.rateLimit }),
     });
     redirect('/join');
   }
@@ -228,6 +240,7 @@ export async function registerResidentAction(formData: FormData): Promise<void> 
   await writeJoinPending({
     id: result.pendingRegistrationId,
     delayed: result.codeDelivery.status === 'delayed',
+    ...(address.rateLimit === null ? {} : { rateLimit: address.rateLimit }),
   });
 
   if (result.codeDelivery.status === 'delayed') {

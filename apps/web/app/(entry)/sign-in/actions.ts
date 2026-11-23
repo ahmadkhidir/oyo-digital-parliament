@@ -29,9 +29,11 @@ import {
   type CompleteSignInResult,
   type IdentityFailure,
   type MemberSessionRead,
+  type RateLimitHeaders,
   type RequestSignInCodeResult,
   type SignedOutSession,
 } from '@odp/domain';
+import { signalOf } from '../../../lib/http/rate-limit';
 import { newCorrelationId } from '../../../lib/logging';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getSignInDependencies } from '../../../lib/session/deps';
@@ -80,20 +82,25 @@ async function consultAddressCap(
   ports: Awaited<ReturnType<typeof getSignInDependencies>>,
   address: string,
 ): Promise<
-  | { readonly refused: false }
-  | { readonly refused: true; readonly retryAfterSeconds: number | null }
+  | { readonly refused: false; readonly rateLimit: RateLimitHeaders | null }
+  | {
+      readonly refused: true;
+      readonly retryAfterSeconds: number | null;
+      readonly rateLimit: RateLimitHeaders | null;
+    }
 > {
   try {
     const outcome = await ports.rateLimits.consume({
       bucket: 'sign_in_address',
       subject: { kind: 'address', value: address },
     });
+    const rateLimit = signalOf(outcome);
     return outcome.allowed
-      ? { refused: false }
-      : { refused: true, retryAfterSeconds: outcome.retryAfterSeconds };
+      ? { refused: false, rateLimit }
+      : { refused: true, retryAfterSeconds: outcome.retryAfterSeconds, rateLimit };
   } catch {
     // A limiter that cannot answer is a degraded service, not an admission (`NFR-027`).
-    return { refused: true, retryAfterSeconds: null };
+    return { refused: true, retryAfterSeconds: null, rateLimit: null };
   }
 }
 
@@ -104,6 +111,7 @@ async function holdNumberAttempt(
     readonly fields?: Readonly<Record<string, string>>;
     readonly status?: SignInStatus;
     readonly retryAfterSeconds?: number;
+    readonly rateLimit?: RateLimitHeaders;
   },
 ): Promise<void> {
   await writeSignInRetry({
@@ -113,6 +121,7 @@ async function holdNumberAttempt(
     ...(refusal.retryAfterSeconds === undefined
       ? {}
       : { retryAfterSeconds: refusal.retryAfterSeconds }),
+    ...(refusal.rateLimit === undefined ? {} : { rateLimit: refusal.rateLimit }),
   });
 }
 
@@ -153,12 +162,14 @@ async function settlePresentedSession(
 function statusOf(refusal: {
   readonly status?: SignInStatus;
   readonly retryAfterSeconds?: number;
+  readonly rateLimit?: RateLimitHeaders;
 }): Omit<SignInStatusState, 'at'> {
   return {
     cause: refusal.status ?? 'DEGRADED',
     ...(refusal.retryAfterSeconds === undefined
       ? {}
       : { retryAfterSeconds: refusal.retryAfterSeconds }),
+    ...(refusal.rateLimit === undefined ? {} : { rateLimit: refusal.rateLimit }),
   };
 }
 
@@ -172,6 +183,7 @@ function statusOf(refusal: {
 function numberRefusal(failure: IdentityFailure): {
   readonly status?: SignInStatus;
   readonly retryAfterSeconds?: number;
+  readonly rateLimit?: RateLimitHeaders;
 } {
   if (failure.code === 'RATE_LIMITED') {
     return {
@@ -179,6 +191,7 @@ function numberRefusal(failure: IdentityFailure): {
       ...(failure.retryAfterSeconds === undefined
         ? {}
         : { retryAfterSeconds: failure.retryAfterSeconds }),
+      ...(failure.rateLimit === undefined ? {} : { rateLimit: failure.rateLimit }),
     };
   }
   if (failure.code === 'SERVICE_DEGRADED' && failure.cause === 'SMS_CHANNEL_UNAVAILABLE') {
@@ -192,12 +205,14 @@ function pendingFromResult(
   result: Extract<RequestSignInCodeResult, { ok: true }>,
   telephoneNumber: string,
   returnTo: string,
+  rateLimit: RateLimitHeaders | null,
 ): SignInPendingState {
   return {
     challengeId: result.signInChallengeId,
     telephoneNumber,
     returnTo,
     resendAvailableAt: result.codeDelivery.resendAvailableAt,
+    ...(rateLimit === null ? {} : { rateLimit }),
   };
 }
 
@@ -229,6 +244,7 @@ export async function requestSignInCodeAction(formData: FormData): Promise<void>
       ...(address.retryAfterSeconds === null
         ? {}
         : { retryAfterSeconds: address.retryAfterSeconds }),
+      ...(address.rateLimit === null ? {} : { rateLimit: address.rateLimit }),
     });
     redirect('/sign-in');
   }
@@ -272,7 +288,9 @@ export async function requestSignInCodeAction(formData: FormData): Promise<void>
   // step from the pending pointer.
   await clearSignInRetry();
   await clearSignInStatus();
-  await writeSignInPending(pendingFromResult(result, reading.value, destination));
+  await writeSignInPending(
+    pendingFromResult(result, reading.value, destination, address.rateLimit),
+  );
   redirect('/sign-in');
 }
 
@@ -305,7 +323,9 @@ export async function resendSignInCodeAction(): Promise<void> {
   // A fresh code is on its way: the pointer moves to the new challenge, and the countdown
   // restarts from the new answer.
   await clearSignInStatus();
-  await writeSignInPending(pendingFromResult(result, pending.telephoneNumber, pending.returnTo));
+  await writeSignInPending(
+    pendingFromResult(result, pending.telephoneNumber, pending.returnTo, null),
+  );
   redirect('/sign-in');
 }
 

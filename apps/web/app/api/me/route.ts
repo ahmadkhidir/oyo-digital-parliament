@@ -12,6 +12,7 @@
  */
 import type { NextRequest } from 'next/server';
 import { identityFailure, readMyRecord, readSession, toIsoSeconds } from '@odp/domain';
+import { rateLimited } from '../../../lib/http/rate-limit';
 import { readCorrelationId } from '../../../lib/logging/correlation';
 import { presentedSessionTokens } from '../../../lib/session/session-cookies';
 import { getMyRecordRuntime, resolveMyRecordSession } from '../../(record)/me/_lib/runtime';
@@ -25,7 +26,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 /** Answers one page of the caller's own record. */
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGet(request: NextRequest): Promise<Response> {
   const correlation = readCorrelationId(request.headers);
   const correlationId = correlation.correlationId;
   if (!correlation.ok) {
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       validationAnswer(
         correlationId,
         'CORRELATION_ID_INVALID',
-        'The correlation identifier is not in the contract\'s form.',
+        "The correlation identifier is not in the contract's form.",
         { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
       ),
       correlationId,
@@ -125,3 +126,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   });
   return jsonAnswer(answer, correlationId);
 }
+
+/** Every answer carries the `C-001` rate-limit triple, including the store-degraded refusal. */
+export const GET: (request: NextRequest) => Promise<Response> = rateLimited(handleGet);
