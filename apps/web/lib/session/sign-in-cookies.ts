@@ -22,6 +22,7 @@
  * (`C-006`, `NFR-026`).
  */
 import { cookies } from 'next/headers';
+import type { RateLimitHeaders } from '@odp/domain';
 
 /** The opaque identifier form `C-001` fixes; a cookie value outside it is treated as absent. */
 const IDENTIFIER_PATTERN = /^[a-z]{3}_[0-9A-Z]{4,26}$/;
@@ -77,6 +78,14 @@ export interface SignInRetryState {
   readonly fields: Readonly<Record<string, string>>;
   readonly status?: SignInStatus;
   readonly retryAfterSeconds?: number;
+  /**
+   * The `C-001` rate-limit triple the answer carries.
+   *
+   * A server action cannot write response headers — Next.js serialises its return value and the
+   * re-rendered tree — so the action's answer is this flow state, and the triple rides here
+   * (`C-001`, `lib/http/rate-limit`).
+   */
+  readonly rateLimit?: RateLimitHeaders;
 }
 
 /** Where this browser's sign-in stands, and what the code step needs to render it. */
@@ -88,6 +97,8 @@ export interface SignInPendingState {
   readonly returnTo: string;
   /** When a new code may be requested, from the `C-005` answer. */
   readonly resendAvailableAt?: string;
+  /** The `C-001` triple of the accepted answer (see {@link SignInRetryState.rateLimit}). */
+  readonly rateLimit?: RateLimitHeaders;
 }
 
 /** One outcome of the confirm or the resend, as the redirected render reads it. */
@@ -96,6 +107,8 @@ export interface SignInStatusState {
   readonly cause: SignInStatus;
   readonly attemptsRemaining?: number;
   readonly retryAfterSeconds?: number;
+  /** The `C-001` triple of the answer (see {@link SignInRetryState.rateLimit}). */
+  readonly rateLimit?: RateLimitHeaders;
 }
 
 /** The attributes every flow cookie carries. Not a session cookie: these are transport, not identity. */

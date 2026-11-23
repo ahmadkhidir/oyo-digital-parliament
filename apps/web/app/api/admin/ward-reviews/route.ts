@@ -7,6 +7,7 @@
  */
 import type { NextRequest } from 'next/server';
 import { identityFailure, readWardReviewQueue, toIsoSeconds, type WardCaller } from '@odp/domain';
+import { rateLimited } from '../../../../lib/http/rate-limit';
 import { readCorrelationId } from '../../../../lib/logging/correlation';
 import { readWardReviewPorts } from '../../../../lib/staff-session/deps';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
@@ -28,7 +29,7 @@ function readLimit(value: string | null): number | undefined {
 }
 
 /** Answers one page of the review queue. */
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGet(request: NextRequest): Promise<Response> {
   const correlation = readCorrelationId(request.headers);
   const correlationId = correlation.correlationId;
   if (!correlation.ok) {
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       queueValidationAnswer(
         correlationId,
         'CORRELATION_ID_INVALID',
-        'The correlation identifier is not in the contract\'s form.',
+        "The correlation identifier is not in the contract's form.",
         { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
       ),
       correlationId,
@@ -155,3 +156,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     correlationId,
   );
 }
+
+/** Every answer carries the `C-001` rate-limit triple, a role refusal included. */
+export const GET: (request: NextRequest) => Promise<Response> = rateLimited(handleGet);

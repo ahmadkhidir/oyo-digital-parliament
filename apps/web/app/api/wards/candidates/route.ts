@@ -13,6 +13,7 @@
 import type { NextRequest } from 'next/server';
 import { createWardRepository } from '@odp/db';
 import { toIsoSeconds } from '@odp/domain';
+import { rateLimited } from '../../../../lib/http/rate-limit';
 import {
   createWardAnalytics,
   getWardDependencies,
@@ -44,7 +45,7 @@ async function readJson(request: NextRequest): Promise<unknown> {
 }
 
 /** Answers the candidate suggestion. */
-export async function POST(request: NextRequest): Promise<Response> {
+async function handlePost(request: NextRequest): Promise<Response> {
   const correlation = readCorrelationId(request.headers);
   const context = { correlationId: correlation.correlationId };
   if (!correlation.ok) {
@@ -129,3 +130,6 @@ export async function POST(request: NextRequest): Promise<Response> {
   });
   return jsonResponse(envelope.status, envelope.body, context);
 }
+
+/** Every answer carries the `C-001` rate-limit triple, the suggestion included. */
+export const POST: (request: NextRequest) => Promise<Response> = rateLimited(handlePost);

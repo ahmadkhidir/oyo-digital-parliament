@@ -11,14 +11,18 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { readStaffSession, toIsoSeconds } from '@odp/domain';
+import { rateLimited } from '../../../../lib/http/rate-limit';
 import { readCorrelationId } from '../../../../lib/logging/correlation';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
-import { applyStaffSessionCookie, presentedStaffSessionToken } from '../../../../lib/staff-session/cookies';
+import {
+  applyStaffSessionCookie,
+  presentedStaffSessionToken,
+} from '../../../../lib/staff-session/cookies';
 
 export const dynamic = 'force-dynamic';
 
 /** Answers the caller's staff session state in the `C-092` body. */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function handleGet(request: NextRequest): Promise<NextResponse> {
   const correlation = readCorrelationId(request.headers);
   const correlationId = correlation.correlationId;
   if (!correlation.ok) {
@@ -27,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         error: {
           code: 'VALIDATION_FAILED',
           cause: 'CORRELATION_ID_INVALID',
-          message: 'The correlation identifier is not in the contract\'s form.',
+          message: "The correlation identifier is not in the contract's form.",
           correlationId,
           fields: { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
         },
@@ -94,3 +98,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     },
   );
 }
+
+/** Every answer carries the `C-001` rate-limit triple, signed-in or signed-out. */
+export const GET: (request: NextRequest) => Promise<Response> = rateLimited(handleGet);

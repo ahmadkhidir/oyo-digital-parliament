@@ -11,13 +11,18 @@
  */
 import type { NextRequest } from 'next/server';
 import { downloadExport, identityFailure } from '@odp/domain';
+import { rateLimited } from '../../../../../../lib/http/rate-limit';
 import { readCorrelationId } from '../../../../../../lib/logging/correlation';
 import { presentedMemberSessionToken } from '../../../../../../lib/session/session-cookies';
 import {
   getMyRecordRuntime,
   resolveMyRecordSession,
 } from '../../../../../(record)/me/_lib/runtime';
-import { failureAnswer, jsonAnswer, validationAnswer } from '../../../../../(record)/me/_lib/envelope';
+import {
+  failureAnswer,
+  jsonAnswer,
+  validationAnswer,
+} from '../../../../../(record)/me/_lib/envelope';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +31,7 @@ interface ExportRouteContext {
 }
 
 /** Serves the caller's own completed export. */
-export async function GET(request: NextRequest, context: ExportRouteContext): Promise<Response> {
+async function handleGet(request: NextRequest, context: ExportRouteContext): Promise<Response> {
   const correlation = readCorrelationId(request.headers);
   const correlationId = correlation.correlationId;
   if (!correlation.ok) {
@@ -34,7 +39,7 @@ export async function GET(request: NextRequest, context: ExportRouteContext): Pr
       validationAnswer(
         correlationId,
         'CORRELATION_ID_INVALID',
-        'The correlation identifier is not in the contract\'s form.',
+        "The correlation identifier is not in the contract's form.",
         { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
       ),
       correlationId,
@@ -119,3 +124,7 @@ export async function GET(request: NextRequest, context: ExportRouteContext): Pr
     },
   });
 }
+
+/** Every answer carries the `C-001` rate-limit triple, the file bytes included. */
+export const GET: (request: NextRequest, context: ExportRouteContext) => Promise<Response> =
+  rateLimited(handleGet);
