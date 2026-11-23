@@ -15,7 +15,11 @@ import {
   readUsername,
   type BeginStaffSignInResult,
 } from '@odp/domain';
-import { newCorrelationId } from '../../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../../lib/i18n/locale';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { presentedMemberSessionToken } from '../../../../lib/session/session-cookies';
@@ -74,13 +78,21 @@ function refusalState(failure: Extract<BeginStaffSignInResult, { ok: false }>): 
  * The answer is not a sign-in: the session is unsatisfied until `C-092`'s second factor is proven, so
  * the redirect lands on `/staff/2fa` and no admin destination is reachable before that.
  */
-export async function beginStaffSignInAction(formData: FormData): Promise<void> {
+export async function beginStaffSignInAction(formData: FormData): Promise<void>;
+export async function beginStaffSignInAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const username = readField(formData, 'username');
   const password = readField(formData, 'password');
 
   const dependencies = await getStaffAdminDependencies();
   const locale = await resolveLocale();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
 
   // `C-092`: a live member session may not open a staff session. A stale member cookie is not a
   // session and is left alone; the staff door then answers on its own terms.

@@ -8,7 +8,7 @@
 import type { NextRequest } from 'next/server';
 import { identityFailure, readWardReviewQueue, toIsoSeconds, type WardCaller } from '@odp/domain';
 import { rateLimited } from '../../../../lib/http/rate-limit';
-import { readCorrelationId } from '../../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../../lib/logging';
 import { readWardReviewPorts } from '../../../../lib/staff-session/deps';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { readStaffAccess } from '../../../../lib/staff-session/session';

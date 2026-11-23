@@ -31,7 +31,11 @@ import {
   type IdentityFailure,
   type UpdateConsentResult,
 } from '@odp/domain';
-import { newCorrelationId } from '../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../lib/http/rate-limit';
 import { LOCALE_COOKIE, readLocaleValue } from '../../../lib/i18n/locale';
 import { presentedMemberSessionToken } from '../../../lib/session/session-cookies';
 import {
@@ -90,7 +94,15 @@ function correctionErrorToken(failure: IdentityFailure): string {
  *
  * @param formData - The three fields, the form's intent and its opaque echo key.
  */
-export async function correctMyDetailsAction(formData: FormData): Promise<void> {
+export async function correctMyDetailsAction(formData: FormData): Promise<void>;
+export async function correctMyDetailsAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const submission = readCorrectionSubmission(formData);
   const token = await presentedMemberSessionToken();
   const session = await resolveMyRecordSession(token);
@@ -115,7 +127,7 @@ export async function correctMyDetailsAction(formData: FormData): Promise<void> 
     fullName = member.fullName;
   }
 
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
   const result: CorrectMyDetailsResult = await correctMyDetails(
     {
       kind: 'member',
@@ -167,7 +179,15 @@ export async function correctMyDetailsAction(formData: FormData): Promise<void> 
  *
  * @param formData - The purpose and the toggle's answer.
  */
-export async function updateConsentAction(formData: FormData): Promise<void> {
+export async function updateConsentAction(formData: FormData): Promise<void>;
+export async function updateConsentAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const submission = readConsentSubmission(formData);
   if (submission.purpose === null || submission.granted === null) {
     redirect(`${SCREEN_PATH}?e=consent_failed`);
@@ -181,7 +201,7 @@ export async function updateConsentAction(formData: FormData): Promise<void> {
       kind: 'member',
       memberId: session.member.id,
       sessionId: session.token,
-      correlationId: newCorrelationId(),
+      correlationId: request.correlation.correlationId,
     },
     ports,
     { purpose: submission.purpose, granted: submission.granted },
@@ -204,7 +224,15 @@ export async function updateConsentAction(formData: FormData): Promise<void> {
  *
  * @param formData - The request type and the render's opaque idempotency key.
  */
-export async function createDataRequestAction(formData: FormData): Promise<void> {
+export async function createDataRequestAction(formData: FormData): Promise<void>;
+export async function createDataRequestAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const submission = readDataRequestSubmission(formData);
   if (submission.type === null) redirect(`${SCREEN_PATH}?e=request_failed`);
 
@@ -216,7 +244,7 @@ export async function createDataRequestAction(formData: FormData): Promise<void>
       kind: 'member',
       memberId: session.member.id,
       sessionId: session.token,
-      correlationId: newCorrelationId(),
+      correlationId: request.correlation.correlationId,
     },
     ports,
     {

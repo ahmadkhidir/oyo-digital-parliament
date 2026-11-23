@@ -15,6 +15,11 @@ import {
   type IdentityFailure,
 } from '@odp/domain';
 import { resolveLocale } from '../../../../lib/i18n/locale';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../../lib/http/rate-limit';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { readStaffAccess, staffCaller } from '../../../../lib/staff-session/session';
 import {
@@ -67,7 +72,15 @@ function dataRequestCause(failure: IdentityFailure): StaffFlowCause {
  * rendered as an error. The success notice distinguishes a deletion completion, because its result is
  * different from every other completion.
  */
-export async function resolveDataRequestAction(formData: FormData): Promise<void> {
+export async function resolveDataRequestAction(formData: FormData): Promise<void>;
+export async function resolveDataRequestAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const access = await readStaffAccess();
   if (access.kind === 'signed_out') redirect('/staff/sign-in?ended=1');
   if (access.kind === 'challenge') redirect('/staff/2fa');

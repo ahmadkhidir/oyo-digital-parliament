@@ -26,8 +26,12 @@ import {
   type IdentityPorts,
   type RateLimitHeaders,
 } from '@odp/domain';
-import { signalOf } from '../../../lib/http/rate-limit';
-import { newCorrelationId } from '../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  signalOf,
+  type ActionFailureEnvelope,
+} from '../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getIdentityDependencies } from '../../../lib/identity/ports';
 import {
@@ -196,10 +200,20 @@ function refusalOf(failure: IdentityFailure): {
  * The form posts here with or without scripting; every exit is a redirect, so the no-scripting
  * path answers exactly as the enhanced one does.
  */
-export async function registerResidentAction(formData: FormData): Promise<void> {
+export async function registerResidentAction(formData: FormData): Promise<void>;
+export async function registerResidentAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  // `C-001`: a supplied identifier outside the contract's form is refused, never replaced. Nothing
+  // is written; a direct caller receives the failure envelope.
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+  const correlationId = request.correlation.correlationId;
+
   const values = readForm(formData);
   const { ports } = await getIdentityDependencies();
-  const correlationId = newCorrelationId();
 
   // `C-002`: a cap is per number and per source address. The domain consults the number bucket
   // inside the use case; the address bucket is this boundary's to consult, because only the

@@ -13,7 +13,7 @@
 import type { NextRequest } from 'next/server';
 import { identityFailure, readMyRecord, readSession, toIsoSeconds } from '@odp/domain';
 import { rateLimited } from '../../../lib/http/rate-limit';
-import { readCorrelationId } from '../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../lib/logging';
 import { presentedSessionTokens } from '../../../lib/session/session-cookies';
 import { getMyRecordRuntime, resolveMyRecordSession } from '../../(record)/me/_lib/runtime';
 import {

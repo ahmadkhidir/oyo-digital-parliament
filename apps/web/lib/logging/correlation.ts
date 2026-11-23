@@ -20,6 +20,12 @@ import { randomBytes } from 'node:crypto';
 /** The pattern `C-001` gives for a caller-supplied `X-Correlation-Id`. */
 export const CORRELATION_ID_PATTERN = /^req_[0-9A-Z]{4,32}$/;
 
+/** The header `C-001` names, spelled once so no surface drifts. */
+export const CORRELATION_HEADER_NAME = 'X-Correlation-Id';
+
+/** The `C-001` field reason a malformed correlation identifier is refused with. */
+export const CORRELATION_PATTERN_MISMATCH = 'PATTERN_MISMATCH';
+
 /**
  * What a caller-supplied `X-Correlation-Id` resolves to.
  *
@@ -31,7 +37,37 @@ export type CorrelationReading =
   | { readonly ok: true; readonly correlationId: string }
   | { readonly ok: false; readonly correlationId: string };
 
+/** The `C-001` failure every surface answers a malformed correlation identifier with. */
+export interface CorrelationRefusal {
+  readonly code: 'VALIDATION_FAILED';
+  readonly cause: 'CORRELATION_ID_INVALID';
+  readonly message: string;
+  readonly fields: Readonly<Record<typeof CORRELATION_HEADER_NAME, string>>;
+  /** The freshly minted identifier the refusal is labelled with; the refused value is never reused. */
+  readonly correlationId: string;
+}
+
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+/**
+ * The one refusal a malformed `X-Correlation-Id` produces (`C-001`).
+ *
+ * The header names the failing field and the reason is `PATTERN_MISMATCH`, exactly as the contract's
+ * field-reason set spells it. A reading that admitted the value answers `null`, so a caller cannot
+ * emit this refusal for a readable identifier.
+ *
+ * @param reading - The outcome of {@link readCorrelationId}.
+ */
+export function correlationRefusal(reading: CorrelationReading): CorrelationRefusal | null {
+  if (reading.ok) return null;
+  return {
+    code: 'VALIDATION_FAILED',
+    cause: 'CORRELATION_ID_INVALID',
+    message: 'The correlation identifier is not in the contract’s form.',
+    fields: { [CORRELATION_HEADER_NAME]: CORRELATION_PATTERN_MISMATCH },
+    correlationId: reading.correlationId,
+  };
+}
 
 /**
  * Generates a correlation identifier that satisfies `C-001`.

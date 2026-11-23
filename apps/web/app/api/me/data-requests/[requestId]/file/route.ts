@@ -12,7 +12,7 @@
 import type { NextRequest } from 'next/server';
 import { downloadExport, identityFailure } from '@odp/domain';
 import { rateLimited } from '../../../../../../lib/http/rate-limit';
-import { readCorrelationId } from '../../../../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../../../../lib/logging';
 import { presentedMemberSessionToken } from '../../../../../../lib/session/session-cookies';
 import {
   getMyRecordRuntime,

@@ -9,7 +9,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { CORRELATION_ID_PATTERN } from '../../../lib/logging/correlation';
+import { CORRELATION_ID_PATTERN } from '../../../lib/logging';
 import { GET } from './route';
 
 /** The runtime the handler reaches for on the read path only. */

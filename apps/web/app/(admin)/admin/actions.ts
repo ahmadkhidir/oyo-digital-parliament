@@ -13,6 +13,11 @@
  */
 import { redirect } from 'next/navigation';
 import { resetStaffCredential } from '@odp/domain';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { readStaffAccess, staffCaller } from '../../../lib/staff-session/session';
 import { newIdempotencyKey } from '../../../lib/staff-session/request';
@@ -27,7 +32,15 @@ import { getStaffResetDependencies } from './_credentials/deps';
 }
 
 /** Applies the submitted reset and returns to the panel with the state it left. */
-export async function resetStaffCredentialAction(formData: FormData): Promise<void> {
+export async function resetStaffCredentialAction(formData: FormData): Promise<void>;
+export async function resetStaffCredentialAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const access = await readStaffAccess();
   if (access.kind === 'signed_out') redirect('/staff/sign-in?ended=1');
   if (access.kind === 'challenge') redirect('/staff/2fa');

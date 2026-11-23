@@ -9,11 +9,11 @@
 import type { NextRequest } from 'next/server';
 import { listWards, toIsoSeconds } from '@odp/domain';
 import { rateLimited } from '../../../lib/http/rate-limit';
+import { readCorrelationId } from '../../../lib/logging';
 import { buildWardReadPorts, getWardDependencies } from '../../(entry)/join/ward/_lib/runtime';
 import {
   failureEnvelope,
   jsonResponse,
-  readCorrelationId,
   readEnvelope,
   validationEnvelope,
 } from '../../(entry)/join/ward/_lib/envelope';

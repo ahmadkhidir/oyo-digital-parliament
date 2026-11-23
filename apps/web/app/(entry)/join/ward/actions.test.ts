@@ -41,8 +41,13 @@ const MEMBER: SessionMemberProjection = {
 const holder = vi.hoisted(() => ({
   member: null as SessionMemberProjection | null,
   cache: new Map<string, string>(),
+  headers: new Headers(),
   run: null as
     null | ((caller: unknown, input: unknown, options: unknown) => Promise<ConfirmWardResult>),
+}));
+
+vi.mock('next/headers', () => ({
+  headers: async () => holder.headers,
 }));
 
 vi.mock('../../../../lib/session/session-cookies', () => ({
@@ -125,11 +130,37 @@ describe('confirmWardAction (C-011, screens/05)', () => {
   beforeEach(() => {
     holder.member = MEMBER;
     holder.cache.clear();
+    holder.headers = new Headers();
     holder.run = async () => CONFIRMED;
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('refuses a malformed X-Correlation-Id with the C-001 failure envelope (C-001)', async () => {
+    holder.headers = new Headers({ 'x-correlation-id': 'not-a-correlation-id' });
+    holder.run = async () => {
+      throw new Error('the runner must not run');
+    };
+
+    // The action's form-facing type is `void`; a direct caller receives the serialised envelope.
+    const answer = (await confirmWardAction(formWith())) as unknown as {
+      ok: false;
+      error: { code: string; cause: string; correlationId: string; fields: object };
+      meta: { rateLimit: { limit: number; remaining: number; resetAt: string } };
+    };
+
+    expect(answer.ok).toBe(false);
+    expect(answer.error).toMatchObject({
+      code: 'VALIDATION_FAILED',
+      cause: 'CORRELATION_ID_INVALID',
+      fields: { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+    });
+    expect(answer.error.correlationId).toMatch(/^req_[0-9A-Z]{4,32}$/);
+    expect(answer.meta.rateLimit).toMatchObject({ limit: 120, remaining: 120 });
+    expect(answer.meta.rateLimit.resetAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(holder.cache.size).toBe(0);
   });
 
   it('sends a signed-out visitor through sign-in', async () => {

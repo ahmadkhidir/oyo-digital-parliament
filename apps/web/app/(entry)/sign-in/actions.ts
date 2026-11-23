@@ -33,8 +33,12 @@ import {
   type RequestSignInCodeResult,
   type SignedOutSession,
 } from '@odp/domain';
-import { signalOf } from '../../../lib/http/rate-limit';
-import { newCorrelationId } from '../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  signalOf,
+  type ActionFailureEnvelope,
+} from '../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getSignInDependencies } from '../../../lib/session/deps';
 import {
@@ -224,7 +228,17 @@ function pendingFromResult(
  * with the entered number intact — the contract's own recovery path (`NO_ACCOUNT_FOR_NUMBER`,
  * `meta.recoveryPath:"/join"`).
  */
-export async function requestSignInCodeAction(formData: FormData): Promise<void> {
+export async function requestSignInCodeAction(formData: FormData): Promise<void>;
+export async function requestSignInCodeAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  // `C-001`: a malformed `X-Correlation-Id` is refused with the failure envelope, never replaced;
+  // no code is requested.
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const values = readForm(formData);
   const returnTo = readReturnTo(values.returnTo);
   const destination = returnTo.ok ? returnTo.value : '/';
@@ -259,7 +273,7 @@ export async function requestSignInCodeAction(formData: FormData): Promise<void>
     redirect('/sign-in');
   }
 
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
   const result: RequestSignInCodeResult = await requestSignInCode(
     { kind: 'public', locale: await resolveLocale(), correlationId },
     ports,
@@ -302,12 +316,18 @@ export async function requestSignInCodeAction(formData: FormData): Promise<void>
  * step's resend control, including after an expired code, where the challenge record is already
  * gone and the pointer's number is what survives.
  */
-export async function resendSignInCodeAction(): Promise<void> {
+export async function resendSignInCodeAction(): Promise<void>;
+export async function resendSignInCodeAction(): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const pending = await readSignInPending();
   if (pending === null) redirect('/sign-in');
 
   const ports = await getSignInDependencies();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
 
   const result: RequestSignInCodeResult = await requestSignInCode(
     { kind: 'public', locale: await resolveLocale(), correlationId },
@@ -371,12 +391,20 @@ function confirmRefusal(failure: IdentityFailure): Omit<SignInStatusState, 'at'>
  *
  * The challenge resolves the one account (`FEAT-001`), so no account reference is posted or read.
  */
-export async function completeSignInAction(formData: FormData): Promise<void> {
+export async function completeSignInAction(formData: FormData): Promise<void>;
+export async function completeSignInAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const pending = await readSignInPending();
   if (pending === null) redirect('/sign-in'); // No flow this browser started: start at the number.
 
   const ports = await getSignInDependencies();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
   const code = String(formData.get('code') ?? '');
 
   const reading = readCode(code);
@@ -423,7 +451,13 @@ export async function completeSignInAction(formData: FormData): Promise<void> {
  * rendering, and the screen file's "Use a different number" control posts to it. A form post, not
  * a link, because a plain navigation would land on the code step again while the cookie holds.
  */
-export async function useDifferentNumberAction(): Promise<void> {
+export async function useDifferentNumberAction(): Promise<void>;
+export async function useDifferentNumberAction(): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   await clearSignInPending();
   await clearSignInStatus();
   redirect('/sign-in');
