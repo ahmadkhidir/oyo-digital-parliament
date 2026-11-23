@@ -92,7 +92,7 @@ services:
     # profile so `up --wait` never waits on a container that exits by design. It talks to the service
     # by its in-network name; the host endpoint in `.env` would be wrong from inside the network.
     # Creating the bucket twice is harmless: the script checks with `head-bucket` first.
-    image: amazon/aws-cli:2.40.3
+    image: amazon/aws-cli:2.41.2
     profiles: ['init']
     depends_on:
       object-storage:
