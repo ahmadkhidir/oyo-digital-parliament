@@ -40,6 +40,7 @@ vi.mock('next/headers', () => ({
       jar.set(name, value);
     },
   }),
+  headers: async () => new Headers(),
 }));
 
 const MEMBER: MemberRecord = {

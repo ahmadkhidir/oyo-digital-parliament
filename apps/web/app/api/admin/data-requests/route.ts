@@ -10,7 +10,7 @@ import type { NextRequest } from 'next/server';
 import { identityFailure, readDataRequestQueue, toIsoSeconds } from '@odp/domain';
 import { rateLimited } from '../../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../../lib/i18n/locale';
-import { readCorrelationId } from '../../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../../lib/logging';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { readStaffAccess, staffCaller } from '../../../../lib/staff-session/session';
 import {

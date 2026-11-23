@@ -12,7 +12,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { readStaffSession, toIsoSeconds } from '@odp/domain';
 import { rateLimited } from '../../../../lib/http/rate-limit';
-import { readCorrelationId } from '../../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../../lib/logging';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import {
   applyStaffSessionCookie,

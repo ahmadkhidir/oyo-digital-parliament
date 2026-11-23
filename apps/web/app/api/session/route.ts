@@ -19,7 +19,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { readSession, toIsoSeconds } from '@odp/domain';
 import { rateLimited } from '../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../lib/i18n/locale';
-import { readCorrelationId } from '../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../lib/logging';
 import { getSignInDependencies } from '../../../lib/session/deps';
 import { sessionReadAnswer } from '../../../lib/session/read-answer';
 import { applySessionCookie, presentedSessionTokens } from '../../../lib/session/session-cookies';

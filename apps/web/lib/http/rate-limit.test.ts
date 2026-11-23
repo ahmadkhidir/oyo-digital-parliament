@@ -5,18 +5,29 @@
  * unmetered allowance and the wrapping rules that let a route handler, a refusal and a metered
  * answer all leave through the same seam.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 import type { RateLimitHeaders, RateLimitOutcome } from '@odp/domain';
 import {
   RATE_LIMIT_HEADER_NAMES,
+  actionMeta,
+  actionRateLimit,
+  actionRefusal,
   hasRateLimitHeaders,
   rateLimitHeaderValues,
   rateLimited,
+  readActionRequest,
   readAllowance,
   signalOf,
   withRateLimitHeaders,
 } from './rate-limit';
+
+/** The headers a simulated action request presents; swapped per test. */
+const requestHeaders = vi.hoisted(() => ({ value: new Headers() }));
+
+vi.mock('next/headers', () => ({
+  headers: async () => requestHeaders.value,
+}));
 
 /** One limiter answer, as the fixed-window adapter produces it. */
 function outcome(overrides: Partial<RateLimitOutcome> = {}): RateLimitOutcome {
@@ -162,5 +173,72 @@ describe('rateLimited (C-001)', () => {
     expect(answer.headers.get('x-correlation-id')).toBe('req_TEST');
     expect(hasRateLimitHeaders(answer.headers)).toBe(true);
     await expect(answer.json()).resolves.toEqual({ ok: false });
+  });
+});
+
+describe('the action envelope (C-001 1.6.2)', () => {
+  const AT = new Date('2026-11-18T09:00:30Z');
+  const SIGNAL: RateLimitHeaders = {
+    limit: 5,
+    remaining: 3,
+    resetSeconds: Date.parse('2026-11-18T09:15:00Z') / 1000,
+  };
+
+  it('names the reset instant in RFC 3339 form', () => {
+    expect(actionRateLimit(SIGNAL)).toEqual({
+      limit: 5,
+      remaining: 3,
+      resetAt: '2026-11-18T09:15:00Z',
+    });
+  });
+
+  it('carries the correlation identifier, the instant and the triple on every answer', () => {
+    expect(actionMeta('req_01J9Z6M2V4', SIGNAL, AT)).toEqual({
+      correlationId: 'req_01J9Z6M2V4',
+      asAt: '2026-11-18T09:00:30Z',
+      rateLimit: { limit: 5, remaining: 3, resetAt: '2026-11-18T09:15:00Z' },
+    });
+  });
+
+  it('refuses a malformed header through the action answer, triple included', async () => {
+    requestHeaders.value = new Headers({ 'x-correlation-id': 'not-a-correlation-id' });
+
+    const request = await readActionRequest(AT);
+    const refusal = actionRefusal(request.correlation, request.rateLimit, AT);
+
+    expect(request.correlation.ok).toBe(false);
+    expect(refusal).toMatchObject({
+      ok: false,
+      error: {
+        code: 'VALIDATION_FAILED',
+        cause: 'CORRELATION_ID_INVALID',
+        fields: { 'X-Correlation-Id': 'PATTERN_MISMATCH' },
+      },
+      meta: {
+        asAt: '2026-11-18T09:00:30Z',
+        rateLimit: {
+          limit: 120,
+          remaining: 120,
+          resetAt: '2026-11-18T09:01:00Z',
+        },
+      },
+    });
+    // The refused value is never echoed: the refusal is labelled with a minted identifier.
+    expect(refusal?.error.correlationId).not.toBe('not-a-correlation-id');
+    expect(refusal?.error.correlationId).toMatch(/^req_[0-9A-Z]{4,32}$/);
+  });
+
+  it('admits a valid header unchanged and builds no refusal', async () => {
+    requestHeaders.value = new Headers({ 'x-correlation-id': 'req_01J9Z6M2V4' });
+
+    const request = await readActionRequest(AT);
+
+    expect(request.correlation).toEqual({ ok: true, correlationId: 'req_01J9Z6M2V4' });
+    expect(actionRefusal(request.correlation, request.rateLimit, AT)).toBeNull();
+    expect(actionMeta(request.correlation.correlationId, request.rateLimit, AT).rateLimit).toEqual({
+      limit: 120,
+      remaining: 120,
+      resetAt: '2026-11-18T09:01:00Z',
+    });
   });
 });

@@ -14,7 +14,7 @@
  */
 import { createHash } from 'node:crypto';
 import { redirect } from 'next/navigation';
-import { newCorrelationId } from '../../../../lib/logging';
+import { actionRefusal, readActionRequest, type ActionFailureEnvelope } from '../../../../lib/http/rate-limit';
 import { presentedMemberSessionToken } from '../../../../lib/session/session-cookies';
 import { getWardDependencies, resolveMemberSession } from './_lib/runtime';
 import {
@@ -54,7 +54,17 @@ function readForm(formData: FormData): ConfirmWardRawForm {
  * @param formData - The description, the chosen local government area, the candidate the resident
  *   selected (or "None of these"), and the render's idempotency key.
  */
-export async function confirmWardAction(formData: FormData): Promise<void> {
+export async function confirmWardAction(formData: FormData): Promise<void>;
+export async function confirmWardAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    // `C-001`: the caller's identifier is outside the pattern. A direct caller receives the failure
+    // envelope, triple included; a browser form has nothing to write and re-renders unchanged.
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const token = await presentedMemberSessionToken();
   const member = await resolveMemberSession(token ?? undefined);
   if (member === null) redirect(SIGN_IN_PATH);
@@ -84,7 +94,7 @@ export async function confirmWardAction(formData: FormData): Promise<void> {
   const echoDigest =
     formDigest ?? digestOf(`${CONFIRM_IDEMPOTENCY_SCOPE}:${parsed.idempotencyKey}`);
 
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
   const runner = createConfirmWardRunner({
     platform: dependencies.platform,
     locale: member.locale,

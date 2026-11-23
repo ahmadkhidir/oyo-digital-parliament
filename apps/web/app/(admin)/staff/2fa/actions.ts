@@ -16,7 +16,11 @@ import {
   type IdentityFailure,
   type VerifyStaffSecondFactorResult,
 } from '@odp/domain';
-import { newCorrelationId } from '../../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../../lib/i18n/locale';
 import { getStaffAdminDependencies } from '../../../../lib/staff-session/deps';
 import { readStaffAccess, staffCaller } from '../../../../lib/staff-session/session';
@@ -76,7 +80,15 @@ function factorRefusal(failure: IdentityFailure): {
  * A spent recovery code is accepted with the notice the screen states; a wrong code is refused with
  * the reason and the field cleared. A challenge that has run out returns to the password step.
  */
-export async function verifyStaffSecondFactorAction(formData: FormData): Promise<void> {
+export async function verifyStaffSecondFactorAction(formData: FormData): Promise<void>;
+export async function verifyStaffSecondFactorAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const access = await readStaffAccess();
   if (access.kind === 'signed_out') redirect('/staff/sign-in');
   if (access.kind === 'degraded') {
@@ -86,7 +98,7 @@ export async function verifyStaffSecondFactorAction(formData: FormData): Promise
   if (access.kind === 'ready') redirect('/admin');
 
   const dependencies = await getStaffAdminDependencies();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
   const locale = await resolveLocale();
   const result: VerifyStaffSecondFactorResult = await verifyStaffSecondFactor(
     staffCaller(access, locale, correlationId),
@@ -117,7 +129,13 @@ export async function verifyStaffSecondFactorAction(formData: FormData): Promise
 }
 
 /** Begins one enrolment and shows the `otpauth` secret exactly once. */
-export async function beginStaffEnrolmentAction(): Promise<void> {
+export async function beginStaffEnrolmentAction(): Promise<void>;
+export async function beginStaffEnrolmentAction(): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const access = await readStaffAccess();
   if (access.kind === 'signed_out') redirect('/staff/sign-in');
   if (access.kind === 'degraded') {
@@ -149,7 +167,15 @@ export async function beginStaffEnrolmentAction(): Promise<void> {
 }
 
 /** Confirms the enrolment code, issues the recovery codes and satisfies the session. */
-export async function confirmStaffEnrolmentAction(formData: FormData): Promise<void> {
+export async function confirmStaffEnrolmentAction(formData: FormData): Promise<void>;
+export async function confirmStaffEnrolmentAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const access = await readStaffAccess();
   if (access.kind === 'signed_out') redirect('/staff/sign-in');
   if (access.kind === 'degraded') {

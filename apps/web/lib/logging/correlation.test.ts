@@ -4,9 +4,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   correlationIdFrom,
+  correlationRefusal,
   newCorrelationId,
   readCorrelationId,
   CORRELATION_ID_PATTERN,
+  CORRELATION_PATTERN_MISMATCH,
 } from './correlation';
 
 describe('correlation identifiers (C-001)', () => {
@@ -42,6 +44,27 @@ describe('correlation identifiers (C-001)', () => {
     for (const supplied of ['REQ_ABCDE', 'req_abcd', 'req_ABC', 'req_0123456789ABCDEFGHIJKLMNOPQRSTUVW']) {
       expect(readCorrelationId(new Headers({ 'x-correlation-id': supplied })).ok).toBe(false);
     }
+  });
+});
+
+describe('the one correlation refusal (C-001)', () => {
+  it('names the header and the pattern as the failing field and reason', () => {
+    const reading = readCorrelationId(new Headers({ 'x-correlation-id': 'not-a-correlation-id' }));
+
+    expect(correlationRefusal(reading)).toEqual({
+      code: 'VALIDATION_FAILED',
+      cause: 'CORRELATION_ID_INVALID',
+      message: 'The correlation identifier is not in the contract’s form.',
+      fields: { 'X-Correlation-Id': CORRELATION_PATTERN_MISMATCH },
+      correlationId: reading.correlationId,
+    });
+  });
+
+  it('answers null for every reading that admitted the value', () => {
+    expect(correlationRefusal(readCorrelationId(new Headers()))).toBeNull();
+    expect(
+      correlationRefusal(readCorrelationId(new Headers({ 'x-correlation-id': 'req_01J9Z6M2V4' }))),
+    ).toBeNull();
   });
 });
 

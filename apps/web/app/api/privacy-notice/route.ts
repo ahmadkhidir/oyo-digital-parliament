@@ -10,7 +10,7 @@
 import type { NextRequest } from 'next/server';
 import { identityFailure, toIsoSeconds } from '@odp/domain';
 import { rateLimited } from '../../../lib/http/rate-limit';
-import { readCorrelationId } from '../../../lib/logging/correlation';
+import { readCorrelationId } from '../../../lib/logging';
 import { resolveLocale } from '../../../lib/i18n/locale';
 import { getMyRecordRuntime } from '../../(record)/me/_lib/runtime';
 import { launchNoticeHistory, selectNotice } from '../../(entry)/privacy/_lib/notice';

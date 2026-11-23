@@ -1,12 +1,11 @@
 /**
  * The `C-001` response envelopes for the two ward route handlers (`C-009`, `C-010`).
  *
- * One read envelope, one error envelope, one correlation rule. A supplied `X-Correlation-Id` outside
- * the contract's form is refused rather than echoed, because `C-001` says so; a missing one is
- * minted by the deployable's own identifier source.
+ * One read envelope and one error envelope. The correlation rule is not restated here: it belongs to
+ * the logging module's barrel, which every surface imports, so the ward handlers and the rest of the
+ * deployable cannot drift apart (`C-001`).
  */
 import type { WardFailure } from '@odp/domain';
-import { CORRELATION_ID_PATTERN, newCorrelationId } from '../../../../../lib/logging';
 
 /** The HTTP status each failure code these handlers can produce answers with (`C-001`). */
 const FAILURE_STATUS: Readonly<Record<WardFailure['code'], number>> = {
@@ -18,24 +17,6 @@ const FAILURE_STATUS: Readonly<Record<WardFailure['code'], number>> = {
   POLICY_VIOLATION: 422,
   SERVICE_DEGRADED: 503,
 };
-
-/** The correlation identifier the response carries, and whether the caller supplied a usable one. */
-export type CorrelationReading =
-  | { readonly ok: true; readonly correlationId: string }
-  | { readonly ok: false; readonly correlationId: string };
-
-/**
- * Resolves the request's correlation identifier (`C-001`).
- *
- * A malformed caller-supplied value is not echoed: the answer names the header as the failing field
- * and carries a freshly minted identifier, so an operator can still follow the refusal.
- */
-export function readCorrelationId(headers: Headers): CorrelationReading {
-  const supplied = headers.get('x-correlation-id');
-  if (supplied === null) return { ok: true, correlationId: newCorrelationId() };
-  if (CORRELATION_ID_PATTERN.test(supplied)) return { ok: true, correlationId: supplied };
-  return { ok: false, correlationId: newCorrelationId() };
-}
 
 /** The `C-001` read envelope for a successful answer. */
 export interface ReadEnvelope {

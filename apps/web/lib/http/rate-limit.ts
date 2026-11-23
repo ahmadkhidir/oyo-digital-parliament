@@ -14,19 +14,24 @@
  *
  * A server action is the one surface with no response-header channel: Next.js serialises an
  * action's return value and re-rendered tree instead of letting the action write the response
- * headers, so the action's answer is its flow state. `signalOf` therefore answers the same triple
- * for that state, and the values a route handler would print are carried by the action instead.
+ * headers. Since contract 1.6.2 the action's envelope therefore carries the same triple as
+ * `meta.rateLimit`, with `resetAt` in RFC 3339 form; {@link readActionRequest} reads the caller's
+ * identifier and allowance, and {@link actionMeta} and {@link actionRefusal} build the answer's
+ * `meta`.
  *
  * @module http/rate-limit
  */
 import type { NextRequest } from 'next/server';
+import { headers } from 'next/headers';
 import {
   RATE_LIMIT_HEADER_NAMES,
   rateLimitHeaders,
   renderRateLimitHeaders,
+  toIsoSeconds,
   type RateLimitHeaders,
   type RateLimitOutcome,
 } from '@odp/domain';
+import { correlationRefusal, readCorrelationId, type CorrelationReading } from '../logging';
 
 export { RATE_LIMIT_HEADER_NAMES };
 export type { RateLimitHeaders };
@@ -49,6 +54,126 @@ export function readAllowance(now: Date = new Date()): RateLimitHeaders {
     remaining: READ_ALLOWANCE.limit,
     resetSeconds: Math.ceil(((windowIndex + 1) * windowMs) / 1000),
   };
+}
+
+/**
+ * The `C-001` rate-limit triple as a server action carries it.
+ *
+ * `resetAt` is the RFC 3339 instant the HTTP answer would print as epoch seconds, so the two forms
+ * name the same moment.
+ */
+export interface ActionRateLimit {
+  readonly limit: number;
+  readonly remaining: number;
+  readonly resetAt: string;
+}
+
+/** The `meta` every `C-001` action answer carries. */
+export interface ActionMeta {
+  readonly correlationId: string;
+  readonly asAt: string;
+  readonly rateLimit: ActionRateLimit;
+}
+
+/**
+ * The `C-001` failure envelope a server action answers with when its caller's correlation
+ * identifier is outside the contract's pattern.
+ *
+ * The action envelope carries the same `meta` a successful answer does, so a refusal reports the
+ * caller's rate-limit triple as well (`C-001` 1.6.2). The `correlationId` is freshly minted: the
+ * refused value is never echoed.
+ */
+export interface ActionFailureEnvelope {
+  readonly ok: false;
+  readonly error: {
+    readonly code: 'VALIDATION_FAILED';
+    readonly cause: 'CORRELATION_ID_INVALID';
+    readonly message: string;
+    readonly fields: Readonly<Record<string, string>>;
+    readonly correlationId: string;
+  };
+  readonly meta: ActionMeta;
+}
+
+/**
+ * Converts one domain triple into the shape an action answer carries.
+ *
+ * @param signal - The triple a limiter consult or a refusal produced.
+ */
+export function actionRateLimit(signal: RateLimitHeaders): ActionRateLimit {
+  return {
+    limit: signal.limit,
+    remaining: signal.remaining,
+    resetAt: toIsoSeconds(new Date(signal.resetSeconds * 1000)),
+  };
+}
+
+/**
+ * Builds the `meta` member of one `C-001` action answer.
+ *
+ * @param correlationId - The request identifier in use.
+ * @param signal - The rate-limit triple the answer produced.
+ * @param at - The instant the answer was computed.
+ */
+export function actionMeta(
+  correlationId: string,
+  signal: RateLimitHeaders,
+  at: Date = new Date(),
+): ActionMeta {
+  return {
+    correlationId,
+    asAt: toIsoSeconds(at),
+    rateLimit: actionRateLimit(signal),
+  };
+}
+
+/**
+ * The `C-001` failure envelope for a malformed `X-Correlation-Id`, or `null` when it is readable.
+ *
+ * @param reading - The outcome of reading the caller's header.
+ * @param signal - The rate-limit triple the refusal carries.
+ * @param at - The instant the refusal was computed.
+ */
+export function actionRefusal(
+  reading: CorrelationReading,
+  signal: RateLimitHeaders,
+  at: Date = new Date(),
+): ActionFailureEnvelope | null {
+  const refusal = correlationRefusal(reading);
+  if (refusal === null) return null;
+  return {
+    ok: false,
+    error: {
+      code: refusal.code,
+      cause: refusal.cause,
+      message: refusal.message,
+      fields: refusal.fields,
+      correlationId: refusal.correlationId,
+    },
+    meta: actionMeta(refusal.correlationId, signal, at),
+  };
+}
+
+/** What a server action reads off its incoming request before it does any work. */
+export interface ActionRequest {
+  readonly correlation: CorrelationReading;
+  /** The caller's read allowance, for the `meta.rateLimit` its answer carries. */
+  readonly rateLimit: RateLimitHeaders;
+}
+
+/**
+ * Reads the correlation identifier and rate-limit triple an action answers with.
+ *
+ * `headers()` is the only request channel a server action has: it cannot see the response headers,
+ * so the triple its HTTP answer would print travels in `meta.rateLimit` instead (`C-001` 1.6.2). A
+ * malformed `X-Correlation-Id` is returned as `correlation.ok:false`; the caller refuses with
+ * {@link actionRefusal} rather than minting a replacement.
+ *
+ * @param at - The instant the action's answer is computed.
+ */
+export async function readActionRequest(at: Date = new Date()): Promise<ActionRequest> {
+  const store = await headers();
+  return { correlation: readCorrelationId(store), rateLimit: readAllowance(at) };
 }
 
 /** Whether a domain answer carries the triple its own limiter produced. */

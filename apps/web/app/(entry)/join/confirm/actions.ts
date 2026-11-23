@@ -23,7 +23,11 @@ import {
   type IdentityFailure,
   type ResendRegistrationCodeResult,
 } from '@odp/domain';
-import { newCorrelationId } from '../../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../../lib/http/rate-limit';
 import { getIdentityDependencies } from '../../../../lib/identity/ports';
 import {
   clearConfirmStatus,
@@ -126,12 +130,20 @@ function confirmRefusal(
  * The six digits are re-checked at the boundary before the use case runs, so a malformed post is
  * refused without a store round-trip, and the failure names the code field.
  */
-export async function confirmRegistrationAction(formData: FormData): Promise<void> {
+export async function confirmRegistrationAction(formData: FormData): Promise<void>;
+export async function confirmRegistrationAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const pending = await readJoinPending();
   if (pending === null) redirect('/join'); // No record this browser created: start at the form.
 
   const { ports } = await getIdentityDependencies();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
   const code = String(formData.get('code') ?? '');
 
   const reading = readCode(code);
@@ -215,12 +227,18 @@ function resendRefusal(failure: IdentityFailure): Omit<ConfirmStatusState, 'at'>
  * The action takes no argument: the pending record this browser holds is the only one it may
  * resend for, and the use case owns the one-minute timer and the per-number cap.
  */
-export async function resendRegistrationCodeAction(): Promise<void> {
+export async function resendRegistrationCodeAction(): Promise<void>;
+export async function resendRegistrationCodeAction(): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const pending = await readJoinPending();
   if (pending === null) redirect('/join');
 
   const { ports } = await getIdentityDependencies();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
 
   const result: ResendRegistrationCodeResult = await resendRegistrationCode(
     { kind: 'public', correlationId },

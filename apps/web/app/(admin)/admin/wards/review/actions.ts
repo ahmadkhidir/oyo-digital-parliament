@@ -19,7 +19,11 @@ import {
   type WardCaller,
   type WardFailure,
 } from '@odp/domain';
-import { newCorrelationId } from '../../../../../lib/logging';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../../../../lib/http/rate-limit';
 import { resolveLocale } from '../../../../../lib/i18n/locale';
 import { getStaffAdminDependencies } from '../../../../../lib/staff-session/deps';
 import { readStaffAccess } from '../../../../../lib/staff-session/session';
@@ -35,14 +39,14 @@ function readField(formData: FormData, name: string): string {
 }
 
 /** The queue's caller, or `null` when the session is not a satisfied response-staff session. */
-async function reviewerCaller(): Promise<WardCaller | null> {
+async function reviewerCaller(correlationId: string): Promise<WardCaller | null> {
   const access = await readStaffAccess();
   if (access.kind !== 'ready' || access.staff.role !== 'response_staff') return null;
   return {
     kind: 'staff',
     staffId: access.staff.id,
     role: 'response_staff',
-    correlationId: newCorrelationId(),
+    correlationId,
   };
 }
 
@@ -66,8 +70,16 @@ function wardCause(failure: WardFailure): StaffFlowCause {
 }
 
 /** Resolves one description to a ward, or refuses with the reviewer's sentence. */
-export async function resolveWardDescriptionAction(formData: FormData): Promise<void> {
-  const reviewer = await reviewerCaller();
+export async function resolveWardDescriptionAction(formData: FormData): Promise<void>;
+export async function resolveWardDescriptionAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
+  const reviewer = await reviewerCaller(request.correlation.correlationId);
   if (reviewer === null) {
     await writeStaffFlow({ cause: 'WARD_REVIEWER_REQUIRED' });
     redirect(QUEUE);
@@ -131,8 +143,16 @@ export async function resolveWardDescriptionAction(formData: FormData): Promise<
 }
 
 /** Records a residence review for the member behind the selected description. */
-export async function recordResidenceReviewAction(formData: FormData): Promise<void> {
-  const reviewer = await reviewerCaller();
+export async function recordResidenceReviewAction(formData: FormData): Promise<void>;
+export async function recordResidenceReviewAction(
+  formData: FormData,
+): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
+  const reviewer = await reviewerCaller(request.correlation.correlationId);
   if (reviewer === null) {
     await writeStaffFlow({ cause: 'WARD_REVIEWER_REQUIRED' });
     redirect(QUEUE);
