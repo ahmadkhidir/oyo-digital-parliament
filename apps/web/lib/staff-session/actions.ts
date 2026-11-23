@@ -10,6 +10,7 @@
  */
 import { redirect } from 'next/navigation';
 import { signOutStaff } from '@odp/domain';
+import { actionRefusal, readActionRequest, type ActionFailureEnvelope } from '../http/rate-limit';
 import { resolveLocale } from '../i18n/locale';
 import { getStaffAdminDependencies } from './deps';
 import { readStaffAccess, staffCaller } from './session';
@@ -21,15 +22,26 @@ import {
 } from './cookies';
 import { newIdempotencyKey } from './request';
 
-/** Ends the caller's staff session and returns to `/staff/sign-in`. */
-export async function signOutStaffAction(): Promise<void> {
+/**
+ * Ends the caller's staff session and returns to `/staff/sign-in`.
+ *
+ * A `C-001` surface: a malformed `X-Correlation-Id` is refused with the contract's failure envelope
+ * before the session is read, so a refusal ends nothing and clears no cookie.
+ */
+export async function signOutStaffAction(): Promise<void>;
+export async function signOutStaffAction(): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const access = await readStaffAccess();
   if (access.kind === 'signed_out') redirect('/staff/sign-in');
   if (access.kind === 'degraded') redirect('/admin');
 
   const dependencies = await getStaffAdminDependencies();
   const result = await signOutStaff(
-    staffCaller(access, await resolveLocale()),
+    staffCaller(access, await resolveLocale(), request.correlation.correlationId),
     dependencies.identity,
     { scope: 'current', idempotencyKey: newIdempotencyKey() },
   );

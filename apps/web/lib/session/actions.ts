@@ -14,7 +14,7 @@
  */
 import { redirect } from 'next/navigation';
 import { readSession, signOut, type SignOutResult } from '@odp/domain';
-import { newCorrelationId } from '../logging';
+import { actionRefusal, readActionRequest, type ActionFailureEnvelope } from '../http/rate-limit';
 import { getSignInDependencies } from './deps';
 import { clearMemberSessionCookie, presentedMemberSessionToken } from './session-cookies';
 
@@ -25,13 +25,25 @@ import { clearMemberSessionCookie, presentedMemberSessionToken } from './session
  * the contract answers `UNAUTHENTICATED` for that call, and the screen answer is the record home.
  * A degraded store leaves the cookie in place, so the member can try again rather than being
  * dropped with a token whose session may still be live (`NFR-026`).
+ *
+ * The action is a `C-001` surface: it reads `X-Correlation-Id` through the shared reader and
+ * refuses a value outside the pattern with the contract's failure envelope, before it reads a
+ * cookie or ends anything. The envelope carries `meta.rateLimit`; a browser form has no channel for
+ * it and re-renders unchanged.
  */
-export async function signOutAction(): Promise<void> {
+export async function signOutAction(): Promise<void>;
+export async function signOutAction(): Promise<ActionFailureEnvelope | void> {
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    // `C-001`: the caller's identifier is outside the pattern, so nothing is ended.
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const token = await presentedMemberSessionToken();
   if (token === null) redirect('/');
 
   const ports = await getSignInDependencies();
-  const correlationId = newCorrelationId();
+  const correlationId = request.correlation.correlationId;
 
   // The session read names the account the audit record attributes the sign-out to (`C-008`).
   const resolved = await readSession(ports, { memberSessionToken: token });
