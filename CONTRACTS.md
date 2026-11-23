@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.6.2
+**Contract version:** 1.6.3
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -32,6 +32,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.6.0 | Holds one account per number. `C-002` drops the shared-number declaration from its request and applies the already-registered refusal to every number held on an account; `C-003` refuses a verification whose number has come to belong to an account and drops `sharedNumber` from its member payload; `C-005` drops `accountCount` and `accountChoiceRequired`; `C-006` drops `memberId` from its request and `sharedNumber` from its member payload; `C-032`, `C-058` and `C-070` drop `sharedNumber`, and `C-058` no longer describes two accounts sharing a number. Gives the legal hold a structured review date: `C-035` returns it when a hold is detected, `C-036` names it on the legal-hold failure, `C-032` and `C-066` carry it on a deferred request, and `C-067` requires and records it on a defer. |
 | 1.6.1 | Aligns `C-092`'s staff sign-in surfaces with the screen specification. The password step is `/staff/sign-in`, and second-factor verification and enrolment are both `/staff/2fa`, replacing the three `/admin/*` paths and every `nextScreen` and `recoveryPath` they printed. |
 | 1.6.2 | Gives the rate-limit triple a form a server action can carry. An HTTP response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a server action, which has no response-header channel, carries the same triple as `meta.rateLimit` in its action envelope, with `resetAt` in RFC 3339 form. |
+| 1.6.3 | Corrects `1.6.2` for actions that answer by redirect. Such an action has no body, so it carries no envelope and no rate-limit triple; only an action that returns an answer carries `meta.rateLimit`. |
 
 ## Contract Index
 
@@ -227,7 +228,7 @@ Append-only. Each row records what that version changed; an accepted version is 
   }
 }
 ```
-A server action has no response-header channel, so it carries the rate-limit triple in `meta.rateLimit` instead of the three headers. `limit` and `remaining` are counts for the caller's bucket, and `resetAt` is the RFC 3339 instant the window resets, matching the `RateLimit-Reset` header on an HTTP answer.
+A server action has no response-header channel, so an action that returns an answer carries the rate-limit triple in `meta.rateLimit` instead of the three headers. An action that answers by redirect has no body and therefore no envelope, and it carries no rate-limit values. `limit` and `remaining` are counts for the caller's bucket, and `resetAt` is the RFC 3339 instant the window resets, matching the `RateLimit-Reset` header on an HTTP answer.
 
 **Response 202 (queued write):**
 ```json
@@ -276,7 +277,7 @@ A queued write is durable before the response returns. The submitted text is nev
 | `WRITE_QUEUED` | 202 | `ok:true` | The primary store cannot take the write; it is durably queued and returns `queuedWriteId` |
 | `SERVICE_DEGRADED` | 503 | `ok:false` | A dependency is down and the call cannot be answered at all; a read that can still be served from cache returns `200` with `meta.degraded:true` instead of this error |
 
-**Rate-limit signalling:** every HTTP response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` (epoch seconds), and every server action carries the same triple as `meta.rateLimit` in its action envelope. A limiter-free read still reports its bucket's cap and remaining value. A refusal carries `RATE_LIMITED` with `retryAfterSeconds`. Caps are per account and per ward as required by `NFR-027`; the numeric caps are operator configuration, except the values the specification fixes: forty assisted submissions per ward per day, three wrong code attempts before a cooldown, and the backing-concentration rule in `C-085`.
+**Rate-limit signalling:** every HTTP response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` (epoch seconds), and every server action that returns an answer carries the same triple as `meta.rateLimit` in its action envelope; an action that answers by redirect carries none, because it has no body. A limiter-free read still reports its bucket's cap and remaining value. A refusal carries `RATE_LIMITED` with `retryAfterSeconds`. Caps are per account and per ward as required by `NFR-027`; the numeric caps are operator configuration, except the values the specification fixes: forty assisted submissions per ward per day, three wrong code attempts before a cooldown, and the backing-concentration rule in `C-085`.
 
 **Audit correlation:** every state change appends exactly one AuditEvent (`C-090`) before the response returns, recorded with the same `correlationId`. `correlationId` is a transport property, not an `AuditEvent` property: `schema.md` gives the entity no such field, so the append carries the correlation beside the record and the log indexes it there. The stored entity keeps exactly the fields `schema.md` declares, and no read invents the field back onto it. A queued write appends its AuditEvent at replay, with the original `Idempotency-Key` retained on the record.
 
