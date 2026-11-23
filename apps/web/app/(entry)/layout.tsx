@@ -17,6 +17,11 @@ import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { RecordFooter, focusRingClasses } from '@odp/ui';
 import { getMessages } from '../../messages';
+import {
+  actionRefusal,
+  readActionRequest,
+  type ActionFailureEnvelope,
+} from '../../lib/http/rate-limit';
 import { LOCALE_COOKIE, readLocaleValue, resolveLocale } from '../../lib/i18n/locale';
 import { BrandMark } from './_shell/brand-mark';
 
@@ -26,9 +31,20 @@ import { BrandMark } from './_shell/brand-mark';
  * The signed-in branch - writing `Member.locale` - belongs to the member-surface task; on the
  * entry screens every visitor is anonymous, so this stores the session-scoped choice only. A
  * value outside the two launch locales is ignored rather than guessed at.
+ *
+ * The action is a `C-001` surface: the caller's `X-Correlation-Id` is read through the shared
+ * reader, and a value outside the pattern is refused with the contract's failure envelope before
+ * the choice is stored. The footer's form has no channel for the envelope, so a browser re-renders
+ * with the previous language in force and nothing written.
  */
-async function setLocaleAction(formData: FormData): Promise<void> {
+async function setLocaleAction(formData: FormData): Promise<void>;
+async function setLocaleAction(formData: FormData): Promise<ActionFailureEnvelope | void> {
   'use server';
+  const request = await readActionRequest();
+  if (!request.correlation.ok) {
+    return actionRefusal(request.correlation, request.rateLimit) ?? undefined;
+  }
+
   const locale = readLocaleValue(String(formData.get('locale') ?? ''));
   if (locale !== null) {
     const store = await cookies();
