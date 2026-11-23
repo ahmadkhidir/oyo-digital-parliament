@@ -15,7 +15,7 @@
  * A server action is the one surface with no response-header channel: Next.js serialises an
  * action's return value and re-rendered tree instead of letting the action write the response
  * headers, so the action's answer is its flow state. `signalOf` therefore answers the same triple
- * for that state, and the redirected render reads exactly the values a route handler would print.
+ * for that state, and the values a route handler would print are carried by the action instead.
  *
  * @module http/rate-limit
  */

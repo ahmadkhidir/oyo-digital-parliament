@@ -238,7 +238,7 @@ describe('requestSignInCodeAction (C-005)', () => {
     expect(pending?.returnTo).toBe('/');
     expect(pending?.resendAvailableAt).toBeTruthy();
     // `C-001`/`NFR-027`: the action's answer carries the limiter's triple. A server action has no
-    // response-header channel in Next.js, so the redirected render reads it from the flow state.
+    // response-header channel in Next.js, so the flow state is the answer that carries it.
     expect(pending?.rateLimit).toEqual({
       limit: 5,
       remaining: 4,

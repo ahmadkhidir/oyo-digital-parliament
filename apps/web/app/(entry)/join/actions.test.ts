@@ -103,7 +103,7 @@ describe('registerResidentAction (C-002)', () => {
     expect(pendingCookie?.id).toMatch(/^prg_[0-9A-Z]+$/);
     expect(pendingCookie).not.toBeNull();
     // `C-001`/`NFR-027`: the write's answer carries the limiter's triple. A server action cannot
-    // write response headers, so the redirected render reads it from the flow state.
+    // write response headers, so the flow state is the answer that carries it.
     expect(pendingCookie?.rateLimit).toEqual({
       limit: 5,
       remaining: 4,
