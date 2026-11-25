@@ -76,18 +76,19 @@ export async function seedRules(executor: Executor): Promise<SeedResult> {
 }
 
 /**
- * Seeds the whole reference set, including the first staff accounts and the operator credential.
+ * Seeds the whole reference set, including the first staff accounts and both staff credentials.
  *
  * Every data set shares one transaction, so a run either leaves the reference consistent or changes
  * nothing. The transaction is opened here and the seed functions below it compose through the scope
  * they are given, which is the composition rule in `packages/db/AGENTS.md`.
  *
- * The staff seed needs the deployment secret and the `NFR-021` hasher; it is not defaulted here,
- * because a caller without a secret must be the one that decides whether a clean deployment is
- * allowed to fail (`operations.md` Staff sign-in).
+ * The staff seed needs the `NFR-021` hasher and one deployment secret per credential - the operator's
+ * and the response-staff member's; neither is defaulted here, because a caller without a secret must
+ * be the one that decides whether a clean deployment is allowed to fail (`operations.md` Staff
+ * sign-in).
  *
  * @param executor - The shared client, or an open transaction handed in by the caller.
- * @param staff - The password hasher and the operator's one-time deployment secret.
+ * @param staff - The password hasher and the two one-time deployment secrets.
  */
 export async function runSeeds(executor: Executor, staff: StaffSeedOptions): Promise<SeedReport> {
   // A caller that already opened a transaction keeps it: opening a second one would fail, and the

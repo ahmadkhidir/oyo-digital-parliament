@@ -315,6 +315,15 @@ export const VARIABLES: readonly VariableSpec[] = [
     required: false,
   },
   {
+    name: 'STAFF_RESPONSE_STAFF_INITIAL_PASSWORD',
+    group: 'credentials',
+    description:
+      'One-time password the seed gives the seeded response-staff credential on a clean deployment, so a response-staff member can sign in and enrol a second factor (operations.md Staff sign-in, C-092). It is read only by "pnpm db:seed", stored as an Argon2id hash, and never echoed; an existing credential is never overwritten, so removing it after the first seed is the normal end state.',
+    secret: true,
+    kind: 'text',
+    required: false,
+  },
+  {
     name: 'RATE_LIMIT_WINDOW_MINUTES',
     group: 'limits',
     description:

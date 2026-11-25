@@ -23,13 +23,14 @@ const IDENTIFIER = /^[a-z]{3}_[0-9A-Z]{4,26}$/;
 /**
  * The staff half of a seed run.
  *
- * These suites prove the ward and rule reference; the credential itself is covered in `staff.test.ts`.
- * The hasher is a plain tag so the stored value stays inspectable, and the password meets `C-092`'s
- * twelve-character floor.
+ * These suites prove the ward and rule reference; the credentials themselves are covered in
+ * `staff.test.ts`. The hasher is a plain tag so the stored value stays inspectable, and each password
+ * meets `C-092`'s twelve-character floor.
  */
 const STAFF_SEED: StaffSeedOptions = {
   hasher: { hash: () => Promise.resolve('test-argon2id$seed-suite') },
   operatorInitialPassword: 'seed-suite-operator-password',
+  responseStaffInitialPassword: 'seed-suite-response-password',
 };
 
 /** A telephone number or an email address would be personal data; a seed must contain neither. */
