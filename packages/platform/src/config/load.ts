@@ -113,6 +113,12 @@ export interface CredentialsConfig {
    * (`operations.md` Staff sign-in, ADR-004).
    */
   readonly operatorInitialPassword: string | null;
+  /**
+   * The one-time password the seed gives the seeded response-staff credential, or `null` when the
+   * deployment sets none. A deployment secret read only by `pnpm db:seed`, exactly as the operator's
+   * is (`operations.md` Staff sign-in, `C-092`).
+   */
+  readonly responseStaffInitialPassword: string | null;
 }
 
 /** The limiter's fixed window and one cap per bucket (`NFR-027`). */
@@ -317,6 +323,7 @@ function buildScalars(values: ParsedValues): {
     credentials: {
       totpSecretKey: stringValue(values, 'STAFF_TOTP_SECRET_KEY'),
       operatorInitialPassword: optionalString(values, 'STAFF_OPERATOR_INITIAL_PASSWORD'),
+      responseStaffInitialPassword: optionalString(values, 'STAFF_RESPONSE_STAFF_INITIAL_PASSWORD'),
     },
     rateLimit: {
       windowSeconds: numberValue(values, 'RATE_LIMIT_WINDOW_MINUTES') * 60,

@@ -74,6 +74,8 @@ const LOCAL_EXAMPLES = {
   // The local operator's one-time seed password (operations.md Staff sign-in). A real deployment
   // value never lives here.
   STAFF_OPERATOR_INITIAL_PASSWORD: 'odp-local-operator-password',
+  // The seeded response-staff member's one-time password. Disposable, like the operator's.
+  STAFF_RESPONSE_STAFF_INITIAL_PASSWORD: 'odp-local-response-password',
   SMS_PROVIDER: 'none',
   SMS_API_URL: 'https://sms-gateway.example.test/send',
   SMS_API_KEY: 'local-sms-placeholder',
