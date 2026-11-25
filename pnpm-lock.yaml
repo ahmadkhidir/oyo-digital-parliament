@@ -216,6 +216,9 @@ importers:
       '@odp/domain':
         specifier: workspace:*
         version: link:../domain
+      '@odp/platform':
+        specifier: workspace:*
+        version: link:../platform
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)

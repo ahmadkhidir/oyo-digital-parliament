@@ -71,6 +71,9 @@ const LOCAL_EXAMPLES = {
   S3_FORCE_PATH_STYLE: 'true',
   // A disposable 32-byte key. A real key lives in the managed secret store (NFR-024).
   STAFF_TOTP_SECRET_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+  // The local operator's one-time seed password (operations.md Staff sign-in). A real deployment
+  // value never lives here.
+  STAFF_OPERATOR_INITIAL_PASSWORD: 'odp-local-operator-password',
   SMS_PROVIDER: 'none',
   SMS_API_URL: 'https://sms-gateway.example.test/send',
   SMS_API_KEY: 'local-sms-placeholder',

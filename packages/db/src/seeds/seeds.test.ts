@@ -14,10 +14,23 @@ import { rule, ward } from '../schema/index.ts';
 import { createTestDatabase, type TestDatabase } from '../testing/index.ts';
 import { DISCUSSION_RULES, ruleSeedRows } from './rules.ts';
 import { runSeeds } from './run.ts';
+import type { StaffSeedOptions } from './staff.ts';
 import { WARD_REFERENCE, wardSeedRows } from './wards.ts';
 
 /** `C-001`'s record identifier form. */
 const IDENTIFIER = /^[a-z]{3}_[0-9A-Z]{4,26}$/;
+
+/**
+ * The staff half of a seed run.
+ *
+ * These suites prove the ward and rule reference; the credential itself is covered in `staff.test.ts`.
+ * The hasher is a plain tag so the stored value stays inspectable, and the password meets `C-092`'s
+ * twelve-character floor.
+ */
+const STAFF_SEED: StaffSeedOptions = {
+  hasher: { hash: () => Promise.resolve('test-argon2id$seed-suite') },
+  operatorInitialPassword: 'seed-suite-operator-password',
+};
 
 /** A telephone number or an email address would be personal data; a seed must contain neither. */
 const PERSONAL_DATA = /\+234\d{10}|\b0[789]\d{9}\b|[\w.+-]+@[\w-]+\.[a-z]{2,}/i;
@@ -155,7 +168,7 @@ describe('seed run', () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    firstRun = await runSeeds(database.db);
+    firstRun = await runSeeds(database.db, STAFF_SEED);
   });
 
   afterAll(async () => {
@@ -177,7 +190,7 @@ describe('seed run', () => {
     const wardsBefore = await readWards(database);
     const rulesBefore = await readRules(database);
 
-    const secondRun = await runSeeds(database.db);
+    const secondRun = await runSeeds(database.db, STAFF_SEED);
 
     expect(secondRun).toEqual({
       wards: { inserted: 0, existing: 351 },
@@ -201,7 +214,7 @@ describe('seed run', () => {
       createdAt: '2026-11-01T00:00:00Z',
     });
 
-    const rerun = await runSeeds(database.db);
+    const rerun = await runSeeds(database.db, STAFF_SEED);
     expect(rerun.wards.inserted).toBe(0);
 
     const stored = await readWards(database);
