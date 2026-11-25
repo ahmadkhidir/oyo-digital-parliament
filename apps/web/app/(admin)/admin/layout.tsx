@@ -68,9 +68,9 @@ export default async function AdminLayout({ children }: { readonly children: Rea
           </div>
         </div>
       </header>
-      <main id="content" className="mx-auto w-full max-w-6xl flex-1 px-lg py-xl">
+      <div className="mx-auto w-full max-w-6xl flex-1 px-lg py-xl">
         {children}
-      </main>
+      </div>
       <footer className="border-t border-border">
         <p className="mx-auto w-full max-w-6xl px-lg py-md text-caption text-text-secondary">
           {messages.staff.admin.note}
