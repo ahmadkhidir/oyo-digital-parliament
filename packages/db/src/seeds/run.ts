@@ -16,7 +16,7 @@
  */
 import type { RuleSeedRow } from './rules.ts';
 import { ruleSeedRows } from './rules.ts';
-import { seedStaff } from './staff.ts';
+import { seedStaff, type StaffSeedOptions } from './staff.ts';
 import type { WardSeedRow } from './wards.ts';
 import { wardSeedRows } from './wards.ts';
 import { executorOf, isTransactionScope, withTransaction, type Executor } from '../client.ts';
@@ -76,26 +76,33 @@ export async function seedRules(executor: Executor): Promise<SeedResult> {
 }
 
 /**
- * Seeds the whole reference set.
+ * Seeds the whole reference set, including the first staff accounts and the operator credential.
  *
- * Both data sets share one transaction, so a run either leaves the reference consistent or changes
- * nothing. The transaction is opened here and the two functions below it compose through the scope
+ * Every data set shares one transaction, so a run either leaves the reference consistent or changes
+ * nothing. The transaction is opened here and the seed functions below it compose through the scope
  * they are given, which is the composition rule in `packages/db/AGENTS.md`.
+ *
+ * The staff seed needs the deployment secret and the `NFR-021` hasher; it is not defaulted here,
+ * because a caller without a secret must be the one that decides whether a clean deployment is
+ * allowed to fail (`operations.md` Staff sign-in).
+ *
+ * @param executor - The shared client, or an open transaction handed in by the caller.
+ * @param staff - The password hasher and the operator's one-time deployment secret.
  */
-export async function runSeeds(executor: Executor): Promise<SeedReport> {
+export async function runSeeds(executor: Executor, staff: StaffSeedOptions): Promise<SeedReport> {
   // A caller that already opened a transaction keeps it: opening a second one would fail, and the
   // seed must not decide the boundary for a larger write that includes it.
-  if (isTransactionScope(executor)) return runSeedsInScope(executor);
-  return withTransaction((scope) => runSeedsInScope(scope), executorOf(executor));
+  if (isTransactionScope(executor)) return runSeedsInScope(executor, staff);
+  return withTransaction((scope) => runSeedsInScope(scope, staff), executorOf(executor));
 }
 
 /** Seeds every data set inside the transaction the caller already opened. */
-async function runSeedsInScope(executor: Executor): Promise<SeedReport> {
+async function runSeedsInScope(executor: Executor, staff: StaffSeedOptions): Promise<SeedReport> {
   const wards = await seedWards(executor);
   const rules = await seedRules(executor);
-  // The first staff accounts are reference data too, but the report keeps its published shape:
-  // callers that print it do not gain a field, and the accounts are still created in the same unit
-  // of work.
-  await seedStaff(executor);
+  // The first staff accounts and the operator credential are reference data too, but the report
+  // keeps its published shape: callers that print it do not gain a field, and the accounts are still
+  // created in the same unit of work.
+  await seedStaff(executor, staff);
   return { wards, rules };
 }

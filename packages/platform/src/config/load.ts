@@ -107,6 +107,12 @@ export interface SessionConfig {
 export interface CredentialsConfig {
   /** Base64 of 32 bytes, the AES-256-GCM key that seals each second-factor secret at rest. */
   readonly totpSecretKey: string;
+  /**
+   * The one-time password the seed gives the first operator credential, or `null` when the deployment
+   * sets none. It is a deployment secret, read only by `pnpm db:seed`; no runtime path reads it
+   * (`operations.md` Staff sign-in, ADR-004).
+   */
+  readonly operatorInitialPassword: string | null;
 }
 
 /** The limiter's fixed window and one cap per bucket (`NFR-027`). */
@@ -310,6 +316,7 @@ function buildScalars(values: ParsedValues): {
     },
     credentials: {
       totpSecretKey: stringValue(values, 'STAFF_TOTP_SECRET_KEY'),
+      operatorInitialPassword: optionalString(values, 'STAFF_OPERATOR_INITIAL_PASSWORD'),
     },
     rateLimit: {
       windowSeconds: numberValue(values, 'RATE_LIMIT_WINDOW_MINUTES') * 60,

@@ -306,6 +306,15 @@ export const VARIABLES: readonly VariableSpec[] = [
     required: true,
   },
   {
+    name: 'STAFF_OPERATOR_INITIAL_PASSWORD',
+    group: 'credentials',
+    description:
+      'One-time password the seed gives the first operator credential on a clean deployment (operations.md Staff sign-in, ADR-004). It is read only by "pnpm db:seed", stored as an Argon2id hash, and never echoed; set it before the first seed and remove it once the operator has signed in and reset the other credentials. An existing credential is never overwritten, so leaving it set is harmless but unnecessary.',
+    secret: true,
+    kind: 'text',
+    required: false,
+  },
+  {
     name: 'RATE_LIMIT_WINDOW_MINUTES',
     group: 'limits',
     description:

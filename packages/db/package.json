@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@odp/domain": "workspace:*",
+    "@odp/platform": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },
