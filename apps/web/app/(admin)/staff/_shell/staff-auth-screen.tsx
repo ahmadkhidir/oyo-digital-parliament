@@ -4,6 +4,10 @@
  * The two factor screens share one minimal shell: the product name returns to the record home, the
  * screen's title is the only `h1`, and the access note sits under it. It is a Server Component, so
  * both screens render and post with scripting disabled.
+ *
+ * The document shell in `app/layout.tsx` owns the one `main` landmark and the `#content` anchor the
+ * skip link targets. This frame renders no second main and no second `#content`, so a screen reader
+ * finds one landmark and a keyboard user reaches one target (`NFR-044`).
  */
 import type { ReactNode } from 'react';
 import { focusRingClasses } from '@odp/ui';
@@ -33,7 +37,7 @@ export function StaffAuthScreen({
           </a>
         </div>
       </header>
-      <main id="content" className="mx-auto w-full max-w-xl px-lg py-2xl">
+      <div className="mx-auto w-full max-w-xl px-lg py-2xl">
         <div className="flex flex-col gap-lg">
           <div className="flex flex-col gap-xs border-b border-border pb-md">
             <h1 className="font-display text-display text-text-primary">{title}</h1>
@@ -41,7 +45,7 @@ export function StaffAuthScreen({
           </div>
           {children}
         </div>
-      </main>
+      </div>
       <footer className="border-t border-border">
         <p className="mx-auto w-full max-w-4xl px-lg py-md text-caption text-text-secondary">
           {disclosure}

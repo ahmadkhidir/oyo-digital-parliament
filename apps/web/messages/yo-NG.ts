@@ -320,7 +320,7 @@ export const yoNG: Messages = {
       withdrawn: 'Ti yọ',
       notAnswered: 'A kò tíì dá',
       recordedOn: 'A kọ ní {date}',
-      withdrawnOn: 'A yọ ní {date}',
+      withdrawnOn: 'Ní {date}',
       toggleLabel: 'Gba ààyè fún {purpose}',
       save: 'Fi ìfọwọ́sí pamọ́',
       saving: 'Ó ń pa ìfọwọ́sí mọ́',
@@ -680,6 +680,20 @@ export const yoNG: Messages = {
         'A ti ṣàyẹ̀wò ibùgbé. Aráàlú yóò hàn gẹ́gẹ́ bí ẹni tí a ṣàyẹ̀wò lórí àwọn ìfilọ́lẹ̀ àti àtìlẹ́yìn rẹ̀.',
       residenceRejected: 'A kọ̀ ìṣàyẹ̀wò ibùgbé. Aráàlú ṣì wà gẹ́gẹ́ bí ẹni tí a kọ orúkọ.',
       moved: 'Ìfilọ́lẹ̀ {moved} lọ; {unchanged} ti ní agbègbè tẹ́lẹ̀.',
+      descriptionInvalid:
+        'A kò kọ àpèjúwe náà. Yan agbègbè tí ó ṣeé yàn láti yanjú rẹ̀, tàbí fún ìdí láti kọ̀ ọ́.',
+      reviewMissing: 'Àpèjúwe yìí kò sí ní ìlà mọ́. Ó ṣeé ṣe kí olùṣàyẹ̀wò mìíràn ti ṣiṣẹ́ lórí rẹ̀.',
+      alreadyResolved: 'A ti yanjú àpèjúwe yìí tẹ́lẹ̀. Tun ìlà náà ṣe láti rí ọ̀ràn tó wà.',
+      wardMissing: 'A kò rí agbègbè tí o yàn. Yan agbègbè mìíràn kí o sì gbìyànjú lẹ́ẹ̀kan sí i.',
+      memberMissing: 'A kò rí aráàlú tó wà lẹ́yìn àpèjúwe yìí, nítorí náà a kò kọ ohunkóhun.',
+      memberDeleted:
+        'A ti pa àkọsílẹ̀ náà rẹ́ kí a tó kọ ìṣàyẹ̀wò yìí, nítorí náà kò sí ohun tó yí padà.',
+      residenceInvalid:
+        'A kò kọ ìṣàyẹ̀wò ibùgbé náà. Ṣàyẹ̀wò ọ̀nà, ìpinnu àti àkọsílẹ̀, kí o sì gbìyànjú lẹ́ẹ̀kan sí i.',
+      wardUnresolved:
+        'A kò tíì kọ agbègbè aráàlú náà, nítorí náà a kò lè gba ìṣàyẹ̀wò ibùgbé. Yanjú àpèjúwe náà kọ́.',
+      reviewerRequired: 'Wọlé pẹ̀lú àkọsílẹ̀ òṣìṣẹ́ ìdáhùn láti ṣàyẹ̀wò àwọn àpèjúwe agbègbè.',
+      actionFailed: 'A kò lè kọ ìṣàyẹ̀wò náà. Kò sí ohun tó yí padà; gbìyànjú lẹ́ẹ̀kan sí i.',
       nextCase: 'Ọ̀ràn tó kàn',
     },
     dataRequests: {
