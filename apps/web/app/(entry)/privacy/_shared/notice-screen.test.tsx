@@ -43,7 +43,7 @@ describe('PrivacyNoticeScreen (screens/23-privacy-notice.md)', () => {
     expect(screen.getByRole('heading', { name: copy.contactHeading })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: copy.contactLink })).toHaveAttribute(
       'href',
-      expect.stringContaining('mailto:'),
+      '/contact',
     );
     expect(screen.queryByRole('navigation', { name: copy.previousHeading })).toBeNull();
   });
@@ -98,7 +98,7 @@ describe('PrivacyNoticeScreen (screens/23-privacy-notice.md)', () => {
     expect(screen.getByText(copy.unknownVersion)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: copy.contactLink })).toHaveAttribute(
       'href',
-      expect.stringContaining('mailto:'),
+      '/contact',
     );
   });
 

@@ -14,12 +14,7 @@ import type { ReactNode } from 'react';
 import { focusRingClasses } from '@odp/ui';
 import { interpolate } from '../../../../lib/i18n/format';
 import type { LaunchLocale, Messages } from '../../../../messages';
-import {
-  formatNoticeDate,
-  privacyContactHref,
-  selectNotice,
-  type NoticeHistory,
-} from '../_lib/notice';
+import { formatNoticeDate, selectNotice, type NoticeHistory } from '../_lib/notice';
 
 export interface PrivacyNoticeScreenProps {
   readonly copy: Messages['privacy'];
@@ -62,7 +57,7 @@ function ContactBlock({ copy }: { readonly copy: Messages['privacy'] }): ReactNo
       </h2>
       <p className="max-w-prose text-body text-text-secondary">{copy.contactBody}</p>
       <a
-        href={privacyContactHref()}
+        href="/contact"
         className={`inline-flex min-h-button w-fit items-center text-primary-500 underline underline-offset-2 hover:text-primary-700 ${focusRingClasses}`}
       >
         {copy.contactLink}

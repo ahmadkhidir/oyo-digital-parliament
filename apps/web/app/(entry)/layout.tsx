@@ -88,9 +88,9 @@ export default async function EntryLayout({ children }: { readonly children: Rea
           { href: '/me', label: copy.footer.links.myRecord },
         ]}
         privacy={{ href: '/privacy', label: copy.footer.links.privacy }}
-        // The published contact address is stated on the privacy notice (`screens/23`); the entry
-        // screens link there until the notice lands and names its own anchor.
-        contact={{ href: '/privacy', label: copy.footer.links.contact }}
+        // Every footer opens the Contact screen (`screens/27-contact.md`), which carries the
+        // published channel and the privacy mailbox when no form is configured.
+        contact={{ href: '/contact', label: copy.footer.links.contact }}
         dataRights={{ href: '/me', label: copy.footer.links.myRecord }}
         languageSwitch={{
           id: 'footer-locale',

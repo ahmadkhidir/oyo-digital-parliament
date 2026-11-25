@@ -31,6 +31,7 @@ export type ConfigGroup =
   | 'storage'
   | 'sms'
   | 'model'
+  | 'contact'
   | 'flags'
   | 'worker';
 
@@ -681,6 +682,17 @@ export const VARIABLES: readonly VariableSpec[] = [
     requiredWhen: modelEnabled,
   },
   ...modelCapabilityVariables(),
+  {
+    name: 'CONTACT_FORM_URL',
+    group: 'contact',
+    description:
+      'The published external contact form the Contact screen opens in a new page (screens/27-contact.md, operations.md Resident). Required in every deployed environment; when it is absent the screen states the fallback mailbox and the rights route instead of rendering a dead link, so a local stack can boot without one.',
+    secret: false,
+    kind: 'url',
+    required: false,
+    protocols: ['http:', 'https:'],
+    requiresPath: false,
+  },
   ...featureFlagVariables(),
   {
     name: 'WORKER_HOST',
@@ -732,6 +744,8 @@ export const GROUP_HEADINGS: Readonly<Record<ConfigGroup, string>> = {
   storage: 'Object storage - S3-compatible, private bucket',
   sms: 'SMS gateway - notification boundary transport (C-076)',
   model: 'Inference Gateway - pinned capability configuration (C-078, NFR-045)',
+  contact:
+    'Published contact channel - the external form the Contact screen opens (screens/27-contact.md)',
   flags: 'Feature flags - launch state per environment (release.md, C-069)',
   worker: 'Worker runtime - probe listener and shutdown (C-091)',
 };

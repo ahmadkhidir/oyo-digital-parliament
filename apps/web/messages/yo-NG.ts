@@ -477,13 +477,42 @@ export const yoNG: Messages = {
     ],
     contactHeading: 'Kàn sí wa',
     contactBody:
-      'Kọ̀wé sí olùbójú ìpamọ́ fún ìbéèrè kankan nípa àkíyèsí yìí, tàbí nípa dátà tí a ni nípa rẹ. A ń dáhùn láàárín ọjọ́ iṣẹ́ méjì.',
-    contactLink: 'Kọ̀wé sí olùbójú ìpamọ́',
+      'Bèèrè nípa àkíyèsí yìí, tàbí nípa dátà tí a ni nípa rẹ, ní ojú-ìwé ìkànsí. A ń dáhùn láàárín ọjọ́ iṣẹ́ méjì.',
+    contactLink: 'Kàn sí wa nípa àkíyèsí yìí',
     backToRecord: 'Padà sí ilé ìwé ìṣirò',
     errorHeading: 'A kò lè gbé àkíyèsí yìí wá',
-    errorBody:
-      'Ìyókù ìwé ìṣirò kò ní ìfarapa. Kọ̀wé sí olùbójú ìpamọ́, a ó sì rán àkíyèsí náà fún ọ.',
+    errorBody: 'Ìyókù ìwé ìṣirò kò ní ìfarapa. Ṣí ojú-ìwé ìkànsí, a ó sì rán àkíyèsí náà fún ọ.',
     unknownVersion: 'A kò tíì tẹ ẹ̀yà àkíyèsí yẹn jáde rí.',
+  },
+  contact: {
+    title: 'Kàn sí wa',
+    heading: 'Kàn sí ìpolongo náà',
+    intro:
+      'Béèrè ìbéèrè kan, tọ́ka sí ohun tí kò tọ́ nínú ìwé ìṣirò, tàbí béèrè kí a lo ẹ̀tọ́ kan. Ojú-ìwé yìí ni ìtọ́kasi tí ìpolongo tẹ̀ jáde, àwọn tó ń dáhùn nínú ìwé ìṣirò sì ń kà á.',
+    channelHeading: 'Fọ́ọ̀mù ìkànsí tí a tẹ̀ jáde',
+    channelBody:
+      'Fọ́ọ̀mù náà wà ní ìta ìwé ìṣirò yìí. Ó ń béèrè kìkì ohun tí ìpolongo nílò láti dáhùn ọ̀rọ̀ rẹ.',
+    channelLabel: 'Ṣí fọ́ọ̀mù ìkànsí',
+    channelNewTab: 'Fọ́ọ̀mù náà máa ń ṣí sí ojú-ìwé tuntun.',
+    responseTime: 'Ìdáhùn àkọ́kọ́ máa ń dé láàárín ọjọ́ iṣẹ́ méjì.',
+    cautionHeading: 'Ohun tí kò yẹ kí o fi ránṣẹ́',
+    caution:
+      'Má fi ọ̀rọ̀ inú ìpètú kan, nọ́mbá fọ́òntù tàbí àpèjúwe agbègbè rẹ kún un, àyàfi tí ìbéèrè náà bá nílò rẹ̀. Ìbéèrè nípa ohun tí o gbé kalẹ̀ máa ń ní ìdáhùn kíákíá láti inú ìpètú náà fúnra rẹ̀ tàbí láti Ìṣirò mi.',
+    rightsHeading: 'Béèrè fún ẹ̀tọ́ kan',
+    privacyRights: 'Ka àkíyèsí ìpamọ́',
+    privacyRightsNote:
+      'Ohun tí ó jáde, ohun tí a fi pamọ́, bí a ṣe ń pa á mọ́ pẹ́ tó, àti ẹni tó ń ṣe àtúnṣe rẹ̀.',
+    myRecordRights: 'Lọ sí Ìṣirò mi',
+    myRecordRightsNote: 'Wo, túnṣe, jáde tàbí pa ohun tí a ni nípa rẹ.',
+    signedOutRightsNote:
+      'Ìwọlé, àtúnṣe, ìjáde àti pípàrẹ́ ni a ń ṣe lórí Ìṣirò mi, nígbà tí o bá ti wọlé.',
+    disclosure:
+      'Ẹ̀rọ ìpolongo ni Oyo Digital Parliament, kì í ṣe ìjọba. Ojú-ìwé yìí ń kan ìpolongo tó ń ṣètò ìwé ìṣirò náà.',
+    errorHeading: 'Fọ́ọ̀mù ìkànsí kò sí níbí',
+    errorBody:
+      'A kò lè dé fọ́ọ̀mù tí a tẹ̀ jáde. Kọ̀wé sí olùbójú ìpamọ́ ní ààyò: àwọn ènìyàn kan náà ló ń kà á, ìdáhùn àkọ́kọ́ sì ṣì máa ń dé láàárín ọjọ́ iṣẹ́ méjì.',
+    mailboxLabel: 'Kọ̀wé sí olùbójú ìpamọ́',
+    backToRecord: 'Padà sí ilé ìwé ìṣirò',
   },
   staff: {
     signIn: {

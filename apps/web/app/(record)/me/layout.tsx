@@ -70,7 +70,7 @@ export default async function MyRecordLayout({ children }: { readonly children: 
           { href: '/me', label: copy.footer.links.myRecord },
         ]}
         privacy={{ href: '/privacy', label: copy.footer.links.privacy }}
-        contact={{ href: '/privacy#contact', label: copy.footer.links.contact }}
+        contact={{ href: '/contact', label: copy.footer.links.contact }}
         dataRights={{ href: '/me', label: copy.footer.links.myRecord }}
         languageSwitch={{
           id: 'footer-locale',
