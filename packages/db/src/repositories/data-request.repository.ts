@@ -65,8 +65,13 @@ function decodeCursor(cursor: string | undefined): number {
  *
  * The days come from the domain's own table rather than a second copy here, so the queue's order,
  * its overdue count and the member-facing due date cannot drift apart.
+ *
+ * The day count is bound as a parameter, and every branch of a parameter-only `CASE` reaches
+ * PostgreSQL as the unresolved `unknown` type, which it then resolves to `text`. `make_interval`
+ * has no `text` overload, so the whole expression is cast to `integer`: the cast settles the
+ * branches' type and PostgreSQL resolves `make_interval(days => integer)` (`C-066`).
  */
-const dueAtExpression = sql`${dataRequest.requestedAt} + make_interval(days => case ${dataRequest.type}::text when 'access' then ${DUE_DAYS.access} when 'correction' then ${DUE_DAYS.correction} when 'export' then ${DUE_DAYS.export} else ${DUE_DAYS.deletion} end)`;
+const dueAtExpression = sql`${dataRequest.requestedAt} + make_interval(days => (case ${dataRequest.type}::text when 'access' then ${DUE_DAYS.access} when 'correction' then ${DUE_DAYS.correction} when 'export' then ${DUE_DAYS.export} else ${DUE_DAYS.deletion} end)::integer)`;
 
 /**
  * The data-request repository.
