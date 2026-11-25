@@ -9,8 +9,6 @@ import { catalogues } from '../../../../messages';
 import {
   LAUNCH_NOTICE_VERSION,
   launchNoticeHistory,
-  PUBLISHED_PRIVACY_CONTACT,
-  privacyContactHref,
   selectNotice,
   type NoticeVersion,
 } from './notice';
@@ -49,9 +47,11 @@ describe('launchNoticeHistory', () => {
     expect(history.current.summary).not.toBe(copy.summary);
   });
 
-  it('publishes a contact route with an address and no personal data', () => {
-    expect(privacyContactHref()).toBe(`mailto:${PUBLISHED_PRIVACY_CONTACT}`);
-    expect(PUBLISHED_PRIVACY_CONTACT).toContain('@');
+  it('places the contact route in the notice copy it publishes', () => {
+    // The notice links to the Contact screen rather than collecting a second request by mail
+    // (`screens/23-privacy-notice.md`, Edge Cases); the screen's own test asserts the address.
+    expect(copy.contactLink.length).toBeGreaterThan(0);
+    expect(copy.contactBody.length).toBeGreaterThan(0);
   });
 });
 

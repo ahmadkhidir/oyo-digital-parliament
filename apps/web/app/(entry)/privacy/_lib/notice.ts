@@ -11,6 +11,10 @@
  * The processors entry names the model provider and the processing region as the processing
  * agreement names them; `NFR-045` requires the notice to say both before inference is enabled, and
  * the contract's own example carries the same placeholders.
+ *
+ * The notice routes a privacy question to the Contact screen rather than collecting a second
+ * request by mail (`screens/23-privacy-notice.md`, Edge Cases); the published mailbox that screen
+ * falls back to lives in `apps/web/app/(record)/contact/_lib/channel.ts`.
  */
 import type { LaunchLocale, Messages } from '../../../../messages';
 import { getMessages } from '../../../../messages';
@@ -45,20 +49,8 @@ export const LAUNCH_NOTICE_VERSION = '2026-11-01';
 const LAUNCH_EFFECTIVE_AT = '2026-11-01T00:00:00Z';
 
 /**
- * The published privacy contact.
- *
- * The screen files name a published contact address for privacy questions but the specification
- * does not fix its value. It is held here, in one place, so the coordinator can settle the address
- * without touching copy or markup; the gap is reported as issue #135.
+ * Builds the launch history from one locale's catalogue.
  */
-export const PUBLISHED_PRIVACY_CONTACT = 'privacy@oyodigitalparliament.ng';
-
-/** The mailto route the contact link opens. */
-export function privacyContactHref(): string {
-  return `mailto:${PUBLISHED_PRIVACY_CONTACT}`;
-}
-
-/** Builds the launch history from one locale's catalogue. */
 export function launchNoticeHistory(locale: LaunchLocale): NoticeHistory {
   const copy: Messages['privacy'] = getMessages(locale).privacy;
   return {

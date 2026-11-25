@@ -88,6 +88,9 @@ const LOCAL_EXAMPLES = {
   MODEL_VERSION_WARD_CANDIDATE: 'odp-local-ward-1',
   MODEL_VERSION_MODERATION_ROUTING: 'odp-local-route-1',
   MODEL_VERSION_BUDGET_LINE_EXTRACTION: 'odp-local-budget-1',
+  // The published form the Contact screen opens. A disposable address: a real deployment publishes
+  // its own, and the screen states its fallback when none is set.
+  CONTACT_FORM_URL: 'https://contact-form.example.test/odp-contact',
 };
 
 /** The application variables, keyed by name, for the entries this module orders. */
@@ -203,6 +206,7 @@ export const VARIABLES = [
 
   ...appGroup('sms'),
   ...appGroup('model'),
+  ...appGroup('contact'),
   ...appGroup('flags'),
   ...appGroup('worker'),
 ];

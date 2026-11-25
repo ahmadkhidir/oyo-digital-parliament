@@ -481,13 +481,42 @@ export const enNG = {
     ],
     contactHeading: 'Contact',
     contactBody:
-      'Write to the privacy contact for any question about this notice, or about the data we hold about you. We answer within two working days.',
-    contactLink: 'Write to the privacy contact',
+      'Ask us about this notice, or about the data we hold about you, on the contact screen. We answer within two working days.',
+    contactLink: 'Contact us about this notice',
     backToRecord: 'Back to the record home',
     errorHeading: 'This notice could not be loaded',
     errorBody:
-      'The rest of the record is unaffected. Write to the privacy contact and we will send you the notice.',
+      'The rest of the record is unaffected. Open the contact screen and we will send you the notice.',
     unknownVersion: 'That version of the notice has never been published.',
+  },
+  contact: {
+    title: 'Contact',
+    heading: 'Contact the campaign',
+    intro:
+      'Ask a question, point out something wrong on the record, or ask for a right to be applied. This page is the campaign\u2019s published route, and it is read by the people who answer on the record.',
+    channelHeading: 'The published contact form',
+    channelBody:
+      'The form is outside this record. It asks only for what the campaign needs to answer you.',
+    channelLabel: 'Open the contact form',
+    channelNewTab: 'The form opens in a new tab.',
+    responseTime: 'The first answer comes within two working days.',
+    cautionHeading: 'What not to send',
+    caution:
+      'Do not include the text of a submission, a telephone number or a description of your ward unless the question needs it. A question about something you raised is answered faster from the submission itself or from My Record.',
+    rightsHeading: 'Ask for a right',
+    privacyRights: 'Read the privacy notice',
+    privacyRightsNote: 'What is public, what is held, how long we keep it, and who processes it.',
+    myRecordRights: 'Go to My Record',
+    myRecordRightsNote: 'See, correct, export or delete what is held about you.',
+    signedOutRightsNote:
+      'Access, correction, export and deletion are exercised on My Record, once you are signed in.',
+    disclosure:
+      'Oyo Digital Parliament is a campaign instrument, not a government body. This page reaches the campaign that runs the record.',
+    errorHeading: 'The contact form is not available from here',
+    errorBody:
+      'The published form could not be reached. Write to the privacy mailbox instead: it is read by the same people, and the first answer still comes within two working days.',
+    mailboxLabel: 'Write to the privacy mailbox',
+    backToRecord: 'Back to the record home',
   },
   staff: {
     signIn: {

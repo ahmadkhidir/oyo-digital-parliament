@@ -2,8 +2,8 @@
  * Record Footer - `docs/OyoDigitalParliament/screens.md`, Component Library: Footer.
  *
  * The record's colophon. It carries the campaign disclosure, the record links, the privacy
- * notice, the published contact address, the data-rights link and the language switch, and it
- * stays the same on every screen so the record closes in the same voice everywhere.
+ * notice, the contact route, the data-rights link and the language switch, and it stays the same
+ * on every screen so the record closes in the same voice everywhere.
  *
  * Composition: the disclosure leads on the left as the statement of what the product is, the
  * record links sit under it as the register's contents, and the language switch closes the block
@@ -54,7 +54,7 @@ export interface RecordFooterProps {
   /** The record links: commitment register, ledger, ward report, report card, sessions, My Record. */
   recordLinks: readonly FooterLink[];
   privacy: FooterLink;
-  /** The published contact address; it leaves the record, so the caller may mark it in its label. */
+  /** The Contact screen's address: the one published route to ask a question or exercise a right. */
   contact: FooterLink;
   /** My Record, for consent and data requests. */
   dataRights: FooterLink;
