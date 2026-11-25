@@ -47,12 +47,18 @@ export function privacyMailboxHref(): string {
  * is treated as no channel at all: the screen renders its fallback state rather than a link the
  * browser cannot follow. Nothing here logs or echoes the value.
  *
- * @param raw - The deployment value. Defaults to the environment read; a test passes one directly.
+ * Only an omitted argument reads the deployment value. A value handed in is used as given, even
+ * `undefined`: it says "no channel", and it must not be silently replaced by whatever the
+ * environment happens to hold (a default parameter would do exactly that, which is why this takes
+ * a rest tuple - the arity is the distinction).
+ *
+ * @param supplied - Nothing, to read the deployment value; or one value to judge as it stands.
  * @returns The channel to render.
  */
-export function readContactChannel(
-  raw: unknown = Reflect.get(globalThis.process.env, 'CONTACT_FORM_URL'),
-): ContactChannel {
+export function readContactChannel(...supplied: [] | [unknown]): ContactChannel {
+  const raw =
+    supplied.length === 0 ? Reflect.get(globalThis.process.env, 'CONTACT_FORM_URL') : supplied[0];
+
   if (typeof raw !== 'string') return { kind: 'unavailable' };
 
   const value = raw.trim();

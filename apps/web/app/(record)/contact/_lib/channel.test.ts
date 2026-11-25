@@ -28,6 +28,9 @@ describe('readContactChannel (screens/27-contact.md)', () => {
   });
 
   it('treats an unset or empty deployment value as no channel', () => {
+    // Every value here is handed in, including `undefined`: a supplied value states "no channel"
+    // and is never replaced by the deployment value. Only an omitted argument reads the
+    // environment, so the outcome does not change when `CONTACT_FORM_URL` is set (as CI sets it).
     for (const raw of [undefined, null, '', '   ', 42, true]) {
       expect(readContactChannel(raw)).toEqual({ kind: 'unavailable' });
     }
