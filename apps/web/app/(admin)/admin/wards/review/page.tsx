@@ -6,6 +6,10 @@
  * Resolving records the ward and moves the member and their unresolved submissions; rejecting records
  * the reason and leaves the member where they were; the residence review is the only route from
  * Registered to Checked. The screen's rows carry the resident's own words, never a name or a number.
+ *
+ * A refusal left by the action is stated on the page as well as held in the flow cookie, so a reviewer
+ * who comes back to the queue is told why the last attempt changed nothing. The resolved notice carries
+ * both its sentence and the moved count.
  */
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -19,10 +23,7 @@ import { getStaffAdminDependencies } from '../../../../../lib/staff-session/deps
 import { readWardReviewPorts } from '../../../../../lib/staff-session/deps';
 import { readStaffAccess } from '../../../../../lib/staff-session/session';
 import { readStaffFlow } from '../../../../../lib/staff-session/cookies';
-import {
-  recordResidenceReviewAction,
-  resolveWardDescriptionAction,
-} from './actions';
+import { recordResidenceReviewAction, resolveWardDescriptionAction } from './actions';
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await resolveLocale();
@@ -39,14 +40,46 @@ function noticeOf(
   copy: ReturnType<typeof getMessages>['staff']['wards'],
 ): string | null {
   if (flow?.notice === 'WARD_RESOLVED') {
-    return copy.moved
+    const moved = copy.moved
       .replace('{moved}', String(flow.moved ?? 0))
       .replace('{unchanged}', String(flow.unchanged ?? 0));
+    return `${copy.resolved} ${moved}`;
   }
   if (flow?.notice === 'WARD_REJECTED') return copy.rejected;
   if (flow?.notice === 'RESIDENCE_CHECKED') return copy.checked;
   if (flow?.notice === 'RESIDENCE_REJECTED') return copy.residenceRejected;
   return null;
+}
+
+/** The refusal sentence for one cause the action may leave behind. */
+function failureOf(
+  flow: Awaited<ReturnType<typeof readStaffFlow>>,
+  copy: ReturnType<typeof getMessages>['staff']['wards'],
+): string | null {
+  switch (flow?.cause) {
+    case 'WARD_RESOLUTION_INVALID':
+      return copy.descriptionInvalid;
+    case 'WARD_REVIEW_NOT_FOUND':
+      return copy.reviewMissing;
+    case 'WARD_DESCRIPTION_ALREADY_RESOLVED':
+      return copy.alreadyResolved;
+    case 'MEMBER_ACCOUNT_DELETED':
+      return copy.memberDeleted;
+    case 'WARD_NOT_FOUND':
+      return copy.wardMissing;
+    case 'MEMBER_NOT_FOUND':
+      return copy.memberMissing;
+    case 'RESIDENCE_REVIEW_INVALID':
+      return copy.residenceInvalid;
+    case 'WARD_UNRESOLVED':
+      return copy.wardUnresolved;
+    case 'WARD_REVIEWER_REQUIRED':
+      return copy.reviewerRequired;
+    case undefined:
+      return null;
+    default:
+      return copy.actionFailed;
+  }
 }
 
 export default async function WardReviewPage({ searchParams }: WardReviewPageProps) {
@@ -98,6 +131,7 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
   });
   const flow = await readStaffFlow();
   const notice = noticeOf(flow, copy);
+  const failure = failureOf(flow, copy);
 
   if (!queue.ok) {
     return (
@@ -125,12 +159,19 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
     <div className="flex flex-col gap-xl">
       <div className="flex flex-wrap items-baseline justify-between gap-sm">
         <h1 className="font-display text-display text-text-primary">{copy.heading}</h1>
-        <p className="text-small text-text-secondary">{copy.count.replace('{count}', String(queue.queuedCount))}</p>
+        <p className="text-small text-text-secondary">
+          {copy.count.replace('{count}', String(queue.queuedCount))}
+        </p>
       </div>
 
       {notice === null ? null : (
         <Notice role="status" tone="success">
           {notice}
+        </Notice>
+      )}
+      {failure === null ? null : (
+        <Notice role="alert" tone="error">
+          {failure}
         </Notice>
       )}
       <OfflineNote message={copy.errorBody} />
@@ -178,7 +219,9 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
               <dl className="mt-md grid grid-cols-2 gap-sm text-small">
                 <div>
                   <dt className="text-text-secondary">{copy.areaHeading}</dt>
-                  <dd className="text-text-primary">{selected.review.localGovernmentArea ?? '—'}</dd>
+                  <dd className="text-text-primary">
+                    {selected.review.localGovernmentArea ?? '—'}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-text-secondary">{copy.identityLabel}</dt>
@@ -194,7 +237,9 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
                 </div>
               </dl>
 
-              <h3 className="mt-lg text-body-strong text-text-primary">{copy.submissionsHeading}</h3>
+              <h3 className="mt-lg text-body-strong text-text-primary">
+                {copy.submissionsHeading}
+              </h3>
               {selected.submissionReferences.length === 0 ? (
                 <p className="text-small text-text-secondary">{copy.noSubmissions}</p>
               ) : (
@@ -213,7 +258,10 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
                 </Notice>
               ) : (
                 <>
-                  <form action={resolveWardDescriptionAction} className="mt-lg flex flex-col gap-sm">
+                  <form
+                    action={resolveWardDescriptionAction}
+                    className="mt-lg flex flex-col gap-sm"
+                  >
                     <input type="hidden" name="reviewId" value={selected.review.id} />
                     <input type="hidden" name="decision" value="resolved" />
                     <label htmlFor="candidate-ward" className="text-small text-text-primary">
@@ -267,7 +315,10 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
               </form>
 
               {member === null || deleted ? null : (
-                <form action={recordResidenceReviewAction} className="mt-xl flex flex-col gap-sm border-t border-border pt-lg">
+                <form
+                  action={recordResidenceReviewAction}
+                  className="mt-xl flex flex-col gap-sm border-t border-border pt-lg"
+                >
                   <h3 className="text-body-strong text-text-primary">{copy.residenceHeading}</h3>
                   <input type="hidden" name="memberId" value={member.id} />
                   <label htmlFor="residence-method" className="text-small text-text-primary">
@@ -280,7 +331,9 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
                     className="min-h-button rounded-sm border border-border bg-surface px-sm text-body text-text-primary"
                   >
                     <option value="ward_confirmation">{copy.methods.ward_confirmation}</option>
-                    <option value="organiser_attestation">{copy.methods.organiser_attestation}</option>
+                    <option value="organiser_attestation">
+                      {copy.methods.organiser_attestation}
+                    </option>
                     <option value="document">{copy.methods.document}</option>
                   </select>
                   <fieldset className="flex flex-col gap-xs border-0 p-0">

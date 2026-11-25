@@ -322,7 +322,7 @@ export const enNG = {
       withdrawn: 'Withdrawn',
       notAnswered: 'Not answered yet',
       recordedOn: 'Recorded {date}',
-      withdrawnOn: 'Withdrawn {date}',
+      withdrawnOn: 'On {date}',
       toggleLabel: 'Allow {purpose}',
       save: 'Save consent',
       saving: 'Saving consent',
@@ -685,6 +685,22 @@ export const enNG = {
         'The residence is checked. The member now appears as Checked on their submissions and backings.',
       residenceRejected: 'The residence review was rejected. The member remains Registered.',
       moved: '{moved} submission(s) moved; {unchanged} already carried a ward.',
+      descriptionInvalid:
+        'The description was not recorded. Choose a candidate ward to resolve it, or give a reason to reject it.',
+      reviewMissing:
+        'This description is no longer in the queue. Another reviewer may have already handled it.',
+      alreadyResolved:
+        'This description was already resolved. Reload the queue to see the current case.',
+      wardMissing: 'The ward you chose could not be found. Choose another ward and try again.',
+      memberMissing:
+        'The member behind this description could not be found, so nothing was recorded.',
+      memberDeleted: 'The account was deleted before this review was recorded, so nothing changed.',
+      residenceInvalid:
+        'The residence review was not recorded. Check the method, the decision and the notes, then try again.',
+      wardUnresolved:
+        'The member’s ward is not recorded yet, so the residence cannot be accepted. Resolve the description first.',
+      reviewerRequired: 'Sign in with a response-staff account to review ward descriptions.',
+      actionFailed: 'The review could not be recorded. Nothing changed; try again.',
       nextCase: 'Next case',
     },
     dataRequests: {

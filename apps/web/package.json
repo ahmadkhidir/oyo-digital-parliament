@@ -10,7 +10,7 @@
     "prebuild": "node scripts/sync-assets.mjs",
     "build": "next build",
     "prestart": "node scripts/sync-assets.mjs",
-    "start": "next start",
+    "start": "node --env-file-if-exists=../../.env .next/standalone/apps/web/server.js",
     "lint": "eslint --max-warnings 0 .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
