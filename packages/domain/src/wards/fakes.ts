@@ -38,6 +38,10 @@ export interface FakeMember {
   wardStatus: WardStatus;
   identityState: IdentityState;
   deletedAt?: string;
+  /** The public name the residence queue shows; `Resident <id>` when a test omits it. */
+  displayName?: string;
+  /** Registration instant; the residence queue's working order (`C-055`). */
+  createdAt?: string;
 }
 
 /** What a test passes in. */
@@ -289,6 +293,52 @@ export function createWardHarness(options: WardHarnessOptions = {}): WardHarness
     residenceReviews: {
       async record(review) {
         residenceReviews.push({ ...review });
+      },
+      async listPending(query) {
+        // A member leaves the list only on acceptance: an anonymised account cannot be checked
+        // (`C-057`), and an unresolved ward is still a description case (`C-055`).
+        const pending = members
+          .filter(
+            (member) =>
+              member.wardStatus === 'resolved' &&
+              member.identityState === 'registered' &&
+              member.wardId !== undefined &&
+              member.deletedAt === undefined,
+          )
+          .sort((left, right) => {
+            const byDate = (left.createdAt ?? FAKE_NOW).localeCompare(right.createdAt ?? FAKE_NOW);
+            return byDate !== 0 ? byDate : left.id.localeCompare(right.id);
+          });
+        const offset = parseCursor(query.cursor);
+        const page = pending.slice(offset, offset + query.limit);
+        const residences = page.flatMap((member) => {
+          const wardId = member.wardId;
+          if (wardId === undefined) return [];
+          const wardName = wards.find((ward) => ward.id === wardId)?.name ?? '';
+          return [
+            {
+              memberId: member.id,
+              displayName: member.displayName ?? `Resident ${member.id}`,
+              wardId,
+              wardName,
+              registeredAt: member.createdAt ?? FAKE_NOW,
+            },
+          ];
+        });
+        const nextOffset = offset + page.length;
+        return {
+          residences,
+          nextCursor: nextOffset < pending.length ? formatCursor(nextOffset) : null,
+        };
+      },
+      async countPending() {
+        return members.filter(
+          (member) =>
+            member.wardStatus === 'resolved' &&
+            member.identityState === 'registered' &&
+            member.wardId !== undefined &&
+            member.deletedAt === undefined,
+        ).length;
       },
     },
 

@@ -23,6 +23,10 @@ export type IdentityState = (typeof IDENTITY_STATES)[number];
 export const WARD_DESCRIPTION_REVIEW_STATUSES = ['queued', 'resolved', 'rejected'] as const;
 export type WardDescriptionReviewStatus = (typeof WARD_DESCRIPTION_REVIEW_STATUSES)[number];
 
+/** The queue's two work types on one route (`C-055`, screen 19). */
+export const WARD_REVIEW_WORKS = ['descriptions', 'residences'] as const;
+export type WardReviewWork = (typeof WARD_REVIEW_WORKS)[number];
+
 /** `ResidenceReview.method`. */
 export const RESIDENCE_REVIEW_METHODS = [
   'ward_confirmation',
@@ -191,6 +195,22 @@ export interface QueuedWardDescriptionReview {
   } | null;
   /** References of the member's submissions that still carry no ward. */
   readonly submissionReferences: readonly string[];
+}
+
+/**
+ * One member awaiting a residence review (`C-055` residences answer, `FEAT-001`).
+ *
+ * The projection is deliberately narrow: the display name the platform publishes, the confirmed
+ * ward and the date registration was accepted. It never carries a real name, a telephone number, a
+ * declared age or the resident's description (`packages/domain/AGENTS.md` Discipline).
+ */
+export interface PendingWardResidence {
+  readonly memberId: string;
+  readonly displayName: string;
+  readonly wardId: string;
+  readonly wardName: string;
+  /** `Member.createdAt`; the list's working order (`C-055`). */
+  readonly registeredAt: string;
 }
 
 /** A ward as the reviewer's picker shows it: the fields resolution needs and no others. */

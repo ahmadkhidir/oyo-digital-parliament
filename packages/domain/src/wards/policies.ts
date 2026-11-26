@@ -16,6 +16,7 @@ import type {
   WardCandidate,
   WardDescriptionReviewStatus,
   WardFieldReason,
+  WardReviewWork,
   WardStatus,
 } from './entities.ts';
 
@@ -288,6 +289,11 @@ export function isWardDescriptionReviewStatus(
   value: unknown,
 ): value is WardDescriptionReviewStatus {
   return value === 'queued' || value === 'resolved' || value === 'rejected';
+}
+
+/** Whether a value names one of the queue's two work types (`C-055`). */
+export function isWardReviewWork(value: unknown): value is WardReviewWork {
+  return value === 'descriptions' || value === 'residences';
 }
 
 /** A validation result for one string field. */

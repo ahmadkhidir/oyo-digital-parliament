@@ -17,6 +17,7 @@ import type { IdentifierPort } from '../ports/identifiers.ts';
 import type {
   IdentityState,
   LocationScope,
+  PendingWardResidence,
   QueuedWardDescriptionReview,
   ResidenceReview,
   ResidenceReviewDecision,
@@ -173,9 +174,28 @@ export interface WardBackingPort {
   countByMember(memberId: string): Promise<number>;
 }
 
-/** The residence review record (`C-057`). */
+/** One page of the residence queue (`C-055` residences answer). */
+export interface WardResidenceQueueQuery {
+  readonly cursor?: string;
+  readonly limit: number;
+}
+
+/** The residence review record and the members awaiting one (`C-055`, `C-057`). */
 export interface ResidenceReviewPort {
   record(review: ResidenceReview): Promise<void>;
+
+  /**
+   * Reads one page of members whose ward is resolved and whose residence is not yet accepted,
+   * oldest registration first (`C-055`). Never a member register by ward: the queue is ordered by
+   * registration date across the state, not grouped by the ward a member lives in.
+   */
+  listPending(query: WardResidenceQueueQuery): Promise<{
+    readonly residences: readonly PendingWardResidence[];
+    readonly nextCursor: string | null;
+  }>;
+
+  /** How many residences are waiting; the Residences tab's count (`C-055`). */
+  countPending(): Promise<number>;
 }
 
 /** One analytics event the ward actions emit, named and shaped as `analytics.md` declares. */
