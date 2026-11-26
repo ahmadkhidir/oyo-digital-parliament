@@ -1,11 +1,13 @@
 /**
- * `GET /api/admin/ward-reviews` — the ward description review queue (`C-055`, `FEAT-002`).
+ * `GET /api/admin/ward-reviews` — the ward review queue's two work types (`C-055`, `FEAT-001`,
+ * `FEAT-002`, screen 19).
  *
  * Response-staff only. The handler reads the query, resolves the staff session, hands the caller to
- * the domain and prints the `C-001` envelope. It never assigns a ward and never strips the resident's
- * words: the description is the reviewer's evidence.
+ * the domain and prints the `C-001` envelope. It never assigns a ward, never changes an identity
+ * state and never strips the resident's words: the description is the reviewer's evidence.
  */
 import type { NextRequest } from 'next/server';
+import { createWardResidenceReviewRepository } from '@odp/db';
 import { identityFailure, readWardReviewQueue, toIsoSeconds, type WardCaller } from '@odp/domain';
 import { rateLimited } from '../../../../lib/http/rate-limit';
 import { readCorrelationId } from '../../../../lib/logging';
@@ -84,6 +86,19 @@ async function handleGet(request: NextRequest): Promise<Response> {
   }
 
   const url = request.nextUrl;
+  const work = url.searchParams.get('work') ?? 'descriptions';
+  if (work !== 'descriptions' && work !== 'residences') {
+    return jsonQueueAnswer(
+      queueValidationAnswer(
+        correlationId,
+        'WARD_REVIEW_QUERY_INVALID',
+        'That work type is not one the queue carries.',
+        { work: 'ENUM_MISMATCH' },
+      ),
+      correlationId,
+    );
+  }
+
   const status = url.searchParams.get('status') ?? 'queued';
   if (status !== 'queued' && status !== 'resolved' && status !== 'rejected') {
     return jsonQueueAnswer(
@@ -117,7 +132,12 @@ async function handleGet(request: NextRequest): Promise<Response> {
     role: 'response_staff',
     correlationId,
   };
-  const result = await readWardReviewQueue(caller, readWardReviewPorts(dependencies.database), {
+  const ports = {
+    ...readWardReviewPorts(dependencies.database),
+    residenceReviews: createWardResidenceReviewRepository(dependencies.database.db),
+  };
+  const result = await readWardReviewQueue(caller, ports, {
+    work,
     status,
     ...(url.searchParams.get('localGovernmentArea') === null
       ? {}
@@ -132,12 +152,37 @@ async function handleGet(request: NextRequest): Promise<Response> {
     return jsonQueueAnswer(queueFailureAnswer(result, correlationId), correlationId);
   }
 
+  if (result.work === 'residences') {
+    return jsonQueueAnswer(
+      queueReadAnswer({
+        correlationId,
+        asAt: toIsoSeconds(dependencies.platform.clock.now()),
+        nextCursor: result.nextCursor,
+        data: {
+          work: 'residences',
+          // The list carries the display name and the confirmed ward only: no real name, telephone
+          // number, declared age or ward description leaves the reviewer's surface (`C-055`).
+          residences: result.residences.map((residence) => ({
+            memberId: residence.memberId,
+            displayName: residence.displayName,
+            wardId: residence.wardId,
+            wardName: residence.wardName,
+            registeredAt: residence.registeredAt,
+          })),
+          residenceCount: result.residenceCount,
+        },
+      }),
+      correlationId,
+    );
+  }
+
   return jsonQueueAnswer(
     queueReadAnswer({
       correlationId,
       asAt: toIsoSeconds(dependencies.platform.clock.now()),
       nextCursor: result.nextCursor,
       data: {
+        work: 'descriptions',
         reviews: result.reviews.map((entry) => ({
           id: entry.review.id,
           description: entry.review.description,

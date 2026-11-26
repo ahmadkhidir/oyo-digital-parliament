@@ -31,6 +31,7 @@ import { readWardReviewPorts, wardPortsForRequest } from '../../../../../lib/sta
 import { writeStaffFlow, type StaffFlowCause } from '../../../../../lib/staff-session/cookies';
 
 const QUEUE = '/admin/wards/review';
+const RESIDENCES = `${QUEUE}?work=residences`;
 
 /** Reads one string field from the form. */
 function readField(formData: FormData, name: string): string {
@@ -142,7 +143,7 @@ export async function resolveWardDescriptionAction(
   redirect(QUEUE);
 }
 
-/** Records a residence review for the member behind the selected description. */
+/** Records a residence review for the member whose row was opened on the Residences work type. */
 export async function recordResidenceReviewAction(formData: FormData): Promise<void>;
 export async function recordResidenceReviewAction(
   formData: FormData,
@@ -155,7 +156,7 @@ export async function recordResidenceReviewAction(
   const reviewer = await reviewerCaller(request.correlation.correlationId);
   if (reviewer === null) {
     await writeStaffFlow({ cause: 'WARD_REVIEWER_REQUIRED' });
-    redirect(QUEUE);
+    redirect(RESIDENCES);
   }
 
   const dependencies = await getStaffAdminDependencies();
@@ -183,11 +184,11 @@ export async function recordResidenceReviewAction(
   const result = await recordResidenceReview(reviewer, wardPorts, input);
   if (!result.ok) {
     await writeStaffFlow({ cause: wardCause(result) });
-    redirect(QUEUE);
+    redirect(RESIDENCES);
   }
 
   await writeStaffFlow({
     notice: result.member.identityState === 'checked' ? 'RESIDENCE_CHECKED' : 'RESIDENCE_REJECTED',
   });
-  redirect(QUEUE);
+  redirect(RESIDENCES);
 }
