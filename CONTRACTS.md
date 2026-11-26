@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.6.3
+**Contract version:** 1.6.4
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -33,6 +33,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.6.1 | Aligns `C-092`'s staff sign-in surfaces with the screen specification. The password step is `/staff/sign-in`, and second-factor verification and enrolment are both `/staff/2fa`, replacing the three `/admin/*` paths and every `nextScreen` and `recoveryPath` they printed. |
 | 1.6.2 | Gives the rate-limit triple a form a server action can carry. An HTTP response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a server action, which has no response-header channel, carries the same triple as `meta.rateLimit` in its action envelope, with `resetAt` in RFC 3339 form. |
 | 1.6.3 | Corrects `1.6.2` for actions that answer by redirect. Such an action has no body, so it carries no envelope and no rate-limit triple; only an action that returns an answer carries `meta.rateLimit`. |
+| 1.6.4 | Gives the ward review queue its second work type. `C-055` takes a `work` value of `descriptions` (the unchanged unresolved-description list) or `residences`, which lists members whose ward is resolved and whose residence is not yet accepted, oldest registration first. |
 
 ## Contract Index
 
@@ -2612,19 +2613,29 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Surface:** Route handler `GET /api/admin/ward-reviews`
 
-**Spec anchors:** FEAT-002, `screens/19-ward-review-queue.md`
+**Spec anchors:** FEAT-001, FEAT-002, `screens/19-ward-review-queue.md`
 
-**Authority:** Reads unresolved descriptions, oldest first, with the resident's own words and the selected local government area. Never assigns a ward.
+**Authority:** Reads one of the queue's two work types. `descriptions` returns unresolved descriptions, oldest first, with the resident's own words and the selected local government area. `residences` returns members whose ward is resolved and whose residence is not yet accepted, oldest registration first. It never assigns a ward and never changes an identity state.
 
 **Request:**
 ```json
-{ "query": { "status": "queued", "localGovernmentArea": null, "cursor": null, "limit": 20 } }
+{
+  "query": {
+    "work": "descriptions",
+    "status": "queued",
+    "localGovernmentArea": null,
+    "cursor": null,
+    "limit": 20
+  }
+}
 ```
+`work` is `descriptions` (the default when omitted) or `residences`.
 
-**Response 200:**
+**Response 200 (descriptions):**
 ```json
 {
   "data": {
+    "work": "descriptions",
     "reviews": [
       {
         "id": "wdr_01J9Z7A3B5C7D9E1F3G5H7J9KM",
@@ -2645,9 +2656,31 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 }
 ```
 
+**Response 200 (residences):**
+```json
+{
+  "data": {
+    "work": "residences",
+    "residences": [
+      {
+        "memberId": "mbr_01J9Z6Q7D2V4B8N0M3X5C1Z9KA",
+        "displayName": "Seun A.",
+        "wardId": "wrd_01J9Z5A1B2C3D4E5F6G7H8J9KM",
+        "wardName": "Ward IV, Agbowo",
+        "registeredAt": "2026-11-18T09:16:00Z"
+      }
+    ],
+    "residenceCount": 12
+  },
+  "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-19T09:00:00Z", "degraded": false },
+  "page": { "nextCursor": null, "hasMore": false }
+}
+```
+A residence list carries the member's display name and ward only. It never carries a real name, a telephone number, a declared age or a ward description. A member whose residence review was refused stays on the list and in `registered`, because a refused review is not an acceptance.
+
 `candidateWards` is the picker the reviewer resolves this page from: every ward of the local government areas represented on the returned page, plus every ward of the supplied `localGovernmentArea` filter when one is set. It is never the whole state's list, and it is ordered by local government area and then by name, so two wards sharing a name are always read with their area. It is empty when the page carries no review and no filter is set.
 
-**Errors:** `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful queue and its `asAt`. A review whose member account has since been deleted is returned with `memberDeleted:true` and can only be closed, not resolved.
+**Errors:** `VALIDATION_FAILED` for an unknown `work` value. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful queue and its `asAt`. A review whose member account has since been deleted is returned with `memberDeleted:true` and can only be closed, not resolved.
 
 ---
 
