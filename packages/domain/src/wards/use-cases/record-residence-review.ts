@@ -3,8 +3,9 @@
  *
  * The review is the only route from `registered` to `checked`. An acceptance records the review and
  * moves the member's identity state; a rejection records the review, leaves the member registered
- * and leaves the reason on the record for the next attempt. Neither outcome touches the ward: that is
- * `C-011` and `C-056`, and mixing the two would let a review silently relocate someone.
+ * and leaves the reason on the record for the next attempt. A refusal therefore cannot be recorded
+ * without its reason, and an acceptance needs none (`C-057`). Neither outcome touches the ward: that
+ * is `C-011` and `C-056`, and mixing the two would let a review silently relocate someone.
  */
 import {
   RESIDENCE_REVIEW_DECISIONS,
@@ -30,6 +31,7 @@ export interface RecordResidenceReviewInput {
   readonly memberId: string;
   readonly method: ResidenceReviewMethod;
   readonly decision: ResidenceReviewDecision;
+  /** The reviewer's note; required on a rejection, optional on an acceptance (`C-057`). */
   readonly notes?: string;
 }
 
@@ -81,18 +83,14 @@ export async function recordResidenceReview(
   if (!(RESIDENCE_REVIEW_DECISIONS as readonly unknown[]).includes(input.decision)) {
     fields['decision'] = input.decision === undefined ? 'REQUIRED' : 'ENUM_MISMATCH';
   }
-  const notes = readResidenceNotes(input.notes);
-  if (!notes.ok) Object.assign(fields, notes.fields);
-  if (Object.keys(fields).length > 0) {
+  const notes = readResidenceNotes(input.notes, input.decision);
+  if (!notes.ok || Object.keys(fields).length > 0) {
     return wardFailure(
       'VALIDATION_FAILED',
       'RESIDENCE_REVIEW_INVALID',
-      'A residence review needs a method and a decision, and a note no longer than the field allows.',
-      fields,
+      'A residence review needs a method and a decision, a stated reason when the residence is refused, and no note longer than the field allows.',
+      { ...fields, ...(notes.ok ? {} : notes.fields) },
     );
-  }
-  if (!notes.ok) {
-    return wardFailure('VALIDATION_FAILED', 'RESIDENCE_REVIEW_INVALID', 'The review is invalid.');
   }
 
   let member: Awaited<ReturnType<WardPorts['members']['get']>>;

@@ -5,11 +5,12 @@
  * A refusal left by the action is read from the flow cookie and stated on the page, so a reviewer
  * who comes back knows why the last attempt changed nothing. The resolved notice carries both its
  * sentence and the moved count. Residences render beside Descriptions on the same route, with the
- * display name and confirmed ward rather than a real name or a number. The queue read and the action
+ * display name and confirmed ward rather than a real name or a number; a rejection marks its reason
+ * as required and keeps whatever was typed when the decision changes. The queue read and the action
  * module are stubbed: this suite proves what the screen states, not how the record is written.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { catalogues } from '../../../../../messages';
 
 interface DescriptionQueueStub {
@@ -259,6 +260,29 @@ describe('WardReviewPage (screens/19-ward-review-queue.md)', () => {
     await renderPage({ work: 'residences' });
 
     expect(screen.getByText(copy.residenceRejected)).toBeInTheDocument();
+  });
+
+  it('marks the refusal reason as required on a rejection and keeps the typed reason', async () => {
+    holder.queue = residenceQueue;
+
+    await renderPage({ work: 'residences' });
+
+    const notes = screen.getByLabelText(copy.notes);
+    expect(notes).not.toBeRequired();
+
+    fireEvent.click(screen.getByRole('radio', { name: copy.refuse }));
+
+    const reason = screen.getByLabelText(copy.refusalReason);
+    expect(reason).toBeRequired();
+    expect(screen.getByText(copy.refusalReasonHint)).toBeInTheDocument();
+
+    fireEvent.change(reason, { target: { value: 'No document shows the street address.' } });
+    fireEvent.click(screen.getByRole('radio', { name: copy.accept }));
+
+    const kept = screen.getByLabelText(copy.notes);
+    expect(kept).not.toBeRequired();
+    expect(kept).toHaveValue('No document shows the street address.');
+    expect(screen.getByText(copy.notesHint)).toBeInTheDocument();
   });
 
   it('states that no residence is waiting, with the dates the list covers', async () => {

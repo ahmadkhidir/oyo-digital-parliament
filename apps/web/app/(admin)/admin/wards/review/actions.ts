@@ -179,6 +179,8 @@ export async function recordResidenceReviewAction(
     memberId,
     method,
     decision,
+    // A blank field is sent as no note at all, so a rejection without its stated reason is refused
+    // by the domain against `C-057` rather than slipping through as whitespace.
     ...(notes.trim() === '' ? {} : { notes }),
   };
   const result = await recordResidenceReview(reviewer, wardPorts, input);

@@ -333,18 +333,30 @@ export function readLocalGovernmentArea(raw: unknown): FieldReading {
   return { ok: true, value };
 }
 
-/** Reads the optional reviewer note against its column. */
+/**
+ * Reads the reviewer's note against its column (`C-057`, `screens/19-ward-review-queue.md`).
+ *
+ * A refusal must state what is missing, so the note is required on a rejection and its absence is
+ * refused by naming `notes`; an acceptance may stand on the reviewer's word alone, and a blank note
+ * on one is no note at all. The value is trimmed at the ends only, because the reviewer's own spacing
+ * inside their sentence is theirs.
+ */
 export function readResidenceNotes(
   raw: unknown,
+  decision: ResidenceReviewDecision,
 ):
   | { readonly ok: true; readonly value?: string }
   | { readonly ok: false; readonly fields: Readonly<Record<string, WardFieldReason>> } {
-  if (raw === undefined || raw === null) return { ok: true };
+  if (raw === undefined || raw === null) {
+    return decision === 'rejected' ? { ok: false, fields: { notes: 'REQUIRED' } } : { ok: true };
+  }
   if (typeof raw !== 'string') {
     return { ok: false, fields: { notes: 'PATTERN_MISMATCH' } };
   }
   const value = raw.trim();
-  if (value.length === 0) return { ok: true };
+  if (value.length === 0) {
+    return decision === 'rejected' ? { ok: false, fields: { notes: 'REQUIRED' } } : { ok: true };
+  }
   if (value.length > RESIDENCE_REVIEW_NOTES_MAX_LENGTH) {
     return { ok: false, fields: { notes: 'TOO_LONG' } };
   }
