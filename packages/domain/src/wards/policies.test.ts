@@ -14,6 +14,8 @@ import {
   movesWithWardResolution,
   normaliseWardText,
   readDescription,
+  readResidenceNotes,
+  RESIDENCE_REVIEW_NOTES_MAX_LENGTH,
   WARD_CANDIDATE_LIMIT,
   WARD_DESCRIPTION_MAX_LENGTH,
 } from './policies.ts';
@@ -199,5 +201,42 @@ describe('readDescription', () => {
   it('keeps the resident’s wording, trimming only the ends', () => {
     const read = readDescription('  Behind Agbowo market, near the express  ');
     expect(read).toEqual({ ok: true, value: 'Behind Agbowo market, near the express' });
+  });
+});
+
+describe('readResidenceNotes (C-057)', () => {
+  it('refuses a refusal with no stated reason', () => {
+    expect(readResidenceNotes(undefined, 'rejected')).toEqual({
+      ok: false,
+      fields: { notes: 'REQUIRED' },
+    });
+    expect(readResidenceNotes('   ', 'rejected')).toEqual({
+      ok: false,
+      fields: { notes: 'REQUIRED' },
+    });
+  });
+
+  it('records an acceptance with no note', () => {
+    expect(readResidenceNotes(undefined, 'checked')).toEqual({ ok: true });
+    expect(readResidenceNotes('   ', 'checked')).toEqual({ ok: true });
+  });
+
+  it('keeps the stated reason, trimming only the ends', () => {
+    expect(readResidenceNotes('  No document shows the street address.  ', 'rejected')).toEqual({
+      ok: true,
+      value: 'No document shows the street address.',
+    });
+  });
+
+  it('refuses a note longer than the field, on either decision', () => {
+    const long = 'a'.repeat(RESIDENCE_REVIEW_NOTES_MAX_LENGTH + 1);
+    expect(readResidenceNotes(long, 'rejected')).toEqual({
+      ok: false,
+      fields: { notes: 'TOO_LONG' },
+    });
+    expect(readResidenceNotes(long, 'checked')).toEqual({
+      ok: false,
+      fields: { notes: 'TOO_LONG' },
+    });
   });
 });

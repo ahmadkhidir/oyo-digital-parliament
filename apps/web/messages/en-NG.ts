@@ -686,6 +686,10 @@ export const enNG = {
       accept: 'Accept the residence',
       refuse: 'Reject the residence',
       notes: 'Notes',
+      notesHint: 'Held privately with the review and never published.',
+      refusalReason: 'Refusal reason',
+      refusalReasonHint:
+        'A rejection cannot be recorded without a reason. It is held privately with the review and never published.',
       recordResidence: 'Record residence review',
       recordingResidence: 'Recording the review',
       resolved:
@@ -706,7 +710,7 @@ export const enNG = {
         'The member behind this description could not be found, so nothing was recorded.',
       memberDeleted: 'The account was deleted before this review was recorded, so nothing changed.',
       residenceInvalid:
-        'The residence review was not recorded. Check the method, the decision and the notes, then try again.',
+        'The residence review was not recorded. Check the method and the decision, and give a reason if you rejected the residence.',
       wardUnresolved:
         'The member’s ward is not recorded yet, so the residence cannot be accepted. Resolve the description first.',
       reviewerRequired: 'Sign in with a response-staff account to review ward descriptions.',

@@ -682,6 +682,10 @@ export const yoNG: Messages = {
       accept: 'Gba ibùgbé náà',
       refuse: 'Kọ̀ ibùgbé náà',
       notes: 'Àkọsílẹ̀',
+      notesHint: 'A ń pa á mọ́ pẹ̀lú ìṣàyẹ̀wò náà, a kì í gbé e jáde.',
+      refusalReason: 'Ìdí ìkọ̀',
+      refusalReasonHint:
+        'A kò lè kọ ìkọ̀ láìsí ìdí. A ń pa á mọ́ pẹ̀lú ìṣàyẹ̀wò náà, a kì í gbé e jáde.',
       recordResidence: 'Kọ ìṣàyẹ̀wò ibùgbé',
       recordingResidence: 'Ń kọ ìṣàyẹ̀wò náà',
       resolved: 'A kọ agbègbè náà, aráàlú àti àwọn ìfilọ́lẹ̀ rẹ̀ tí kò tíì ní agbègbè lọ síbẹ̀.',
@@ -699,7 +703,7 @@ export const yoNG: Messages = {
       memberDeleted:
         'A ti pa àkọsílẹ̀ náà rẹ́ kí a tó kọ ìṣàyẹ̀wò yìí, nítorí náà kò sí ohun tó yí padà.',
       residenceInvalid:
-        'A kò kọ ìṣàyẹ̀wò ibùgbé náà. Ṣàyẹ̀wò ọ̀nà, ìpinnu àti àkọsílẹ̀, kí o sì gbìyànjú lẹ́ẹ̀kan sí i.',
+        'A kò kọ ìṣàyẹ̀wò ibùgbé náà. Ṣàyẹ̀wò ọ̀nà àti ìpinnu, kí o sì fún ìdí tí o bá kọ̀ ibùgbé náà.',
       wardUnresolved:
         'A kò tíì kọ agbègbè aráàlú náà, nítorí náà a kò lè gba ìṣàyẹ̀wò ibùgbé. Yanjú àpèjúwe náà kọ́.',
       reviewerRequired: 'Wọlé pẹ̀lú àkọsílẹ̀ òṣìṣẹ́ ìdáhùn láti ṣàyẹ̀wò àwọn àpèjúwe agbègbè.',

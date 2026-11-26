@@ -1,6 +1,7 @@
 /**
- * `C-057` tests: the residence review is the only route from Registered to Checked, and a rejection
- * leaves the member exactly where they were.
+ * `C-057` tests: the residence review is the only route from Registered to Checked, a rejection
+ * leaves the member exactly where they were, and a rejection that states no reason is refused before
+ * anything is written.
  */
 import { describe, expect, it } from 'vitest';
 import { recordResidenceReview } from './record-residence-review.ts';
@@ -65,6 +66,19 @@ describe('recordResidenceReview, accepted', () => {
       },
     ]);
   });
+
+  it('records without a reason, because a note is not required on an acceptance', async () => {
+    const fakes = harness();
+    const result = await recordResidenceReview(reviewer, fakes.ports, {
+      memberId: 'mbr_MEMBER1',
+      method: 'ward_confirmation',
+      decision: 'checked',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fakes.residenceReviews[0]).not.toHaveProperty('notes');
+    expect(fakes.members[0]?.identityState).toBe('checked');
+  });
 });
 
 describe('recordResidenceReview, rejected', () => {
@@ -96,6 +110,38 @@ describe('recordResidenceReview, rejected', () => {
 });
 
 describe('recordResidenceReview refusals', () => {
+  it('refuses a rejection with no stated reason and writes nothing', async () => {
+    const fakes = harness();
+    const missing = await recordResidenceReview(reviewer, fakes.ports, {
+      memberId: 'mbr_MEMBER1',
+      method: 'document',
+      decision: 'rejected',
+    });
+    expect(missing).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      cause: 'RESIDENCE_REVIEW_INVALID',
+      fields: { notes: 'REQUIRED' },
+    });
+
+    const blank = await recordResidenceReview(reviewer, fakes.ports, {
+      memberId: 'mbr_MEMBER1',
+      method: 'document',
+      decision: 'rejected',
+      notes: '   ',
+    });
+    expect(blank).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      fields: { notes: 'REQUIRED' },
+    });
+
+    expect(fakes.residenceReviews).toEqual([]);
+    expect(fakes.members[0]?.identityState).toBe('registered');
+    expect(fakes.audit).toEqual([]);
+    expect(fakes.analytics).toEqual([]);
+  });
+
   it('refuses to check a residence whose ward is not recorded', async () => {
     const fakes = harness({
       members: [{ id: 'mbr_MEMBER1', wardStatus: 'unresolved', identityState: 'registered' }],

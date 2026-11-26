@@ -7,7 +7,9 @@
  * unresolved submissions, rejecting records the reason and leaves the member where they were.
  * Residences lists the members whose ward is recorded and whose residence is not yet accepted,
  * oldest registration first; acceptance is the only route from Registered to Checked and removes the
- * member from the list, while a refusal leaves them Registered and on it.
+ * member from the list, while a refusal leaves them Registered and on it. A refusal states what is
+ * missing: its reason is required while the reviewer has chosen to reject the residence (`C-057`),
+ * and an acceptance needs none.
  *
  * The screen's rows carry the resident's own words or their display name and confirmed ward, never a
  * real name, a telephone number or a declared age. Residence rows are expanded in place rather than
@@ -32,6 +34,7 @@ import { readWardReviewPorts } from '../../../../../lib/staff-session/deps';
 import { readStaffAccess } from '../../../../../lib/staff-session/session';
 import { readStaffFlow } from '../../../../../lib/staff-session/cookies';
 import { recordResidenceReviewAction, resolveWardDescriptionAction } from './actions';
+import { ResidenceDecisionFields } from './_residence-decision-fields';
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await resolveLocale();
@@ -429,30 +432,7 @@ export default async function WardReviewPage({ searchParams }: WardReviewPagePro
                         </option>
                         <option value="document">{copy.methods.document}</option>
                       </select>
-                      <fieldset className="flex flex-col gap-xs border-0 p-0">
-                        <legend className="text-small text-text-primary">{copy.decision}</legend>
-                        <label className="flex items-center gap-xs text-small text-text-primary">
-                          <input type="radio" name="decision" value="checked" required />
-                          {copy.accept}
-                        </label>
-                        <label className="flex items-center gap-xs text-small text-text-primary">
-                          <input type="radio" name="decision" value="rejected" />
-                          {copy.refuse}
-                        </label>
-                      </fieldset>
-                      <label
-                        htmlFor={`residence-notes-${residence.memberId}`}
-                        className="text-small text-text-primary"
-                      >
-                        {copy.notes}
-                      </label>
-                      <textarea
-                        id={`residence-notes-${residence.memberId}`}
-                        name="notes"
-                        rows={2}
-                        maxLength={1000}
-                        className="rounded-sm border border-border bg-surface px-sm py-xs text-body text-text-primary"
-                      />
+                      <ResidenceDecisionFields memberId={residence.memberId} copy={copy} />
                       <GuardedSubmit
                         variant="outline"
                         className="w-full"
