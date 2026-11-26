@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.6.4
+**Contract version:** 1.6.5
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -34,6 +34,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.6.2 | Gives the rate-limit triple a form a server action can carry. An HTTP response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a server action, which has no response-header channel, carries the same triple as `meta.rateLimit` in its action envelope, with `resetAt` in RFC 3339 form. |
 | 1.6.3 | Corrects `1.6.2` for actions that answer by redirect. Such an action has no body, so it carries no envelope and no rate-limit triple; only an action that returns an answer carries `meta.rateLimit`. |
 | 1.6.4 | Gives the ward review queue its second work type. `C-055` takes a `work` value of `descriptions` (the unchanged unresolved-description list) or `residences`, which lists members whose ward is resolved and whose residence is not yet accepted, oldest registration first. |
+| 1.6.5 | Requires the reason on a refused residence review. `C-057` makes `notes` required when the decision is a rejection, matching the screen's rule that a refusal cannot be recorded without a stated reason, and leaves it optional on an acceptance. |
 
 ## Contract Index
 
@@ -2746,7 +2747,7 @@ A residence list carries the member's display name and ward only. It never carri
 
 **Spec anchors:** FEAT-001, EVT-005, EVT-047, `screens/19-ward-review-queue.md`
 
-**Authority:** Records a ResidenceReview and, on `decision:"checked"`, moves the member from `registered` to `checked`. A rejection leaves the member `registered` and states what is missing. Never changes the ward.
+**Authority:** Records a ResidenceReview and, on `decision:"checked"`, moves the member from `registered` to `checked`. A rejection leaves the member `registered`, states what is missing, and records its reason in `notes`. Never changes the ward.
 
 **Request:**
 ```json
@@ -2777,9 +2778,9 @@ A residence list carries the member's display name and ward only. It never carri
   "meta": { "correlationId": "req_01J9Z6M2V4", "asAt": "2026-11-19T11:00:00Z" }
 }
 ```
-`backingsUpdated` counts existing Backing rows whose `identityStateAtBacking` the review now makes stale for display; the stored `identityStateAtBacking` on past backings is never rewritten, and only the member's current state changes.
+`notes` is required when `decision` is a rejection and optional on an acceptance; the screen marks the refusal reason as required and keeps it on a failed write. `backingsUpdated` counts existing Backing rows whose `identityStateAtBacking` the review now makes stale for display; the stored `identityStateAtBacking` on past backings is never rewritten, and only the member's current state changes.
 
-**Errors:** `VALIDATION_FAILED` with `fields` for `method` (`REQUIRED`, `ENUM_MISMATCH`), `decision` (`REQUIRED`, `ENUM_MISMATCH`), `notes` (`TOO_LONG` at 1000). `POLICY_VIOLATION` with `cause:"WARD_UNRESOLVED"`; a residence cannot be checked before the ward is recorded. `NOT_FOUND`. `FORBIDDEN_ROLE`.
+**Errors:** `VALIDATION_FAILED` with `fields` for `method` (`REQUIRED`, `ENUM_MISMATCH`), `decision` (`REQUIRED`, `ENUM_MISMATCH`), `notes` (`REQUIRED` for a rejection, `TOO_LONG` at 1000). `POLICY_VIOLATION` with `cause:"WARD_UNRESOLVED"`; a residence cannot be checked before the ward is recorded. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
 ---
 
