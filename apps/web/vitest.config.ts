@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 /**
  * The web area's test configuration. jsdom for the whole suite: the routes' unit and component
@@ -17,5 +17,8 @@ export default defineConfig({
     pool: 'vmThreads',
     setupFiles: ['./test/setup.ts'],
     testTimeout: 30_000,
+    // The browser flows in `e2e/` are Playwright specs, not Vitest tests: they share the `.spec.ts`
+    // suffix the browser runner uses, so the unit runner must not collect them.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 });
