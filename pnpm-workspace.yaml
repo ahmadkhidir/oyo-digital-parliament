@@ -15,7 +15,7 @@ packages:
 catalog:
   # Toolchain (AGENTS.md Stack: TypeScript 5.x strict, Node 24 LTS, Turborepo).
   typescript: 5.9.3
-  turbo: 2.11.12
+  turbo: 2.11.13
   '@types/node': 24.19.2
 
   # Application: one deployable Next.js App Router application (AGENTS.md Stack).
@@ -34,20 +34,20 @@ catalog:
   '@types/pg': 8.23.1
 
   # Redis 7 client for the read cache, sessions and rate-limit counters.
-  redis: 6.3.1
+  redis: 6.4.0
 
   # Staff credential material: Argon2id password hashing behind a domain port (NFR-021). A prebuilt
   # N-API binding, so no toolchain is needed to install it.
   '@node-rs/argon2': 2.2.2
 
   # Tests: Vitest, Testing Library, Playwright, axe (AGENTS.md Stack).
-  vitest: 5.1.0
+  vitest: 5.1.1
   # jsdom 30 and 31 require Node ^24.15; the workspace floor is Node 24.0 (`engines`), so the client
   # test environment is pinned to the newest major that runs on every permitted 24.x release.
   jsdom: 29.1.1
   '@testing-library/react': 16.3.3
   '@testing-library/jest-dom': 7.0.1
-  '@testing-library/user-event': 14.6.12
+  '@testing-library/user-event': 14.6.13
   '@playwright/test': 1.65.1
   '@axe-core/playwright': 4.14.0
 
