@@ -2,7 +2,7 @@
 
 **Status:** Frozen
 
-**Contract version:** 1.6.5
+**Contract version:** 1.7.0
 
 **Applies to:** the single Next.js App Router deployable described in `docs/OyoDigitalParliament/architecture.md`, comprising the public record and the `/admin` console in one application.
 
@@ -35,6 +35,7 @@ Append-only. Each row records what that version changed; an accepted version is 
 | 1.6.3 | Corrects `1.6.2` for actions that answer by redirect. Such an action has no body, so it carries no envelope and no rate-limit triple; only an action that returns an answer carries `meta.rateLimit`. |
 | 1.6.4 | Gives the ward review queue its second work type. `C-055` takes a `work` value of `descriptions` (the unchanged unresolved-description list) or `residences`, which lists members whose ward is resolved and whose residence is not yet accepted, oldest registration first. |
 | 1.6.5 | Requires the reason on a refused residence review. `C-057` makes `notes` required when the decision is a rejection, matching the screen's rule that a refusal cannot be recorded without a stated reason, and leaves it optional on an acceptance. |
+| 1.7.0 | Restructures every entry to the canonical surface-heading shape. Each entry heading now names its invocable surface alone — a route handler method and path, a server action name, an internal RPC boundary, a scheduled job name or `All surfaces` — and the `**Surface:**` label is removed. Prose that label carried beyond the surface itself, such as a schedule, a transport, the worker listener scope or the staff cookie namespace, moves into the entry body or its `**Authority:**`. The bold labels now run `Status`, `Auth`, `Request`, `Response <code>`, `Errors`, `Authority`, `Spec anchors`. No field name, enum value, status code, error code or behaviour changed. |
 
 ## Contract Index
 
@@ -138,17 +139,11 @@ Append-only. Each row records what that version changed; an accepted version is 
 
 ## Domain 1 — Shared Conventions
 
-### C-001: Shared request, response and failure conventions
+### C-001: All surfaces
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Applies to every entry in this document
-
-**Spec anchors:** NFR-020, NFR-025, NFR-026, NFR-027, NFR-028, NFR-040, `architecture.md` Cross-Cutting Concerns
-
-**Authority:** Binds every caller; the conventions themselves are public. The `Auth` column of each later entry narrows who may call it. An entry may narrow these rules; none may contradict them.
 
 **Request:**
 ```json
@@ -287,21 +282,19 @@ A queued write is durable before the response returns. The submitted text is nev
 
 **Errors:** `VALIDATION_FAILED` for a missing `Idempotency-Key` on a state-changing call (`fields: {"Idempotency-Key": "REQUIRED"}`), for a reused key with a different payload (`fields: {"Idempotency-Key": "REUSED_WITH_DIFFERENT_PAYLOAD"}`), and for a supplied `X-Correlation-Id` outside the correlation form (`fields: {"X-Correlation-Id": "PATTERN_MISMATCH"}`), which is refused rather than echoed.
 
+**Authority:** Binds every caller; the conventions themselves are public. The `Auth` column of each later entry narrows who may call it. An entry may narrow these rules; none may contradict them.
+
+**Spec anchors:** NFR-020, NFR-025, NFR-026, NFR-027, NFR-028, NFR-040, `architecture.md` Cross-Cutting Concerns
+
 ---
 
 ## Domain 2 — Public Client Interfaces
 
-### C-002: Registration submission and code dispatch
+### C-002: Action registerResident; POST /api/join/registrations
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Server action `registerResident` on `/join`; transport `POST /api/join/registrations`
-
-**Spec anchors:** FEAT-001, NFR-004, NFR-020, NFR-027, EVT-042, `screens/03-registration-form.md`, `screens/04-number-confirmation.md`
-
-**Authority:** Creates a PendingRegistration and requests a code. Creates no Member, no session and no public record. A telephone number belongs to at most one account, so a number that already belongs to one is refused rather than accepted a second time.
 
 **Request:**
 ```json
@@ -334,19 +327,17 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Errors:** `VALIDATION_FAILED` with `fields` covering `fullName` (`REQUIRED`, `TOO_LONG`), `declaredAge` (`REQUIRED`, `OUT_OF_BAND` for outside 18–35), `telephoneNumber` (`REQUIRED`, `PATTERN_MISMATCH` against `^\+234[0-9]{10}$`), `displayName` (`TOO_LONG`), `locale` (`ENUM_MISMATCH`), and `cause:"ALREADY_REGISTERED"` with `fields:{"telephoneNumber":"ALREADY_SET"}` and `meta.recoveryPath:"/sign-in"` when the number belongs to an account. `RATE_LIMITED` per number and per IP. `SERVICE_DEGRADED` only when both the store and the SMS gateway refuse, in which case nothing is created.
 
+**Authority:** Creates a PendingRegistration and requests a code. Creates no Member, no session and no public record. A telephone number belongs to at most one account, so a number that already belongs to one is refused rather than accepted a second time.
+
+**Spec anchors:** FEAT-001, NFR-004, NFR-020, NFR-027, EVT-042, `screens/03-registration-form.md`, `screens/04-number-confirmation.md`
+
 ---
 
-### C-003: Registration code verification and account creation
+### C-003: Action confirmRegistration
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Server action `confirmRegistration` on `/join/confirm`
-
-**Spec anchors:** FEAT-001, NFR-020, EVT-003, EVT-004, `screens/04-number-confirmation.md`
-
-**Authority:** Accepts a one-time code, marks the PendingRegistration verified and creates the Member in `registered`. Establishes the session. Does not assign a ward. Creates no account when the number has come to belong to an account since the pending registration was made.
 
 **Request:**
 ```json
@@ -376,19 +367,17 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"code":["REQUIRED","PATTERN_MISMATCH"]}`; a well-formed code that does not match answers `cause:"CODE_INCORRECT"` with `attemptsRemaining` on the failure envelope — `2` after the first wrong code and `1` after the second — and `cause:"CODE_EXPIRED"` where the code window has closed. `NOT_FOUND` when the PendingRegistration is unknown or already expired (`cause:"PENDING_REGISTRATION_EXPIRED"`). `CONFLICT_ALREADY_DECIDED` with `cause:"CODE_ALREADY_USED"` when the same code would create a second account, and with `cause:"NUMBER_ALREADY_REGISTERED"` and `meta.recoveryPath:"/sign-in"` when the number has come to belong to an account since the pending registration was made, in which case no account and no session are created. `RATE_LIMITED` after three wrong attempts, with `attemptsRemaining:0`, a short cooldown in `retryAfterSeconds`, and `meta.recoveryPath:"/join/confirm"` so the screen offers a resend.
 
+**Authority:** Accepts a one-time code, marks the PendingRegistration verified and creates the Member in `registered`. Establishes the session. Does not assign a ward. Creates no account when the number has come to belong to an account since the pending registration was made.
+
+**Spec anchors:** FEAT-001, NFR-020, EVT-003, EVT-004, `screens/04-number-confirmation.md`
+
 ---
 
-### C-004: Registration code resend
+### C-004: Action resendRegistrationCode
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Server action `resendRegistrationCode` on `/join/confirm`
-
-**Spec anchors:** FEAT-001, NFR-027, `screens/04-number-confirmation.md`
-
-**Authority:** Issues one new code against the same PendingRegistration. Does not extend `expiresAt` beyond 24 hours from the original creation.
 
 **Request:**
 ```json
@@ -412,19 +401,17 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Errors:** `NOT_FOUND` when the pending record has expired. `RATE_LIMITED` while the resend timer is cooling down or the number cap is reached. `SERVICE_DEGRADED` with `cause:"SMS_CHANNEL_UNAVAILABLE"` and `meta.pendingRegistrationPreserved:true`.
 
+**Authority:** Issues one new code against the same PendingRegistration. Does not extend `expiresAt` beyond 24 hours from the original creation.
+
+**Spec anchors:** FEAT-001, NFR-027, `screens/04-number-confirmation.md`
+
 ---
 
-### C-005: Sign-in code request
+### C-005: Action requestSignInCode
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Server action `requestSignInCode` on `/sign-in`
-
-**Spec anchors:** FEAT-001, NFR-020, NFR-027, EVT-002, `screens/02-sign-in.md`
-
-**Authority:** Starts a sign-in challenge for a number that belongs to a Member. Answers with the challenge and the delivery state, and reveals no account name and no account list, because a number belongs to at most one account.
 
 **Request:**
 ```json
@@ -446,19 +433,17 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"telephoneNumber":["REQUIRED","PATTERN_MISMATCH"]}`. `NOT_FOUND` with `cause:"NO_ACCOUNT_FOR_NUMBER"` and `meta.recoveryPath:"/join"`. `RATE_LIMITED` with `retryAfterSeconds`. `SERVICE_DEGRADED` with `cause:"SMS_CHANNEL_UNAVAILABLE"`.
 
+**Authority:** Starts a sign-in challenge for a number that belongs to a Member. Answers with the challenge and the delivery state, and reveals no account name and no account list, because a number belongs to at most one account.
+
+**Spec anchors:** FEAT-001, NFR-020, NFR-027, EVT-002, `screens/02-sign-in.md`
+
 ---
 
-### C-006: Sign-in code verification and session start
+### C-006: Action completeSignIn
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Server action `completeSignIn` on `/sign-in`
-
-**Spec anchors:** FEAT-001, NFR-020, NFR-026, `screens/02-sign-in.md`
-
-**Authority:** Verifies the code, resolves the account that holds the number, and opens a session.
 
 **Request:**
 ```json
@@ -490,19 +475,17 @@ When the SMS gateway is unavailable the response is still `201`, with `codeDeliv
 
 **Errors:** `VALIDATION_FAILED` with `cause:"CODE_INCORRECT"`; `cause:"CODE_EXPIRED"`. `RATE_LIMITED` after three wrong attempts. `NOT_FOUND` when the challenge is unknown or has expired.
 
+**Authority:** Verifies the code, resolves the account that holds the number, and opens a session.
+
+**Spec anchors:** FEAT-001, NFR-020, NFR-026, `screens/02-sign-in.md`
+
 ---
 
-### C-007: Session read
+### C-007: GET /api/session
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/session`
-
-**Spec anchors:** NFR-026, `screens.md` Record Header, `screens/01-record-home.md`
-
-**Authority:** Reports the caller's state. Signed out is a successful answer, not an error.
 
 **Request:**
 ```json
@@ -541,19 +524,17 @@ A staff session never carries a member object, and an `external_reviewer` sessio
 
 **Errors:** `SERVICE_DEGRADED` when the session store is unreachable; the caller is treated as signed out and no privileged data is returned.
 
+**Authority:** Reports the caller's state. Signed out is a successful answer, not an error.
+
+**Spec anchors:** NFR-026, `screens.md` Record Header, `screens/01-record-home.md`
+
 ---
 
-### C-008: Sign-out
+### C-008: Action signOut
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `signOut`
-
-**Spec anchors:** NFR-026, `screens/13-my-record.md`
-
-**Authority:** Ends the current session only. Does not revoke another device's session.
 
 **Request:** no body. The action takes no argument, signs out the session that carries the cookie, and cannot name another session or a device.
 
@@ -561,19 +542,17 @@ A staff session never carries a member object, and an `external_reviewer` sessio
 
 **Errors:** `UNAUTHENTICATED` when no session exists. `FORBIDDEN_ROLE` when a staff session attempts the member-only endpoint.
 
+**Authority:** Ends the current session only. Does not revoke another device's session.
+
+**Spec anchors:** NFR-026, `screens/13-my-record.md`
+
 ---
 
-### C-009: Ward list read
+### C-009: GET /api/wards
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/wards`
-
-**Spec anchors:** FEAT-002, NFR-002, `screens/05-ward-confirmation.md`, `screens/08-commitment-register.md`
-
-**Authority:** Reads the ward reference only. Does not resolve a member's description.
 
 **Request:**
 ```json
@@ -600,19 +579,17 @@ A staff session never carries a member object, and an `external_reviewer` sessio
 
 **Errors:** `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`; the caller then offers the free-text field alone, which remains sufficient to submit per `FEAT-002`.
 
+**Authority:** Reads the ward reference only. Does not resolve a member's description.
+
+**Spec anchors:** FEAT-002, NFR-002, `screens/05-ward-confirmation.md`, `screens/08-commitment-register.md`
+
 ---
 
-### C-010: Ward candidate suggestion
+### C-010: POST /api/wards/candidates
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `POST /api/wards/candidates`
-
-**Spec anchors:** FEAT-002, NFR-014, NFR-051, EVT-006, EVT-039, EVT-040, EVT-041, `screens/05-ward-confirmation.md`
-
-**Authority:** Suggests up to three candidate wards. Never assigns a ward, never writes to the Ward record, and never blocks the resident.
 
 **Request:**
 ```json
@@ -642,19 +619,17 @@ Every candidate carries `source`, exactly one of `model`, `exact` or `alias`: `m
 
 **Errors:** `VALIDATION_FAILED` with `fields` covering `description` (`REQUIRED`, `TOO_LONG` at 500) and `localGovernmentArea` (`REQUIRED` when two wards share a name). `CAPABILITY_UNAVAILABLE` is never returned to the client; it is absorbed into `capabilityStatus:"fallback"`. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`.
 
+**Authority:** Suggests up to three candidate wards. Never assigns a ward, never writes to the Ward record, and never blocks the resident.
+
+**Spec anchors:** FEAT-002, NFR-014, NFR-051, EVT-006, EVT-039, EVT-040, EVT-041, `screens/05-ward-confirmation.md`
+
 ---
 
-### C-011: Ward confirmation and unresolved queueing
+### C-011: Action confirmWard
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `confirmWard` on `/join/ward`
-
-**Spec anchors:** FEAT-002, EVT-007, EVT-008, `screens/05-ward-confirmation.md`, `screens/13-my-record.md`
-
-**Authority:** Writes `Member.wardId` and `Member.wardStatus` on the caller's own record. When no candidate is accepted, writes a `queued` WardDescriptionReview and leaves a member who has no recorded ward `unresolved`. Never moves an existing submission.
 
 **Request (candidate confirmed):**
 ```json
@@ -696,19 +671,17 @@ The confirmation records the source of the candidate set it issued, in `EVT-007`
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"description":["REQUIRED","TOO_LONG"],"localGovernmentArea":"REQUIRED"}` when the local government area is required to disambiguate two wards with one name. `FORBIDDEN_ROLE` when `memberId` is not the session's member. `NOT_FOUND` when `confirmedWardId` does not exist. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`; the free-text description alone is then accepted and queued.
 
+**Authority:** Writes `Member.wardId` and `Member.wardStatus` on the caller's own record. When no candidate is accepted, writes a `queued` WardDescriptionReview and leaves a member who has no recorded ward `unresolved`. Never moves an existing submission.
+
+**Spec anchors:** FEAT-002, EVT-007, EVT-008, `screens/05-ward-confirmation.md`, `screens/13-my-record.md`
+
 ---
 
-### C-012: Submission draft save
+### C-012: Action saveSubmissionDraft; PUT /api/submission-drafts/{draftId}
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `saveSubmissionDraft` on `/submit`; transport `PUT /api/submission-drafts/{draftId}` for a subsequent save
-
-**Spec anchors:** FEAT-003, EVT-010, `screens/06-submission-form.md`
-
-**Authority:** Holds a private SubmissionDraft. Never publishes, never becomes public, and never appears in search.
 
 **Request:**
 ```json
@@ -745,19 +718,17 @@ The confirmation records the source of the candidate set it issued, in `EVT-007`
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `type` (`ENUM_MISMATCH`), `body` (`TOO_LONG` at 2000), `pillar` (`ENUM_MISMATCH`), `locationText` (`TOO_LONG` at 300), `costBand` (`ENUM_MISMATCH`), `responsibleAuthority` (`TOO_LONG` at 200). `FORBIDDEN_ROLE` when the draft belongs to another member. `NOT_FOUND` when `draftId` is unknown or expired. `WRITE_QUEUED` when the primary store is unavailable.
 
+**Authority:** Holds a private SubmissionDraft. Never publishes, never becomes public, and never appears in search.
+
+**Spec anchors:** FEAT-003, EVT-010, `screens/06-submission-form.md`
+
 ---
 
-### C-013: Submission draft discard
+### C-013: DELETE /api/submission-drafts/{draftId}
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `DELETE /api/submission-drafts/{draftId}`
-
-**Spec anchors:** FEAT-003, `screens/06-submission-form.md`
-
-**Authority:** Discards the caller's own draft. A discarded draft is not recoverable.
 
 **Request:**
 ```json
@@ -768,19 +739,17 @@ The confirmation records the source of the candidate set it issued, in `EVT-007`
 
 **Errors:** `NOT_FOUND` when the draft is unknown, expired or owned by another member. `UNAUTHENTICATED`. `FORBIDDEN_ROLE` for a staff session.
 
+**Authority:** Discards the caller's own draft. A discarded draft is not recoverable.
+
+**Spec anchors:** FEAT-003, `screens/06-submission-form.md`
+
 ---
 
-### C-014: Submission publication
+### C-014: Action publishSubmission
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `publishSubmission` on `/submit`
-
-**Spec anchors:** FEAT-003, FEAT-002, NFR-005, NFR-027, EVT-012, EVT-013, `screens/06-submission-form.md`, `screens/07-submission-detail.md`
-
-**Authority:** Creates the Submission, allocates its public `reference`, starts the twenty-one-day clock at `submittedAt`, and indexes it for search. A submission whose author declared a named person or company is created with `status:"withheld"` and does not publish. A submission outside Oyo State is created with `status:"out_of_area"`.
 
 **Request:**
 ```json
@@ -827,19 +796,17 @@ For a withheld submission the response is `201` with `status:"withheld"`, `ledge
 
 **Errors:** `VALIDATION_FAILED` with `fields` naming every missing requirement: `body` (`REQUIRED`, `TOO_SHORT` below 30, `TOO_LONG` above 2000), `pillar` (`REQUIRED`, `ENUM_MISMATCH`), `locationText` (`REQUIRED`, `TOO_LONG`), `locationScope` (`REQUIRED`), `costBand` (`REQUIRED` for a proposal, `ENUM_MISMATCH`), `responsibleAuthority` (`REQUIRED` for a proposal, `TOO_LONG`). `POLICY_VIOLATION` with `cause:"WARD_UNRESOLVED"` is **not** raised: the submission is accepted with `wardStatus:"unresolved"`. `RATE_LIMITED` per account and per ward. `LEGAL_HOLD` is not raised at creation; the submission is created withheld instead. `WRITE_QUEUED` with a durable queue entry when the primary store is unavailable; the original `submittedAt` is supplied by the client as `clientSubmittedAt` and preserved on replay.
 
+**Authority:** Creates the Submission, allocates its public `reference`, starts the twenty-one-day clock at `submittedAt`, and indexes it for search. A submission whose author declared a named person or company is created with `status:"withheld"` and does not publish. A submission outside Oyo State is created with `status:"out_of_area"`.
+
+**Spec anchors:** FEAT-003, FEAT-002, NFR-005, NFR-027, EVT-012, EVT-013, `screens/06-submission-form.md`, `screens/07-submission-detail.md`
+
 ---
 
-### C-015: Submission withdrawal
+### C-015: Action withdrawSubmission
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `withdrawSubmission` on `/s/{reference}`
-
-**Spec anchors:** FEAT-007, FEAT-008, FEAT-005, `screens/07-submission-detail.md`, `screens/09-public-ledger.md`
-
-**Authority:** Sets `Submission.status` to `withdrawn` and `withdrawnAt`. Backings remain recorded and are shown as withdrawn. A commitment created by a decision stays in the register with `withdrawnByAuthor:true`. The ledger entry stays.
 
 **Request:**
 ```json
@@ -861,19 +828,17 @@ For a withheld submission the response is `201` with `status:"withheld"`, `ledge
 
 **Errors:** `FORBIDDEN_ROLE` when the caller is not `authorId`. `CONFLICT_ALREADY_DECIDED` with `cause:"ALREADY_WITHDRAWN"`. `LEGAL_HOLD` when the submission is under an open LegalReview with `status:"open"`; withdrawal is refused while the case is undecided, and `meta.reviewDate` is returned. `NOT_FOUND`.
 
+**Authority:** Sets `Submission.status` to `withdrawn` and `withdrawnAt`. Backings remain recorded and are shown as withdrawn. A commitment created by a decision stays in the register with `withdrawnByAuthor:true`. The ledger entry stays.
+
+**Spec anchors:** FEAT-007, FEAT-008, FEAT-005, `screens/07-submission-detail.md`, `screens/09-public-ledger.md`
+
 ---
 
-### C-016: Similar submission suggestion
+### C-016: POST /api/submissions/similar
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `POST /api/submissions/similar`
-
-**Spec anchors:** FEAT-003, FEAT-005, NFR-012, NFR-050, EVT-011, EVT-014, EVT-039, EVT-040, `screens/06-submission-form.md`
-
-**Authority:** Ranks up to three existing submissions in the same ward. Never merges, blocks, hides or rewrites anything. The author's choice is recorded either way.
 
 **Request:**
 ```json
@@ -911,19 +876,17 @@ When the capability is unavailable the response is `200` with `capabilityStatus:
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `body` (`REQUIRED`, `TOO_LONG`), `wardId` (`REQUIRED`). `NOT_FOUND` when `wardId` is unknown. `SERVICE_DEGRADED` with `cause:"SEARCH_UNAVAILABLE"`; the draft is still publishable.
 
+**Authority:** Ranks up to three existing submissions in the same ward. Never merges, blocks, hides or rewrites anything. The author's choice is recorded either way.
+
+**Spec anchors:** FEAT-003, FEAT-005, NFR-012, NFR-050, EVT-011, EVT-014, EVT-039, EVT-040, `screens/06-submission-form.md`
+
 ---
 
-### C-017: Backing creation
+### C-017: Action backSubmission
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `backSubmission` on `/s/{reference}`
-
-**Spec anchors:** FEAT-005, FEAT-002, NFR-006, NFR-027, EVT-014, EVT-015, `screens/07-submission-detail.md`
-
-**Authority:** Records one Backing for one member against one submission, capturing `identityStateAtBacking` and `wardIdAtBacking` at the moment of the write. Never allows a member to back the same submission twice and never allows an author to back their own.
 
 **Request:**
 ```json
@@ -954,19 +917,17 @@ When the concentration rule in `C-085` fires, `countState` is `"under_review"` a
 
 **Errors:** `CONFLICT_DUPLICATE_BACKING` with `fields:{"submissionId":"ALREADY_SET"}`. `POLICY_VIOLATION` with `cause:"AUTHOR_CANNOT_BACK_OWN_SUBMISSION"`, `cause:"WARD_UNRESOLVED"`, or `cause:"SUBMISSION_WITHDRAWN"`. `NOT_FOUND`. `RATE_LIMITED` per account and per ward. `WRITE_QUEUED` when the primary store is unavailable.
 
+**Authority:** Records one Backing for one member against one submission, capturing `identityStateAtBacking` and `wardIdAtBacking` at the moment of the write. Never allows a member to back the same submission twice and never allows an author to back their own.
+
+**Spec anchors:** FEAT-005, FEAT-002, NFR-006, NFR-027, EVT-014, EVT-015, `screens/07-submission-detail.md`
+
 ---
 
-### C-018: Backing withdrawal
+### C-018: DELETE /api/submissions/{reference}/backing
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `DELETE /api/submissions/{reference}/backing`
-
-**Spec anchors:** FEAT-005, EVT-016, `screens/07-submission-detail.md`
-
-**Authority:** Sets the caller's own Backing to `withdrawn` and decrements the published count. Never deletes the backing row.
 
 **Request:**
 ```json
@@ -986,19 +947,17 @@ When the concentration rule in `C-085` fires, `countState` is `"under_review"` a
 
 **Errors:** `NOT_FOUND` when no active backing exists for this member and submission. `CONFLICT_ALREADY_DECIDED` with `cause:"BACKING_ALREADY_WITHDRAWN"`. `UNAUTHENTICATED`. A backing held by the anomaly review is withdrawn on request; the published count is recalculated and remains `under_review` until the case closes.
 
+**Authority:** Sets the caller's own Backing to `withdrawn` and decrements the published count. Never deletes the backing row.
+
+**Spec anchors:** FEAT-005, EVT-016, `screens/07-submission-detail.md`
+
 ---
 
-### C-019: Comment publication
+### C-019: Action postComment
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `postComment` on `/s/{reference}`
-
-**Spec anchors:** FEAT-006, FEAT-014, NFR-025, NFR-027, EVT-020, EVT-021, EVT-043, `screens/07-submission-detail.md`
-
-**Authority:** Creates a Comment in `published`, `held_for_legal` or `removed` state. A routing label may be attached as `routingFlag`; it never changes status on its own and is never published. A thread that is locked accepts no comments.
 
 **Request:**
 ```json
@@ -1030,19 +989,17 @@ A comment classified `named_allegation` or declared by its author to name a pers
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"body":["REQUIRED","TOO_SHORT","TOO_LONG"]}`. `POLICY_VIOLATION` with `cause:"THREAD_LOCKED"` or `cause:"SUBMISSION_WITHDRAWN"`. `NOT_FOUND`. `RATE_LIMITED`. `WRITE_QUEUED` with the text preserved.
 
+**Authority:** Creates a Comment in `published`, `held_for_legal` or `removed` state. A routing label may be attached as `routingFlag`; it never changes status on its own and is never published. A thread that is locked accepts no comments.
+
+**Spec anchors:** FEAT-006, FEAT-014, NFR-025, NFR-027, EVT-020, EVT-021, EVT-043, `screens/07-submission-detail.md`
+
 ---
 
-### C-020: Comment withdrawal by author
+### C-020: DELETE /api/comments/{commentId}
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `DELETE /api/comments/{commentId}`
-
-**Spec anchors:** FEAT-006, `screens/07-submission-detail.md`
-
-**Authority:** Sets `Comment.status` to `withdrawn`. Replies remain readable beneath a note. Never deletes the text, because the moderation and legal record depend on it.
 
 **Request:**
 ```json
@@ -1059,19 +1016,17 @@ A comment classified `named_allegation` or declared by its author to name a pers
 
 **Errors:** `FORBIDDEN_ROLE` when the caller is not `authorId`. `CONFLICT_ALREADY_DECIDED` when the comment is `removed` or already `withdrawn`; a removed comment is appealed under `C-021`, not withdrawn. `LEGAL_HOLD` when an open LegalReview concerns the comment.
 
+**Authority:** Sets `Comment.status` to `withdrawn`. Replies remain readable beneath a note. Never deletes the text, because the moderation and legal record depend on it.
+
+**Spec anchors:** FEAT-006, `screens/07-submission-detail.md`
+
 ---
 
-### C-021: Appeal submission
+### C-021: Action appealRemoval
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `appealRemoval` on `/s/{reference}`
-
-**Spec anchors:** FEAT-011, FEAT-006, EVT-025, `screens/07-submission-detail.md`
-
-**Authority:** Creates an Appeal in `open` and queues it to the external reviewer. Never restores the comment and never decides the case.
 
 **Request:**
 ```json
@@ -1102,19 +1057,17 @@ A comment classified `named_allegation` or declared by its author to name a pers
 
 **Errors:** `FORBIDDEN_ROLE` when the caller is not the comment's author. `POLICY_VIOLATION` with `cause:"COMMENT_NOT_REMOVED"`. `CONFLICT_ALREADY_DECIDED` when an appeal for this removal is already `upheld` or `reversed`. `VALIDATION_FAILED` with `fields:{"reason":["REQUIRED","TOO_LONG"]}`. `NOT_FOUND`.
 
+**Authority:** Creates an Appeal in `open` and queues it to the external reviewer. Never restores the comment and never decides the case.
+
+**Spec anchors:** FEAT-011, FEAT-006, EVT-025, `screens/07-submission-detail.md`
+
 ---
 
-### C-022: Content report submission
+### C-022: Action reportContent
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `reportContent` on `/s/{reference}`
-
-**Spec anchors:** FEAT-014, NFR-043, EVT-043, `screens/07-submission-detail.md`, `operations.md` Moderation & Abuse
-
-**Authority:** Raises a LegalReview in `open`. A report never changes the submission's or comment's status, visibility or count on its own; only `C-054` decides.
 
 **Request:**
 ```json
@@ -1147,19 +1100,17 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"reason":["REQUIRED","TOO_LONG"],"submissionId":"EXACTLY_ONE_OF","commentId":"EXACTLY_ONE_OF"}`. `NOT_FOUND`. `RATE_LIMITED`. `LEGAL_HOLD` when a case is already open for the item (`cause:"CASE_ALREADY_OPEN"`, `meta.existingLegalReviewId` returned).
 
+**Authority:** Raises a LegalReview in `open`. A report never changes the submission's or comment's status, visibility or count on its own; only `C-054` decides.
+
+**Spec anchors:** FEAT-014, NFR-043, EVT-043, `screens/07-submission-detail.md`, `operations.md` Moderation & Abuse
+
 ---
 
-### C-023: Submission record read
+### C-023: GET /api/submissions/{reference}
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/submissions/{reference}`
-
-**Spec anchors:** FEAT-003, FEAT-007, FEAT-008, FEAT-014, NFR-001, `screens/07-submission-detail.md`
-
-**Authority:** Reads the published record. Never returns `telephoneNumber`, `fullName`, `declaredAge`, `authorId` in a resolvable form, or any identifier of a member. Reads are served from the cache and remain available when writes are down.
 
 **Request:**
 ```json
@@ -1225,19 +1176,17 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
 
 **Errors:** `NOT_FOUND` when the reference is unknown. `SERVICE_DEGRADED` with `meta.degradedReason:"READ_CACHE"` when the primary store is unavailable; the last rendered page is served with its `asAt`. A held or taken-down submission is returned `200` with `legalNote` populated and no body text.
 
+**Authority:** Reads the published record. Never returns `telephoneNumber`, `fullName`, `declaredAge`, `authorId` in a resolvable form, or any identifier of a member. Reads are served from the cache and remain available when writes are down.
+
+**Spec anchors:** FEAT-003, FEAT-007, FEAT-008, FEAT-014, NFR-001, `screens/07-submission-detail.md`
+
 ---
 
-### C-024: Commitment register read
+### C-024: GET /api/commitments
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/commitments`
-
-**Spec anchors:** FEAT-007, NFR-001, `screens/08-commitment-register.md`
-
-**Authority:** Reads commitments. No filter can remove the ledger link or hide a status.
 
 **Request:**
 ```json
@@ -1283,19 +1232,17 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `pillar` (`ENUM_MISMATCH`), `status` (`ENUM_MISMATCH`), `limit` (`OUT_OF_BAND` above 50). `NOT_FOUND` when `wardId` is unknown. `SERVICE_DEGRADED` with the last rendered page and its `asAt`; a stale total is never returned without its date.
 
+**Authority:** Reads commitments. No filter can remove the ledger link or hide a status.
+
+**Spec anchors:** FEAT-007, NFR-001, `screens/08-commitment-register.md`
+
 ---
 
-### C-025: Public ledger read
+### C-025: GET /api/ledger
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/ledger`
-
-**Spec anchors:** FEAT-008, NFR-003, `screens/09-public-ledger.md`
-
-**Authority:** Reads the declined, unanswered and withheld record. Out-of-area submissions are excluded by construction. A withheld entry is counted and labelled; a takedown never removes a row.
 
 **Request:**
 ```json
@@ -1337,19 +1284,17 @@ Exactly one of `submissionId` or `commentId` is set. A duplicate report from the
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"month":"PATTERN_MISMATCH"}` outside `YYYY-MM`. `SERVICE_DEGRADED` with the cached ledger and its `asAt`. `NOT_FOUND` is never returned for an empty ledger; an empty ledger is `200` with zero totals.
 
+**Authority:** Reads the declined, unanswered and withheld record. Out-of-area submissions are excluded by construction. A withheld entry is counted and labelled; a takedown never removes a row.
+
+**Spec anchors:** FEAT-008, NFR-003, `screens/09-public-ledger.md`
+
 ---
 
-### C-026: Ward report read
+### C-026: GET /api/wards/{wardId}/report
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/wards/{wardId}/report`
-
-**Spec anchors:** FEAT-009, FEAT-002, NFR-002, EVT-031, `screens/10-ward-report.md`
-
-**Authority:** Reads a ward report. A closed quarter is read from the fixed snapshot published with its report card; the open quarter is read live and labelled as current. Figures below five in a ward-pillar cell are suppressed and the cell says so.
 
 **Request:**
 ```json
@@ -1393,19 +1338,17 @@ A suppressed cell returns `null` for a count and `suppressionApplied:true`; it n
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"quarter":"PATTERN_MISMATCH"}` outside `YYYY-QN`. `NOT_FOUND` when the ward is unknown. `SERVICE_DEGRADED` with the last generated report and its date.
 
+**Authority:** Reads a ward report. A closed quarter is read from the fixed snapshot published with its report card; the open quarter is read live and labelled as current. Figures below five in a ward-pillar cell are suppressed and the cell says so.
+
+**Spec anchors:** FEAT-009, FEAT-002, NFR-002, EVT-031, `screens/10-ward-report.md`
+
 ---
 
-### C-027: Quarterly report card read
+### C-027: GET /api/report-cards
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/report-cards`
-
-**Spec anchors:** FEAT-009, `screens/11-quarterly-report-card.md`
-
-**Authority:** Reads a published card and its ward table. Never composes a partial card; a missing or failed card yields the most recent published one, labelled.
 
 **Request:**
 ```json
@@ -1446,19 +1389,17 @@ A suppressed cell returns `null` for a count and `suppressionApplied:true`; it n
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"quarter":"PATTERN_MISMATCH"}`. `NOT_FOUND` when no card has ever been published; the response then carries `meta.mostRecentQuarter:null` and the screen states that the current quarter is in progress. `SERVICE_DEGRADED` with the most recent card and its `publishedAt`.
 
+**Authority:** Reads a published card and its ward table. Never composes a partial card; a missing or failed card yields the most recent published one, labelled.
+
+**Spec anchors:** FEAT-009, `screens/11-quarterly-report-card.md`
+
 ---
 
-### C-028: Session detail and record read
+### C-028: GET /api/sessions/{sessionId}
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/sessions/{sessionId}`
-
-**Spec anchors:** FEAT-010, `screens/12-session-detail.md`
-
-**Authority:** Reads a session, its remaining places and its published record. The record is readable whether or not the reader holds a reservation.
 
 **Request:**
 ```json
@@ -1495,19 +1436,17 @@ A suppressed cell returns `null` for a count and `suppressionApplied:true`; it n
 
 **Errors:** `NOT_FOUND`. `SERVICE_DEGRADED` with the cached session page and its `asAt`.
 
+**Authority:** Reads a session, its remaining places and its published record. The record is readable whether or not the reader holds a reservation.
+
+**Spec anchors:** FEAT-010, `screens/12-session-detail.md`
+
 ---
 
-### C-029: Session reservation
+### C-029: Action reserveSessionPlace
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `reserveSessionPlace` on `/sessions/{id}`
-
-**Spec anchors:** FEAT-010, EVT-033, `screens/12-session-detail.md`
-
-**Authority:** Creates one Reservation for one member and one session, as `reserved` or `waitlisted`. Two members reserving the last place resolve to one reservation and one waitlist position. A retry never creates a duplicate.
 
 **Request:**
 ```json
@@ -1537,19 +1476,17 @@ A repeat call for the same member and session returns `200` with the existing re
 
 **Errors:** `POLICY_VIOLATION` with `cause:"SESSION_CLOSED"` or `cause:"SESSION_CANCELLED"`; the replacement session id is returned in `meta.rescheduledToId`. `NOT_FOUND`. `RATE_LIMITED`. `WRITE_QUEUED` with a durable queue entry.
 
+**Authority:** Creates one Reservation for one member and one session, as `reserved` or `waitlisted`. Two members reserving the last place resolve to one reservation and one waitlist position. A retry never creates a duplicate.
+
+**Spec anchors:** FEAT-010, EVT-033, `screens/12-session-detail.md`
+
 ---
 
-### C-030: Session reservation cancellation
+### C-030: DELETE /api/sessions/{sessionId}/reservations/mine
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `DELETE /api/sessions/{sessionId}/reservations/mine`
-
-**Spec anchors:** FEAT-010, `screens/12-session-detail.md`
-
-**Authority:** Sets the caller's own Reservation to `cancelled` and releases the place to the first waitlisted member. No penalty is recorded.
 
 **Request:**
 ```json
@@ -1566,19 +1503,17 @@ A repeat call for the same member and session returns `200` with the existing re
 
 **Errors:** `NOT_FOUND` when the caller holds no reservation. `POLICY_VIOLATION` with `cause:"SESSION_ALREADY_HELD"` when the session has taken place.
 
+**Authority:** Sets the caller's own Reservation to `cancelled` and releases the place to the first waitlisted member. No penalty is recorded.
+
+**Spec anchors:** FEAT-010, `screens/12-session-detail.md`
+
 ---
 
-### C-031: Session question submission
+### C-031: Action submitSessionQuestion
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `submitSessionQuestion` on `/sessions/{id}`
-
-**Spec anchors:** FEAT-010, EVT-034, `screens/12-session-detail.md`
-
-**Authority:** Creates a SessionQuestion with `selected:false` and `outcome:"not_reached"` until a staff member selects and answers it. A question naming a person or company in an allegation is held for legal review and cannot be selected.
 
 **Request:**
 ```json
@@ -1606,19 +1541,17 @@ A repeat call for the same member and session returns `200` with the existing re
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"questionText":["REQUIRED","TOO_LONG"]}`. `POLICY_VIOLATION` with `cause:"SESSION_CLOSED"` when the session has taken place and its record published. `NOT_FOUND`. `RATE_LIMITED`. `WRITE_QUEUED`.
 
+**Authority:** Creates a SessionQuestion with `selected:false` and `outcome:"not_reached"` until a staff member selects and answers it. A question naming a person or company in an allegation is held for legal review and cannot be selected.
+
+**Spec anchors:** FEAT-010, EVT-034, `screens/12-session-detail.md`
+
 ---
 
-### C-032: My Record read
+### C-032: GET /api/me
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `GET /api/me`
-
-**Spec anchors:** FEAT-012, NFR-040, `screens/13-my-record.md`
-
-**Authority:** Rendered by the Identity and Access Service for the member alone. This is the only read in the system permitted to return `fullName`, `telephoneNumber` and `declaredAge`, and it returns them only for the session's own member.
 
 **Request:**
 ```json
@@ -1665,19 +1598,17 @@ Each `dataRequests` entry carries `legalHoldNote` and `legalHoldReviewAt`, each 
 
 **Errors:** `UNAUTHENTICATED`. `FORBIDDEN_ROLE` for any staff session; there is no staff view of this response. `SERVICE_DEGRADED` with `cause:"IDENTITY_STORE_UNAVAILABLE"`; no partial personal data is returned.
 
+**Authority:** Rendered by the Identity and Access Service for the member alone. This is the only read in the system permitted to return `fullName`, `telephoneNumber` and `declaredAge`, and it returns them only for the session's own member.
+
+**Spec anchors:** FEAT-012, NFR-040, `screens/13-my-record.md`
+
 ---
 
-### C-033: Profile correction
+### C-033: Action correctMyDetails
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `correctMyDetails` on `/me`
-
-**Spec anchors:** FEAT-012, NFR-040, `screens/13-my-record.md`
-
-**Authority:** Corrects `displayName`, `fullName` and `locale` on the caller's own Member row. Never rewrites the public record: earlier comments and submissions keep the display name attributed at the time of writing, with a note.
 
 **Request:**
 ```json
@@ -1702,19 +1633,17 @@ Each `dataRequests` entry carries `legalHoldNote` and `legalHoldReviewAt`, each 
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `displayName` (`REQUIRED`, `TOO_LONG` at 60, `ALREADY_SET` when disambiguation is needed), `fullName` (`REQUIRED`, `TOO_LONG` at 160), `locale` (`ENUM_MISMATCH`). `RATE_LIMITED` on repeated display-name changes. `SERVICE_DEGRADED` with `cause:"IDENTITY_STORE_UNAVAILABLE"`.
 
+**Authority:** Corrects `displayName`, `fullName` and `locale` on the caller's own Member row. Never rewrites the public record: earlier comments and submissions keep the display name attributed at the time of writing, with a note.
+
+**Spec anchors:** FEAT-012, NFR-040, `screens/13-my-record.md`
+
 ---
 
-### C-034: Consent update
+### C-034: Action updateConsent
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `updateConsent` on `/me`
-
-**Spec anchors:** FEAT-012, EVT-046, `screens/13-my-record.md`
-
-**Authority:** Grants or withdraws exactly one optional purpose. Takes effect immediately. Consent is never bundled into registration and never inferred.
 
 **Request:**
 ```json
@@ -1742,19 +1671,17 @@ Each `dataRequests` entry carries `legalHoldNote` and `legalHoldReviewAt`, each 
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"purpose":["REQUIRED","ENUM_MISMATCH"],"granted":["REQUIRED","ENUM_MISMATCH"]}`. `CONFLICT_ALREADY_DECIDED` with `cause:"CONSENT_ALREADY_IN_STATE"`. `SERVICE_DEGRADED`.
 
+**Authority:** Grants or withdraws exactly one optional purpose. Takes effect immediately. Consent is never bundled into registration and never inferred.
+
+**Spec anchors:** FEAT-012, EVT-046, `screens/13-my-record.md`
+
 ---
 
-### C-035: Data request creation
+### C-035: Action createDataRequest
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Server action `createDataRequest` on `/me`
-
-**Spec anchors:** FEAT-012, NFR-040, EVT-036, `screens/13-my-record.md`, `screens/22-data-request-queue.md`
-
-**Authority:** Creates a DataRequest in `received`. Never performs the request itself. A deletion request against an item under legal hold is deferred, not refused silently.
 
 **Request:**
 ```json
@@ -1785,19 +1712,17 @@ The request carries its type and nothing else. `DataRequest` has no field for th
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"type":["REQUIRED","ENUM_MISMATCH"]}`. `CONFLICT_ALREADY_DECIDED` with `cause:"DUPLICATE_EXPORT_REQUEST"` when an export is already open; the existing request id is returned in `meta.existingDataRequestId`. `RATE_LIMITED`. `WRITE_QUEUED`.
 
+**Authority:** Creates a DataRequest in `received`. Never performs the request itself. A deletion request against an item under legal hold is deferred, not refused silently.
+
+**Spec anchors:** FEAT-012, NFR-040, EVT-036, `screens/13-my-record.md`, `screens/22-data-request-queue.md`
+
 ---
 
-### C-036: Export file download
+### C-036: GET /api/me/data-requests/{requestId}/file
 
 **Status:** Frozen
 
 **Auth:** Member session
-
-**Surface:** Route handler `GET /api/me/data-requests/{requestId}/file`
-
-**Spec anchors:** FEAT-012, NFR-040, `screens/13-my-record.md`
-
-**Authority:** Serves the machine-readable export produced for the caller's own completed `export` request. Returns the same file for a repeated request; never generates a second file.
 
 **Request:**
 ```json
@@ -1808,19 +1733,17 @@ The request carries its type and nothing else. `DataRequest` has no field for th
 
 **Errors:** `NOT_FOUND` when the request is unknown, belongs to another member, or is not an export. `LEGAL_HOLD` when the request is `deferred_for_legal_hold`, with `meta.legalHoldNote` and `meta.legalHoldReviewAt`. `SERVICE_DEGRADED` with `cause:"OBJECT_STORAGE_UNAVAILABLE"`.
 
+**Authority:** Serves the machine-readable export produced for the caller's own completed `export` request. Returns the same file for a repeated request; never generates a second file.
+
+**Spec anchors:** FEAT-012, NFR-040, `screens/13-my-record.md`
+
 ---
 
-### C-037: Privacy notice read
+### C-037: GET /api/privacy-notice
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/privacy-notice`
-
-**Spec anchors:** FEAT-012, NFR-040, NFR-045, `screens/23-privacy-notice.md`
-
-**Authority:** Reads the published notice and its history. Readable without a session, because it must be readable before registration.
 
 **Request:**
 ```json
@@ -1850,19 +1773,17 @@ The request carries its type and nothing else. `DataRequest` has no field for th
 
 **Errors:** `NOT_FOUND` when a requested version has never been published. `SERVICE_DEGRADED` with the last published notice and its `effectiveAt`; the screen never renders blank.
 
+**Authority:** Reads the published notice and its history. Readable without a session, because it must be readable before registration.
+
+**Spec anchors:** FEAT-012, NFR-040, NFR-045, `screens/23-privacy-notice.md`
+
 ---
 
-### C-038: In-product search
+### C-038: GET /api/search
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Route handler `GET /api/search`
-
-**Spec anchors:** FEAT-003, NFR-009, `screens/01-record-home.md`, `screens/08-commitment-register.md`
-
-**Authority:** Queries the Postgres full-text index over published submissions. Returns no draft, no held text and no withdrawn body.
 
 **Request:**
 ```json
@@ -1887,19 +1808,17 @@ When the index is unavailable the response is `200` with `results:[]`, `fallback
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"q":["REQUIRED","TOO_SHORT"]}`. `SERVICE_DEGRADED` with the fallback path.
 
+**Authority:** Queries the Postgres full-text index over published submissions. Returns no draft, no held text and no withdrawn body.
+
+**Spec anchors:** FEAT-003, NFR-009, `screens/01-record-home.md`, `screens/08-commitment-register.md`
+
 ---
 
-### C-039: Language preference update
+### C-039: Action setLocale
 
 **Status:** Frozen
 
 **Auth:** Public
-
-**Surface:** Server action `setLocale`
-
-**Spec anchors:** FEAT-012, `screens.md` Footer, `screens/13-my-record.md`
-
-**Authority:** Stores the choice against the Member when signed in, and in the session when signed out. An anonymous choice is applied to the PendingRegistration at `C-002`. Never changes stored content.
 
 **Request:**
 ```json
@@ -1918,21 +1837,19 @@ When signed out, `scope` is `"session"` and no Member row is written.
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"locale":["REQUIRED","ENUM_MISMATCH"]}`.
 
+**Authority:** Stores the choice against the Member when signed in, and in the session when signed out. An anonymous choice is applied to the PendingRegistration at `C-002`. Never changes stored content.
+
+**Spec anchors:** FEAT-012, `screens.md` Footer, `screens/13-my-record.md`
+
 ---
 
 ## Domain 3 — Admin Console Interfaces
 
-### C-040: Decision queue read
+### C-040: GET /api/admin/decision-queue
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Route handler `GET /api/admin/decision-queue`
-
-**Spec anchors:** FEAT-007, FEAT-008, NFR-007, `screens/15-decision-queue.md`
-
-**Authority:** Reads the queue ordered by the twenty-one-day deadline, overdue first. Excludes out-of-area submissions, withdrawn submissions and submissions held for legal review. Reports a colleague's reservation without exposing the draft's content.
 
 **Request:**
 ```json
@@ -1969,19 +1886,17 @@ When signed out, `scope` is `"session"` and no Member row is written.
 
 **Errors:** `FORBIDDEN_ROLE` when the session is not `response_staff` or `operator`; the screen states what the role would require. `SERVICE_DEGRADED` with the last successful queue and its `asAt`.
 
+**Authority:** Reads the queue ordered by the twenty-one-day deadline, overdue first. Excludes out-of-area submissions, withdrawn submissions and submissions held for legal review. Reports a colleague's reservation without exposing the draft's content.
+
+**Spec anchors:** FEAT-007, FEAT-008, NFR-007, `screens/15-decision-queue.md`
+
 ---
 
-### C-041: Decision reservation
+### C-041: Action reserveDecisionDraft
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `reserveDecisionDraft` on `/admin/queue/{reference}/decide`
-
-**Spec anchors:** FEAT-007, EVT-048, `screens/16-decision-composer.md`
-
-**Authority:** Creates or updates one DecisionDraft held by the caller for twenty-four hours. Reserves the case so a colleague cannot publish a competing answer. Does not decide anything.
 
 **Request:**
 ```json
@@ -2018,19 +1933,17 @@ When signed out, `scope` is `"session"` and no Member row is written.
 
 **Errors:** `CONFLICT_RESERVED` with `fields:{"submissionId":"ALREADY_SET"}` and `meta` carrying `holderStaffId`, `holderDisplayName` and `reservedUntil`, when a colleague's reservation is live. `CONFLICT_ALREADY_DECIDED` with `meta.existingDecisionId` when a live decision already exists and the caller has not opened a revision. `VALIDATION_FAILED` with `fields` for `type` (`ENUM_MISMATCH`), `reason` (`TOO_LONG`), `costBand` (`ENUM_MISMATCH`), `targetDate` (`PATTERN_MISMATCH`), `pillar` (`ENUM_MISMATCH`). `LEGAL_HOLD`. `FORBIDDEN_ROLE`.
 
+**Authority:** Creates or updates one DecisionDraft held by the caller for twenty-four hours. Reserves the case so a colleague cannot publish a competing answer. Does not decide anything.
+
+**Spec anchors:** FEAT-007, EVT-048, `screens/16-decision-composer.md`
+
 ---
 
-### C-042: Decision reservation release
+### C-042: DELETE /api/admin/decision-drafts/{decisionDraftId}
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Route handler `DELETE /api/admin/decision-drafts/{decisionDraftId}`
-
-**Spec anchors:** FEAT-007, `screens/16-decision-composer.md`
-
-**Authority:** Releases the caller's own reservation so a colleague may take the case immediately. The draft text is discarded.
 
 **Request:**
 ```json
@@ -2041,19 +1954,17 @@ When signed out, `scope` is `"session"` and no Member row is written.
 
 **Errors:** `FORBIDDEN_ROLE` when the reservation belongs to another staff member; only its holder or the operator may release it. `NOT_FOUND` when the draft has already expired or been published.
 
+**Authority:** Releases the caller's own reservation so a colleague may take the case immediately. The draft text is discarded.
+
+**Spec anchors:** FEAT-007, `screens/16-decision-composer.md`
+
 ---
 
-### C-043: Decision publication
+### C-043: Action publishDecision
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `publishDecision` on `/admin/queue/{reference}/decide`
-
-**Spec anchors:** FEAT-007, FEAT-008, NFR-007, NFR-042, EVT-026, `screens/16-decision-composer.md`
-
-**Authority:** Writes the Decision and, for a Commit, the Commitment in one transaction. A published decision is immutable in content; a later change is a revision under `C-044`. Invalidates the submission, register and ledger cache; appends the AuditEvent; queues the author notice. The decision stands even if the notice fails.
 
 **Request:**
 ```json
@@ -2108,19 +2019,17 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 
 **Errors:** `VALIDATION_FAILED` with `fields` covering `type` (`REQUIRED`, `ENUM_MISMATCH`), `reason` (`REQUIRED`, `TOO_LONG` at 2000), `owner` (`REQUIRED` for `commit`, `TOO_LONG`), `costBand` (`REQUIRED` for `commit`, `ENUM_MISMATCH`), `targetDate` (`REQUIRED` for `commit`, `PATTERN_MISMATCH`), `pillar` (`REQUIRED` for `commit`, `ENUM_MISMATCH`), `authority` (`REQUIRED` for `refer`, `TOO_LONG`). `CONFLICT_ALREADY_DECIDED` with `meta.existingDecisionId` and a path to publish a revision. `CONFLICT_RESERVED` when a colleague's draft is live. `POLICY_VIOLATION` with `cause:"TARGET_DATE_IN_PAST"` or `cause:"DIRECTOR_APPROVAL_REQUIRED"` when the target date falls before the submission's quarter (`meta.approvalBy:"campaign_director"`). `LEGAL_HOLD` when the submission is withheld. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with `cause:"PRIMARY_WRITE_UNAVAILABLE"`; nothing is partially written.
 
+**Authority:** Writes the Decision and, for a Commit, the Commitment in one transaction. A published decision is immutable in content; a later change is a revision under `C-044`. Invalidates the submission, register and ledger cache; appends the AuditEvent; queues the author notice. The decision stands even if the notice fails.
+
+**Spec anchors:** FEAT-007, FEAT-008, NFR-007, NFR-042, EVT-026, `screens/16-decision-composer.md`
+
 ---
 
-### C-044: Decision revision
+### C-044: Action reviseDecision
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `reviseDecision` on `/admin/queue/{reference}/decide`
-
-**Spec anchors:** FEAT-007, `screens/16-decision-composer.md`, `screens/07-submission-detail.md`
-
-**Authority:** Publishes a new Decision with `version` incremented and `supersedesDecisionId` set to the live decision. The earlier version remains readable and marked superseded. A revised Commit updates the existing Commitment rather than creating a second one.
 
 **Request:**
 ```json
@@ -2151,19 +2060,17 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 
 **Errors:** `VALIDATION_FAILED` as in `C-043`. `NOT_FOUND` when `supersedesDecisionId` is not the live decision for this submission. `CONFLICT_ALREADY_DECIDED` with `cause:"STALE_SUPERSESSION"` when a newer version already exists. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED`.
 
+**Authority:** Publishes a new Decision with `version` incremented and `supersedesDecisionId` set to the live decision. The earlier version remains readable and marked superseded. A revised Commit updates the existing Commitment rather than creating a second one.
+
+**Spec anchors:** FEAT-007, `screens/16-decision-composer.md`, `screens/07-submission-detail.md`
+
 ---
 
-### C-045: Commitment status change
+### C-045: Action changeCommitmentStatus
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `changeCommitmentStatus`
-
-**Spec anchors:** FEAT-007, FEAT-009, EVT-028, `screens/08-commitment-register.md`, `screens/11-quarterly-report-card.md`
-
-**Authority:** Moves a Commitment between `committed`, `delivered`, `slipped` and `dropped`, writes a CommitmentStatusChange, and sets `statusReason`. A dropped commitment stays in the register with its reason. Never deletes a commitment.
 
 **Request:**
 ```json
@@ -2197,19 +2104,17 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `toStatus` (`REQUIRED`, `ENUM_MISMATCH`) and `reason` (`REQUIRED` when `toStatus` is `slipped` or `dropped`, `TOO_LONG`). `CONFLICT_ALREADY_DECIDED` with `cause:"STATUS_UNCHANGED"`. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Moves a Commitment between `committed`, `delivered`, `slipped` and `dropped`, writes a CommitmentStatusChange, and sets `statusReason`. A dropped commitment stays in the register with its reason. Never deletes a commitment.
+
+**Spec anchors:** FEAT-007, FEAT-009, EVT-028, `screens/08-commitment-register.md`, `screens/11-quarterly-report-card.md`
+
 ---
 
-### C-046: Delivery evidence record
+### C-046: Action recordDeliveryEvidence
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `recordDeliveryEvidence` on `/admin/report-card`
-
-**Spec anchors:** FEAT-009, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
-
-**Authority:** Records DeliveryEvidence against a commitment and states whether it may be published. Private evidence supports a delivered status without appearing on the public record.
 
 **Request:**
 ```json
@@ -2244,19 +2149,17 @@ For a `decline` the response carries `decision` and `commitment:null`. For a `re
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `type` (`REQUIRED`, `ENUM_MISMATCH`), `reference` (`REQUIRED`, `TOO_LONG` at 200), `description` (`REQUIRED`, `TOO_LONG` at 1000), `public` (`REQUIRED`). `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Records DeliveryEvidence against a commitment and states whether it may be published. Private evidence supports a delivered status without appearing on the public record.
+
+**Spec anchors:** FEAT-009, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
+
 ---
 
-### C-047: Budget-line candidate read
+### C-047: GET /api/admin/report-cards/{quarter}/budget-lines
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Route handler `GET /api/admin/report-cards/{quarter}/budget-lines`
-
-**Spec anchors:** FEAT-009, NFR-013, NFR-053, `screens/20-report-card-workbench.md`
-
-**Authority:** Lists suggested appropriation lines for the quarter's commitments. A candidate is a suggestion only; nothing is published until `C-048` confirms it.
 
 **Request:**
 ```json
@@ -2290,19 +2193,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"quarter":"PATTERN_MISMATCH"}`. `NOT_FOUND` when the quarter is unknown. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last generated candidate set and its `asAt`.
 
+**Authority:** Lists suggested appropriation lines for the quarter's commitments. A candidate is a suggestion only; nothing is published until `C-048` confirms it.
+
+**Spec anchors:** FEAT-009, NFR-013, NFR-053, `screens/20-report-card-workbench.md`
+
 ---
 
-### C-048: Budget-line decision
+### C-048: Action decideBudgetLine
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `decideBudgetLine` on `/admin/report-card`
-
-**Spec anchors:** FEAT-009, EVT-029, EVT-030, `screens/20-report-card-workbench.md`
-
-**Authority:** Confirms or rejects one candidate match. A confirmed match writes `budgetLineReference`, `budgetLineDescription`, `budgetLineAmount`, `budgetLineConfirmedById` and `budgetLineConfirmedAt` onto the Commitment; only a confirmed match may be published. Never confirms on behalf of a model.
 
 **Request:**
 ```json
@@ -2330,19 +2231,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"status":["REQUIRED","ENUM_MISMATCH"]}`. `CONFLICT_ALREADY_DECIDED` when the candidate was already confirmed or rejected by this or another staff member. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Confirms or rejects one candidate match. A confirmed match writes `budgetLineReference`, `budgetLineDescription`, `budgetLineAmount`, `budgetLineConfirmedById` and `budgetLineConfirmedAt` onto the Commitment; only a confirmed match may be published. Never confirms on behalf of a model.
+
+**Spec anchors:** FEAT-009, EVT-029, EVT-030, `screens/20-report-card-workbench.md`
+
 ---
 
-### C-049: Moderation queue read
+### C-049: GET /api/admin/moderation/cases
 
 **Status:** Frozen
 
 **Auth:** Staff session (external_reviewer)
-
-**Surface:** Route handler `GET /api/admin/moderation/cases`
-
-**Spec anchors:** FEAT-006, FEAT-011, `screens/17-moderation-log.md`
-
-**Authority:** Reads removals awaiting review, with the rule cited in full and the removed text. The external reviewer sees every removal. A moderator calling the same entry receives only the removals they performed, which is the moderator's own removal log. An `external_reviewer` session receives no member personal data, no ward beyond the submission in question, and no member identifier in a resolvable form.
 
 **Request:**
 ```json
@@ -2378,19 +2277,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `FORBIDDEN_ROLE` for any other role. `SERVICE_DEGRADED` with the last successful case list and its `asAt`.
 
+**Authority:** Reads removals awaiting review, with the rule cited in full and the removed text. The external reviewer sees every removal. A moderator calling the same entry receives only the removals they performed, which is the moderator's own removal log. An `external_reviewer` session receives no member personal data, no ward beyond the submission in question, and no member identifier in a resolvable form.
+
+**Spec anchors:** FEAT-006, FEAT-011, `screens/17-moderation-log.md`
+
 ---
 
-### C-050: Moderation action
+### C-050: Action moderateComment
 
 **Status:** Frozen
 
 **Auth:** Staff session (moderator)
-
-**Surface:** Server action `moderateComment` on `/admin/moderation`
-
-**Spec anchors:** FEAT-006, FEAT-011, NFR-028, EVT-022, EVT-024, `screens/17-moderation-log.md`
-
-**Authority:** Removes, restores, holds for legal review or releases a comment. Every removal requires a `ruleId`; a removal recorded without one is invalid on review and is restored automatically by `C-052`. Removal is a state change, never a delete. A moderator who is the subject of the comment must recuse.
 
 **Request:**
 ```json
@@ -2426,19 +2323,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `action` (`REQUIRED`, `ENUM_MISMATCH`) and `ruleId` (`REQUIRED` for `remove`, `NOT_FOUND` when retired or unknown). `POLICY_VIOLATION` with `cause:"MODERATOR_IS_SUBJECT"`; the case must be reassigned under `C-052`. `CONFLICT_ALREADY_DECIDED` when the comment is already in the requested state. `LEGAL_HOLD` when an open LegalReview blocks the action. `FORBIDDEN_ROLE`.
 
+**Authority:** Removes, restores, holds for legal review or releases a comment. Every removal requires a `ruleId`; a removal recorded without one is invalid on review and is restored automatically by `C-052`. Removal is a state change, never a delete. A moderator who is the subject of the comment must recuse.
+
+**Spec anchors:** FEAT-006, FEAT-011, NFR-028, EVT-022, EVT-024, `screens/17-moderation-log.md`
+
 ---
 
-### C-051: Appeal queue read
+### C-051: GET /api/admin/moderation/appeals
 
 **Status:** Frozen
 
 **Auth:** Staff session (external_reviewer)
-
-**Surface:** Route handler `GET /api/admin/moderation/appeals`
-
-**Spec anchors:** FEAT-011, `screens/17-moderation-log.md`
-
-**Authority:** Reads appeals and the removals they concern, for the external reviewer only. Never returns a member identifier, real name, telephone number or ward outside the submission in question.
 
 **Request:**
 ```json
@@ -2470,19 +2365,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful list and its `asAt`.
 
+**Authority:** Reads appeals and the removals they concern, for the external reviewer only. Never returns a member identifier, real name, telephone number or ward outside the submission in question.
+
+**Spec anchors:** FEAT-011, `screens/17-moderation-log.md`
+
 ---
 
-### C-052: Appeal decision and case reassignment
+### C-052: Action decideAppeal
 
 **Status:** Frozen
 
 **Auth:** Staff session (external_reviewer)
-
-**Surface:** Server action `decideAppeal` on `/admin/moderation`
-
-**Spec anchors:** FEAT-011, EVT-023, EVT-024, `screens/17-moderation-log.md`
-
-**Authority:** Upholds or reverses a removal, or reassigns the case. A reversal restores the comment with a note that it was removed and restored, and closes the appeal. A campaign role cannot overturn a reviewer's reversal. A removal with no cited rule is invalid and is restored automatically.
 
 **Request:**
 ```json
@@ -2510,19 +2403,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `status` (`REQUIRED`, `ENUM_MISMATCH`) and `outcomeReason` (`REQUIRED` for `upheld` and `reversed`, `TOO_LONG`) and `assignedReviewerId` (`REQUIRED` for `reassigned`). `POLICY_VIOLATION` with `cause:"REVIEWER_CONFLICT"`; a reviewer who is the subject of the comment cannot decide it. `CONFLICT_ALREADY_DECIDED`. `FORBIDDEN_ROLE` for every role except `external_reviewer`.
 
+**Authority:** Upholds or reverses a removal, or reassigns the case. A reversal restores the comment with a note that it was removed and restored, and closes the appeal. A campaign role cannot overturn a reviewer's reversal. A removal with no cited rule is invalid and is restored automatically.
+
+**Spec anchors:** FEAT-011, EVT-023, EVT-024, `screens/17-moderation-log.md`
+
 ---
 
-### C-053: Legal review queue read
+### C-053: GET /api/admin/legal/cases
 
 **Status:** Frozen
 
 **Auth:** Staff session (legal_reviewer)
-
-**Surface:** Route handler `GET /api/admin/legal/cases`
-
-**Spec anchors:** FEAT-014, NFR-043, `screens/18-legal-review.md`
-
-**Authority:** Reads held submissions and comments with the reason they were raised. Returns held text for the legal reviewer only.
 
 **Request:**
 ```json
@@ -2556,19 +2447,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful queue and its `asAt`; a case is never shown without its reason.
 
+**Authority:** Reads held submissions and comments with the reason they were raised. Returns held text for the legal reviewer only.
+
+**Spec anchors:** FEAT-014, NFR-043, `screens/18-legal-review.md`
+
 ---
 
-### C-054: Legal decision and takedown
+### C-054: Action decideLegalReview
 
 **Status:** Frozen
 
 **Auth:** Staff session (legal_reviewer)
-
-**Surface:** Server action `decideLegalReview` on `/admin/legal`
-
-**Spec anchors:** FEAT-014, NFR-043, EVT-044, EVT-045, `screens/18-legal-review.md`, `screens/09-public-ledger.md`
-
-**Authority:** Clears, withholds or takes down a held submission or comment, and records the reason and the public note. A withheld or taken-down submission stays in the ledger with `LegalReview.publicNote`. A comment stays in the moderation log and its author's view. A takedown is never a delete. A restore reverses a withhold or takedown with a recorded reason.
 
 **Request:**
 ```json
@@ -2604,19 +2493,17 @@ When the capability is off, `capabilityStatus` is `"fallback"`, `candidates` is 
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `status` (`REQUIRED`, `ENUM_MISMATCH`) and `outcomeReason` (`REQUIRED`, `TOO_LONG`) and `publicNote` (`REQUIRED` for `withheld` and `takedown`, `TOO_LONG` at 500). `POLICY_VIOLATION` with `cause:"PUBLIC_NOTE_REPEATS_ALLEGATION"` when the note reproduces the allegation, and `cause:"DIRECTOR_APPROVAL_REQUIRED"` when releasing a hold after a defamation claim. `CONFLICT_ALREADY_DECIDED`. `FORBIDDEN_ROLE`.
 
+**Authority:** Clears, withholds or takes down a held submission or comment, and records the reason and the public note. A withheld or taken-down submission stays in the ledger with `LegalReview.publicNote`. A comment stays in the moderation log and its author's view. A takedown is never a delete. A restore reverses a withhold or takedown with a recorded reason.
+
+**Spec anchors:** FEAT-014, NFR-043, EVT-044, EVT-045, `screens/18-legal-review.md`, `screens/09-public-ledger.md`
+
 ---
 
-### C-055: Ward description review queue read
+### C-055: GET /api/admin/ward-reviews
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Route handler `GET /api/admin/ward-reviews`
-
-**Spec anchors:** FEAT-001, FEAT-002, `screens/19-ward-review-queue.md`
-
-**Authority:** Reads one of the queue's two work types. `descriptions` returns unresolved descriptions, oldest first, with the resident's own words and the selected local government area. `residences` returns members whose ward is resolved and whose residence is not yet accepted, oldest registration first. It never assigns a ward and never changes an identity state.
 
 **Request:**
 ```json
@@ -2683,19 +2570,17 @@ A residence list carries the member's display name and ward only. It never carri
 
 **Errors:** `VALIDATION_FAILED` for an unknown `work` value. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful queue and its `asAt`. A review whose member account has since been deleted is returned with `memberDeleted:true` and can only be closed, not resolved.
 
+**Authority:** Reads one of the queue's two work types. `descriptions` returns unresolved descriptions, oldest first, with the resident's own words and the selected local government area. `residences` returns members whose ward is resolved and whose residence is not yet accepted, oldest registration first. It never assigns a ward and never changes an identity state.
+
+**Spec anchors:** FEAT-001, FEAT-002, `screens/19-ward-review-queue.md`
+
 ---
 
-### C-056: Ward description resolution
+### C-056: Action resolveWardDescription
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `resolveWardDescription` on `/admin/wards/review`
-
-**Spec anchors:** FEAT-002, EVT-009, `screens/19-ward-review-queue.md`
-
-**Authority:** Resolves a queued description to one ward, or rejects it with a reason. On resolution, sets `Member.wardId` and `Member.wardStatus` for the member and moves that member's unresolved in-state submissions to the same ward without changing a word of their text. Never moves a submission that already carries a ward, and never gives a ward to an out-of-area submission.
 
 **Request (resolved):**
 ```json
@@ -2735,19 +2620,17 @@ A residence list carries the member's display name and ward only. It never carri
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `status` (`REQUIRED`, `ENUM_MISMATCH`), `resolvedWardId` (`REQUIRED` for `resolved`, `NOT_FOUND`), `rejectionReason` (`REQUIRED` for `rejected`, `TOO_LONG` at 500). `CONFLICT_ALREADY_DECIDED` when the description is already resolved or rejected. `POLICY_VIOLATION` with `cause:"MEMBER_ACCOUNT_DELETED"`; the review may then only be rejected. `FORBIDDEN_ROLE`.
 
+**Authority:** Resolves a queued description to one ward, or rejects it with a reason. On resolution, sets `Member.wardId` and `Member.wardStatus` for the member and moves that member's unresolved in-state submissions to the same ward without changing a word of their text. Never moves a submission that already carries a ward, and never gives a ward to an out-of-area submission.
+
+**Spec anchors:** FEAT-002, EVT-009, `screens/19-ward-review-queue.md`
+
 ---
 
-### C-057: Residence review record
+### C-057: Action recordResidenceReview
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `recordResidenceReview` on `/admin/wards/review`
-
-**Spec anchors:** FEAT-001, EVT-005, EVT-047, `screens/19-ward-review-queue.md`
-
-**Authority:** Records a ResidenceReview and, on `decision:"checked"`, moves the member from `registered` to `checked`. A rejection leaves the member `registered`, states what is missing, and records its reason in `notes`. Never changes the ward.
 
 **Request:**
 ```json
@@ -2782,19 +2665,17 @@ A residence list carries the member's display name and ward only. It never carri
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `method` (`REQUIRED`, `ENUM_MISMATCH`), `decision` (`REQUIRED`, `ENUM_MISMATCH`), `notes` (`REQUIRED` for a rejection, `TOO_LONG` at 1000). `POLICY_VIOLATION` with `cause:"WARD_UNRESOLVED"`; a residence cannot be checked before the ward is recorded. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Records a ResidenceReview and, on `decision:"checked"`, moves the member from `registered` to `checked`. A rejection leaves the member `registered`, states what is missing, and records its reason in `notes`. Never changes the ward.
+
+**Spec anchors:** FEAT-001, EVT-005, EVT-047, `screens/19-ward-review-queue.md`
+
 ---
 
-### C-058: Assisted intake publication
+### C-058: Action recordAssistedIntake
 
 **Status:** Frozen
 
 **Auth:** Staff session (ward_organiser)
-
-**Surface:** Server action `recordAssistedIntake` on `/admin/intake`
-
-**Spec anchors:** FEAT-004, FEAT-001, FEAT-003, EVT-018, EVT-019, `screens/14-assisted-intake.md`
-
-**Authority:** Records the resident's consent, creates an organiser-attested Member when no account exists or attaches to the one that does, and publishes the Submission with `recorderId` set. Beyond forty submissions for one ward in one day, the submission is held as a SubmissionDraft with `status:"held_for_review"` and no public reference is issued. Never creates a second account for a number that already belongs to one.
 
 **Request:**
 ```json
@@ -2861,19 +2742,17 @@ A residence list carries the member's display name and ward only. It never carri
 
 **Errors:** `POLICY_VIOLATION` with `cause:"CONSENT_NOT_RECORDED"`, `cause:"WARD_NOT_AUTHORISED"` (the correct organiser's ward is named in `meta.authorisedWardIds`), or `cause:"TELEPHONE_NUMBER_REQUIRED"` (the call keeps an unpublished draft instead). `VALIDATION_FAILED` with `fields` for every submission requirement as in `C-014`, plus `resident.fullName`, `resident.telephoneNumber`, `resident.displayName`. `NOT_FOUND` when `resident.memberId` does not exist. `WRITE_QUEUED` with the whole record queued durably.
 
+**Authority:** Records the resident's consent, creates an organiser-attested Member when no account exists or attaches to the one that does, and publishes the Submission with `recorderId` set. Beyond forty submissions for one ward in one day, the submission is held as a SubmissionDraft with `status:"held_for_review"` and no public reference is issued. Never creates a second account for a number that already belongs to one.
+
+**Spec anchors:** FEAT-004, FEAT-001, FEAT-003, EVT-018, EVT-019, `screens/14-assisted-intake.md`
+
 ---
 
-### C-059: Assisted intake offline replay
+### C-059: POST /api/admin/intake/replay
 
 **Status:** Frozen
 
 **Auth:** Staff session (ward_organiser)
-
-**Surface:** Route handler `POST /api/admin/intake/replay`
-
-**Spec anchors:** FEAT-004, NFR-008, `screens/14-assisted-intake.md`
-
-**Authority:** Replays a batch of intakes queued on the device. Each item is idempotent on `clientRecordId`, preserves its original `submittedAt`, and creates at most one submission. A duplicate is reported as `replayed`, never created twice.
 
 **Request:**
 ```json
@@ -2912,19 +2791,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` when `batchId` or `items` is missing or the batch exceeds 100 items. `POLICY_VIOLATION` with `cause:"WARD_NOT_AUTHORISED"` for a batch aimed at a ward the organiser does not hold. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with `cause:"PRIMARY_WRITE_UNAVAILABLE"`; the batch stays queued on the device and is replayed again with the same `clientRecordId` values.
 
+**Authority:** Replays a batch of intakes queued on the device. Each item is idempotent on `clientRecordId`, preserves its original `submittedAt`, and creates at most one submission. A duplicate is reported as `replayed`, never created twice.
+
+**Spec anchors:** FEAT-004, NFR-008, `screens/14-assisted-intake.md`
+
 ---
 
-### C-060: Report card preparation read
+### C-060: GET /api/admin/report-cards/{quarter}
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Route handler `GET /api/admin/report-cards/{quarter}`
-
-**Spec anchors:** FEAT-009, `screens/20-report-card-workbench.md`
-
-**Authority:** Reads the figures, confirmed matches, unmatched commitments and existing card for a quarter. Never publishes.
 
 **Request:**
 ```json
@@ -2949,19 +2826,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"quarter":"PATTERN_MISMATCH"}`. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last generated figures and their `asAt`; a partial card is never offered for publication.
 
+**Authority:** Reads the figures, confirmed matches, unmatched commitments and existing card for a quarter. Never publishes.
+
+**Spec anchors:** FEAT-009, `screens/20-report-card-workbench.md`
+
 ---
 
-### C-061: Report card publication
+### C-061: Action publishReportCard
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `publishReportCard` on `/admin/report-card`
-
-**Spec anchors:** FEAT-009, EVT-032, NFR-042, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
-
-**Authority:** Freezes the quarter into a ReportCard and its WardReportSnapshot and WardPillarSnapshot rows, and publishes it. A published card is immutable; a later change is a correction under `C-062`. A commitment without a confirmed match is published as unmatched, never guessed.
 
 **Request:**
 ```json
@@ -3003,19 +2878,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `CONFLICT_ALREADY_DECIDED` with `cause:"CARD_ALREADY_PUBLISHED"` and `meta.existingReportCardId`; the only route is `C-062`. `VALIDATION_FAILED` with `fields` for `quarter` (`REQUIRED`, `PATTERN_MISMATCH`), `cutOffAt` (`REQUIRED`, `PATTERN_MISMATCH`), `summaryNote` (`TOO_LONG` at 2000). `POLICY_VIOLATION` with `cause:"CUT_OFF_AFTER_QUARTER_CLOSE"`. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED`; no partial card is written.
 
+**Authority:** Freezes the quarter into a ReportCard and its WardReportSnapshot and WardPillarSnapshot rows, and publishes it. A published card is immutable; a later change is a correction under `C-062`. A commitment without a confirmed match is published as unmatched, never guessed.
+
+**Spec anchors:** FEAT-009, EVT-032, NFR-042, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
+
 ---
 
-### C-062: Report card correction
+### C-062: Action correctReportCard
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `correctReportCard` on `/admin/report-card`
-
-**Spec anchors:** FEAT-009, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
-
-**Authority:** Publishes a corrected ReportCard with `correctionOfId` pointing at the published one, marks the earlier card `superseded`, and writes a fresh set of snapshots. The earlier card remains readable. Requires the campaign director's approval.
 
 **Request:**
 ```json
@@ -3042,19 +2915,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `correctionOfId` (`REQUIRED`), `summaryNote` (`TOO_LONG`), `correctionReason` (`REQUIRED`, `TOO_LONG`), `directorApprovalReference` (`REQUIRED`). `CONFLICT_ALREADY_DECIDED` when a correction of this card already exists; correct the latest card instead. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED`.
 
+**Authority:** Publishes a corrected ReportCard with `correctionOfId` pointing at the published one, marks the earlier card `superseded`, and writes a fresh set of snapshots. The earlier card remains readable. Requires the campaign director's approval.
+
+**Spec anchors:** FEAT-009, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
+
 ---
 
-### C-063: Session question selection
+### C-063: Action selectSessionQuestion
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `selectSessionQuestion` on `/admin/sessions/{id}/compose`
-
-**Spec anchors:** FEAT-010, `screens/21-session-composer.md`
-
-**Authority:** Marks a SessionQuestion `selected` and records who selected it and when. A question held for legal review cannot be selected until the review clears.
 
 **Request:**
 ```json
@@ -3076,19 +2947,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `POLICY_VIOLATION` with `cause:"QUESTION_HELD_FOR_LEGAL_REVIEW"` or `cause:"SESSION_CANCELLED"`. `CONFLICT_ALREADY_DECIDED` with `cause:"RECORD_ALREADY_PUBLISHED"`. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Marks a SessionQuestion `selected` and records who selected it and when. A question held for legal review cannot be selected until the review clears.
+
+**Spec anchors:** FEAT-010, `screens/21-session-composer.md`
+
 ---
 
-### C-064: Session question answer
+### C-064: Action answerSessionQuestion
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `answerSessionQuestion` on `/admin/sessions/{id}/compose`
-
-**Spec anchors:** FEAT-010, `screens/21-session-composer.md`
-
-**Authority:** Records the answer text and the outcome for a selected question. Before publication a later answer replaces an earlier one; after publication a correction is recorded instead of an overwrite.
 
 **Request:**
 ```json
@@ -3120,19 +2989,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `outcome` (`REQUIRED`, `ENUM_MISMATCH`) and `answerText` (`REQUIRED` for `asked` and `answered_in_writing`, `TOO_LONG` at 2000). `POLICY_VIOLATION` with `cause:"QUESTION_NOT_SELECTED"`. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Records the answer text and the outcome for a selected question. Before publication a later answer replaces an earlier one; after publication a correction is recorded instead of an overwrite.
+
+**Spec anchors:** FEAT-010, `screens/21-session-composer.md`
+
 ---
 
-### C-065: Session record publication
+### C-065: Action publishSessionRecord
 
 **Status:** Frozen
 
 **Auth:** Staff session (response_staff)
-
-**Surface:** Server action `publishSessionRecord` on `/admin/sessions/{id}/compose`
-
-**Spec anchors:** FEAT-010, EVT-035, `screens/21-session-composer.md`, `screens/12-session-detail.md`
-
-**Authority:** Publishes the record of questions, answers and unreached questions, and sets `Session.recordPublishedAt`. Every selected question must carry an outcome. A held question is reported as a count, never as text.
 
 **Request:**
 ```json
@@ -3153,19 +3020,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` with `cause:"SELECTED_QUESTION_WITHOUT_OUTCOME"` and `fields` listing each `sessionQuestionId`. `CONFLICT_ALREADY_DECIDED` with `cause:"RECORD_ALREADY_PUBLISHED"`; use a correction with `correctionOfRecordAt`. `POLICY_VIOLATION` with `cause:"SESSION_NOT_HELD"` when the session has not taken place and was not cancelled. `FORBIDDEN_ROLE`. `SERVICE_DEGRADED`.
 
+**Authority:** Publishes the record of questions, answers and unreached questions, and sets `Session.recordPublishedAt`. Every selected question must carry an outcome. A held question is reported as a count, never as text.
+
+**Spec anchors:** FEAT-010, EVT-035, `screens/21-session-composer.md`, `screens/12-session-detail.md`
+
 ---
 
-### C-066: Data request queue read
+### C-066: GET /api/admin/data-requests
 
 **Status:** Frozen
 
 **Auth:** Staff session (operator)
-
-**Surface:** Route handler `GET /api/admin/data-requests`
-
-**Spec anchors:** FEAT-012, NFR-040, `screens/22-data-request-queue.md`
-
-**Authority:** Reads open DataRequests ordered by statutory deadline. Returns the request type, state, hold note, hold review date and outcome reason only. Never returns `fullName`, `telephoneNumber` or any other personal data; the operator works the request through the Identity and Access Service.
 
 **Request:**
 ```json
@@ -3200,19 +3065,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `FORBIDDEN_ROLE`. `SERVICE_DEGRADED` with the last successful queue and its `asAt`.
 
+**Authority:** Reads open DataRequests ordered by statutory deadline. Returns the request type, state, hold note, hold review date and outcome reason only. Never returns `fullName`, `telephoneNumber` or any other personal data; the operator works the request through the Identity and Access Service.
+
+**Spec anchors:** FEAT-012, NFR-040, `screens/22-data-request-queue.md`
+
 ---
 
-### C-067: Data request resolution
+### C-067: Action resolveDataRequest
 
 **Status:** Frozen
 
 **Auth:** Staff session (operator)
-
-**Surface:** Server action `resolveDataRequest` on `/admin/data-requests`
-
-**Spec anchors:** FEAT-012, EVT-037, NFR-040, `screens/22-data-request-queue.md`
-
-**Authority:** Moves a DataRequest to `in_progress`, `completed`, `deferred_for_legal_hold` or `refused`, recording the reason and, for an export, the file reference. Completion of a deletion anonymises the Member through the Identity and Access Service and leaves submissions in place marked as withdrawn by author. Every access to member data is logged.
 
 **Request:**
 ```json
@@ -3250,19 +3113,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `action` (`REQUIRED`, `ENUM_MISMATCH`), `outcomeReason` (`REQUIRED` for `defer`, `refuse` and `deletion` completion, `TOO_LONG`), `legalHoldNote` (`REQUIRED` for `defer`, `TOO_LONG` at 500), `legalHoldReviewAt` (`REQUIRED` for `defer`, `PATTERN_MISMATCH` when it is not a date-time), `fileReference` (`REQUIRED` for a completed `export`). `CONFLICT_ALREADY_DECIDED` when the request is already closed. `LEGAL_HOLD` with `cause:"DELETION_DEFERRED"` when a deletion is blocked by an open LegalReview; use `defer` and record the review date. `FORBIDDEN_ROLE`.
 
+**Authority:** Moves a DataRequest to `in_progress`, `completed`, `deferred_for_legal_hold` or `refused`, recording the reason and, for an export, the file reference. Completion of a deletion anonymises the Member through the Identity and Access Service and leaves submissions in place marked as withdrawn by author. Every access to member data is logged.
+
+**Spec anchors:** FEAT-012, EVT-037, NFR-040, `screens/22-data-request-queue.md`
+
 ---
 
-### C-068: Staff account and role administration
+### C-068: Action administerStaffUser
 
 **Status:** Frozen
 
 **Auth:** Staff session (operator)
-
-**Surface:** Server action `administerStaffUser` on `/admin`
-
-**Spec anchors:** FEAT-011, FEAT-012, NFR-020, `operations.md` Admin & Governance, `release.md` Change approval
-
-**Authority:** Creates a StaffUser or changes `role`, `authorisedWardIds` and `active`. Every staff role requires a second factor, and an account created here cannot work an admin queue until the staff member has enrolled through `C-092` and verified the factor. An `external_reviewer` must have `external:true`. No account may both read member personal data and see field operations. A change to a verification or identity rule requires the campaign director.
 
 **Request:**
 ```json
@@ -3300,19 +3161,17 @@ One item's failure never fails the batch. A rejected item carries `outcome:"reje
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `fullName` (`REQUIRED`, `TOO_LONG`), `role` (`REQUIRED`, `ENUM_MISMATCH` against the six staff roles), `external` (`REQUIRED`, `IMMUTABLE` when a role change would strip external status from an `external_reviewer`), and `authorisedWardIds` (`REQUIRED` for `ward_organiser`). `POLICY_VIOLATION` with `cause:"COMBINED_ACCESS_FORBIDDEN"` when the requested role would hold both member-data access and field operations. `FORBIDDEN_ROLE`. `CONFLICT_ALREADY_DECIDED` when deactivating the last active operator.
 
+**Authority:** Creates a StaffUser or changes `role`, `authorisedWardIds` and `active`. Every staff role requires a second factor, and an account created here cannot work an admin queue until the staff member has enrolled through `C-092` and verified the factor. An `external_reviewer` must have `external:true`. No account may both read member personal data and see field operations. A change to a verification or identity rule requires the campaign director.
+
+**Spec anchors:** FEAT-011, FEAT-012, NFR-020, `operations.md` Admin & Governance, `release.md` Change approval
+
 ---
 
-### C-069: Feature flag administration
+### C-069: Action setFeatureFlag
 
 **Status:** Frozen
 
 **Auth:** Staff session (operator)
-
-**Surface:** Server action `setFeatureFlag` on `/admin`
-
-**Spec anchors:** FEAT-002, FEAT-003, FEAT-009, FEAT-011, `release.md` Rollout Phases & Feature Flags, `operations.md` Model quality incidents
-
-**Authority:** Enables or disables one named flag. A model flag may be enabled only when a passing ModelEvaluation exists for the pinned version against the threshold for that capability. Disabling is always permitted and is the first response to a quality regression. Every change is audited.
 
 **Request:**
 ```json
@@ -3338,19 +3197,19 @@ The seven flags are `ward_candidate_suggestions`, `similar_submission_suggestion
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `flag` (`REQUIRED`, `ENUM_MISMATCH`) and `enabled` (`REQUIRED`). `POLICY_VIOLATION` with `cause:"MODEL_EVALUATION_MISSING_OR_FAILED"` and `meta.requiredThreshold` and `meta.capability` when a model flag is enabled without a passing evaluation. `NOT_FOUND`. `FORBIDDEN_ROLE`.
 
+**Authority:** Enables or disables one named flag. A model flag may be enabled only when a passing ModelEvaluation exists for the pinned version against the threshold for that capability. Disabling is always permitted and is the first response to a quality regression. Every change is audited.
+
+**Spec anchors:** FEAT-002, FEAT-003, FEAT-009, FEAT-011, `release.md` Rollout Phases & Feature Flags, `operations.md` Model quality incidents
+
 ---
 
-### C-092: Staff authentication and staff session
+### C-092: Action beginStaffSignIn; Action verifyStaffSecondFactor; Action enrolStaffSecondFactor; Action signOutStaff; GET /api/staff/session
+
+The entry groups the five operations of one sign-in flow: `beginStaffSignIn` on `/staff/sign-in`, `verifyStaffSecondFactor` and `enrolStaffSecondFactor` on `/staff/2fa`, `signOutStaff` in the admin shell, and the session read on `GET /api/staff/session`. Each operation states its own auth below; no operation inherits another's auth. The staff cookie `odp_staff_session` lives in a namespace separate from the member `odp_session` and is set `HttpOnly`, `SameSite=Lax` and `Secure`; neither cookie authenticates the other's surface.
 
 **Status:** Frozen
 
 **Auth:** Public for the sign-in challenge; staff session for every other operation
-
-**Surface:** Server actions `beginStaffSignIn` on `/staff/sign-in`, `verifyStaffSecondFactor` on `/staff/2fa`, `enrolStaffSecondFactor` on `/staff/2fa` and `signOutStaff` in the admin shell; route handler `GET /api/staff/session`. The entry groups the five operations of one sign-in flow, and each states its own surface and auth below; no operation inherits another's auth. The staff cookie `odp_staff_session` lives in a namespace separate from the member `odp_session` and is set `HttpOnly`, `SameSite=Lax` and `Secure`; neither cookie authenticates the other's surface.
-
-**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `architecture.md` Cross-Cutting Concerns, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
-
-**Authority:** Opens one staff session from a username and a password, satisfies it with a time-based one-time password or an unused recovery code, enrols the second factor once, reports the session and ends it. It reads no member record and carries no member identifier, name, telephone number or ward description. It never creates or changes a StaffUser's role, external flag, authorised wards or active state. While the second factor is unsatisfied the session reaches the enrolment screen and the session read and nothing else. Every state change appends its AuditEvent (`C-090`) before it answers, with a stable reason token and never the password, a code, a recovery code or the TOTP secret.
 
 **Request (sign-in challenge, public):**
 ```json
@@ -3509,21 +3368,19 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `username` (`REQUIRED`, `PATTERN_MISMATCH`), `password` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128), `code` (`REQUIRED`, `PATTERN_MISMATCH` outside six digits), `recoveryCode` (`REQUIRED`, `PATTERN_MISMATCH`; `ALREADY_SET` when a code and a recovery code are both supplied), `action` (`REQUIRED`, `ENUM_MISMATCH`), `scope` (`ENUM_MISMATCH`), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` for a wrong username or password (`cause:"STAFF_CREDENTIALS_INVALID"`), no session or a session past its idle or absolute timeout (`cause:"STAFF_SESSION_REQUIRED"`), a challenge past its ten minutes (`cause:"SECOND_FACTOR_CHALLENGE_EXPIRED"`), a wrong code (`cause:"SECOND_FACTOR_INCORRECT"`), and an unknown or spent recovery code (`cause:"RECOVERY_CODE_UNKNOWN"`, `cause:"RECOVERY_CODE_SPENT"`). `FORBIDDEN_ROLE` with `cause:"STAFF_INACTIVE"` for a credential whose account is not active, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls a staff operation. `POLICY_VIOLATION` with `cause:"SECOND_FACTOR_NOT_ENROLLED"` and `meta.recoveryPath:"/staff/2fa"` when verification is attempted before enrolment, and with `cause:"SECOND_FACTOR_ALREADY_ENROLLED"` when enrolment is begun or confirmed on an enrolled credential, which is also the answer to a repeated confirmation and carries `meta.recoveryPath:"/admin"`. `RATE_LIMITED` with `cause:"ACCOUNT_LOCKED"` and `retryAfterSeconds`, and for the per-address cap. `SERVICE_DEGRADED` with `cause:"SESSION_STORE_UNAVAILABLE"` when the session cannot be read or written, and with `cause:"CREDENTIAL_STORE_UNAVAILABLE"` when the credential cannot be read; either refusal admits nobody and leaves an existing session untouched. No operation in this entry answers `NOT_FOUND`, because an unknown username, an unknown recovery code and a wrong one are deliberately indistinguishable.
 
+**Authority:** Opens one staff session from a username and a password, satisfies it with a time-based one-time password or an unused recovery code, enrols the second factor once, reports the session and ends it. It reads no member record and carries no member identifier, name, telephone number or ward description. It never creates or changes a StaffUser's role, external flag, authorised wards or active state. While the second factor is unsatisfied the session reaches the enrolment screen and the session read and nothing else. Every state change appends its AuditEvent (`C-090`) before it answers, with a stable reason token and never the password, a code, a recovery code or the TOTP secret.
+
+**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `architecture.md` Cross-Cutting Concerns, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
+
 ---
 
 ## Domain 4 — Internal Service Boundaries
 
-### C-070: Identity and access boundary
+### C-070: Internal RPC identity.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `identity.*`
-
-**Spec anchors:** FEAT-001, FEAT-012, NFR-028, NFR-040, `architecture.md` Identity and Access Service
-
-**Authority:** The only component permitted to read a member's `fullName`, `telephoneNumber` or `declaredAge`, apart from the member's own `C-032` view. Every other component receives a member identifier and a display name only. Every call that touches personal data is logged, including refusals.
 
 **Request:**
 ```json
@@ -3559,19 +3416,17 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `FORBIDDEN_ROLE` with `cause:"PERSONAL_DATA_PERMISSION_ABSENT"`; the attempt is logged as `member_data.read_refused`. `NOT_FOUND` when the member is unknown or anonymised. `LEGAL_HOLD` when an anonymisation is blocked by an open LegalReview, with the review date. `VALIDATION_FAILED` for an unknown `operation` or a missing `purpose`. `SERVICE_DEGRADED` when the store is unreachable; no cached personal data is ever served.
 
+**Authority:** The only component permitted to read a member's `fullName`, `telephoneNumber` or `declaredAge`, apart from the member's own `C-032` view. Every other component receives a member identifier and a display name only. Every call that touches personal data is logged, including refusals.
+
+**Spec anchors:** FEAT-001, FEAT-012, NFR-028, NFR-040, `architecture.md` Identity and Access Service
+
 ---
 
-### C-071: Ward reference boundary
+### C-071: Internal RPC ward.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `ward.*`
-
-**Spec anchors:** FEAT-002, `architecture.md` Ward Reference Service
-
-**Authority:** Resolves descriptions to wards, serves the ward reference, and records confirmations and alias accumulation. Never assigns a ward to a member or a submission on its own; the caller applies the resolution.
 
 **Request:**
 ```json
@@ -3604,19 +3459,17 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `NOT_FOUND` for an unknown ward or review. `VALIDATION_FAILED` for an unknown operation, a description over 500 characters, or a missing local government area where two wards share a name. `POLICY_VIOLATION` when appending an alias to a `seeded` ward without a confirmed description. `SERVICE_DEGRADED` with `cause:"WARD_REFERENCE_UNAVAILABLE"`; the caller falls back to the free-text path.
 
+**Authority:** Resolves descriptions to wards, serves the ward reference, and records confirmations and alias accumulation. Never assigns a ward to a member or a submission on its own; the caller applies the resolution.
+
+**Spec anchors:** FEAT-002, `architecture.md` Ward Reference Service
+
 ---
 
-### C-072: Submission boundary
+### C-072: Internal RPC submission.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `submission.*`
-
-**Spec anchors:** FEAT-003, FEAT-004, FEAT-005, `architecture.md` Submission Service
-
-**Authority:** Owns Submission, SubmissionDraft, Backing and the duplicate check. Applies ward resolution to unresolved submissions when the ward reference resolves. Never publishes on inference output and never merges two submissions.
 
 **Request:**
 ```json
@@ -3646,19 +3499,17 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `CONFLICT_DUPLICATE_BACKING`. `POLICY_VIOLATION` with `cause:"AUTHOR_CANNOT_BACK_OWN_SUBMISSION"` or `cause:"WARD_UNRESOLVED"`. `CONFLICT_ALREADY_DECIDED` with `cause:"DUPLICATE_CLIENT_RECORD_ID"`, which returns the existing submission rather than creating another. `NOT_FOUND`. `SERVICE_DEGRADED`.
 
+**Authority:** Owns Submission, SubmissionDraft, Backing and the duplicate check. Applies ward resolution to unresolved submissions when the ward reference resolves. Never publishes on inference output and never merges two submissions.
+
+**Spec anchors:** FEAT-003, FEAT-004, FEAT-005, `architecture.md` Submission Service
+
 ---
 
-### C-073: Discourse boundary
+### C-073: Internal RPC discourse.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `discourse.*`
-
-**Spec anchors:** FEAT-006, FEAT-011, FEAT-014, `architecture.md` Discourse Service
-
-**Authority:** Owns Comment, Rule, ModerationAction and Appeal. A removal is a state change and never a delete. Every removal cites an active Rule. A removal without a rule is invalid and is restored when the case reaches review.
 
 **Request:**
 ```json
@@ -3688,19 +3539,17 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `VALIDATION_FAILED` with `fields:{"ruleId":"REQUIRED"}` for a removal. `POLICY_VIOLATION` with `cause:"MODERATOR_IS_SUBJECT"` or `cause:"RULE_RETIRED"`. `CONFLICT_ALREADY_DECIDED` for a decided appeal or an unchanged status. `NOT_FOUND`. `LEGAL_HOLD`.
 
+**Authority:** Owns Comment, Rule, ModerationAction and Appeal. A removal is a state change and never a delete. Every removal cites an active Rule. A removal without a rule is invalid and is restored when the case reaches review.
+
+**Spec anchors:** FEAT-006, FEAT-011, FEAT-014, `architecture.md` Discourse Service
+
 ---
 
-### C-074: Decision and commitment boundary
+### C-074: Internal RPC record.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `record.*`
-
-**Spec anchors:** FEAT-007, FEAT-008, FEAT-009, `architecture.md` Decision and Commitment Service
-
-**Authority:** Owns Decision, Commitment and CommitmentStatusChange, and computes the overdue set and the answer rate from the record. A published decision is immutable in content. The overdue flag is derived from `submittedAt` and `status` and is never stored. The answer rate is computed from the record, never from an editable figure.
 
 **Request:**
 ```json
@@ -3733,19 +3582,17 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `CONFLICT_ALREADY_DECIDED` with `cause:"LIVE_DECISION_EXISTS"` and the existing decision id. `VALIDATION_FAILED` for missing mandatory fields per decision type. `POLICY_VIOLATION` with `cause:"TARGET_DATE_IN_PAST"`. `NOT_FOUND`. `SERVICE_DEGRADED`; a commitment count is never reconciled from a partial read.
 
+**Authority:** Owns Decision, Commitment and CommitmentStatusChange, and computes the overdue set and the answer rate from the record. A published decision is immutable in content. The overdue flag is derived from `submittedAt` and `status` and is never stored. The answer rate is computed from the record, never from an editable figure.
+
+**Spec anchors:** FEAT-007, FEAT-008, FEAT-009, `architecture.md` Decision and Commitment Service
+
 ---
 
-### C-075: Reporting boundary
+### C-075: Internal RPC reporting.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `reporting.*`
-
-**Spec anchors:** FEAT-008, FEAT-009, NFR-002, NFR-003, `architecture.md` Reporting Service
-
-**Authority:** Produces the cached public record: the register, the ledger, the ward report and the card. Applies the suppression rule (a cell below five is suppressed and says so). Serves its last good output when the primary store is unavailable.
 
 **Request:**
 ```json
@@ -3777,19 +3624,17 @@ The satisfied session answers the same shape with `secondFactorSatisfied:true`, 
 
 **Errors:** `NOT_FOUND` for an unknown ward or quarter. `VALIDATION_FAILED` for an unknown operation or a malformed quarter. `SERVICE_DEGRADED` with the last generated output and its `generatedAt`; a suppressed cell is always `null`, never zero.
 
+**Authority:** Produces the cached public record: the register, the ledger, the ward report and the card. Applies the suppression rule (a cell below five is suppressed and says so). Serves its last good output when the primary store is unavailable.
+
+**Spec anchors:** FEAT-008, FEAT-009, NFR-002, NFR-003, `architecture.md` Reporting Service
+
 ---
 
-### C-076: Notification boundary
+### C-076: Internal RPC notify.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `notify.*`
-
-**Spec anchors:** FEAT-001, FEAT-007, FEAT-011, NFR-010, `operations.md` Registration code delivery failure
-
-**Authority:** Queues and delivers one-time codes, decision notices, appeal outcomes and session reminders. Holds a message when its channel is unavailable and retries with backoff. Never blocks the write that produced the notice.
 
 **Request:**
 ```json
@@ -3823,19 +3668,17 @@ A `dedupeKey` already present returns the existing notification with `state` unc
 
 **Errors:** `VALIDATION_FAILED` for an unknown template, channel or operation. `NOT_FOUND` when `recipientMemberId` is unknown or anonymised. `SERVICE_DEGRADED` with `cause:"SMS_CHANNEL_UNAVAILABLE"`; the notification is held, not lost, and the caller is told the notice is queued rather than failing its own write.
 
+**Authority:** Queues and delivers one-time codes, decision notices, appeal outcomes and session reminders. Holds a message when its channel is unavailable and retries with backoff. Never blocks the write that produced the notice.
+
+**Spec anchors:** FEAT-001, FEAT-007, FEAT-011, NFR-010, `operations.md` Registration code delivery failure
+
 ---
 
-### C-077: Audit and analytics boundary
+### C-077: Internal RPC audit.* and analytics.*
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `audit.*` and `analytics.*`
-
-**Spec anchors:** NFR-028, NFR-040, `analytics.md` Analytics Data Governance, `operations.md` Admin & Governance
-
-**Authority:** Appends audit events and emits product events. The audit log is append-only: no update and no delete operation exists on this boundary, so `audit.append` is the only verb that writes it. Analytics events carry a pseudonymous `user_id` and never a name, telephone number, ward description or free text. The external reviewer may read the access log but never event content. The caller is the authenticated service credential and never a component named inside `args`; the permitted emitter list is operator configuration, not a value a caller may assert.
 
 **Request:** four operations, each with its own argument shape. `args` carries only what the named operation needs, and an undeclared key is refused rather than ignored.
 
@@ -3934,21 +3777,19 @@ One entry per recorded read, export or refusal; `auditEventId` names the entry b
 
 **Errors:** one taxonomy across the four operations. `VALIDATION_FAILED` with `cause:"OPERATION_UNKNOWN"` and `fields:{"operation":"ENUM_MISMATCH"}` for any operation outside the four, including `audit.update` and `audit.delete`, because neither operation exists; `cause:"ARGS_MALFORMED"` with `fields:{"args":"REQUIRED"}` when `args` is not an object; and `cause:"AUDIT_EVENT_INVALID"` or `cause:"EVENT_ENVELOPE_INVALID"` with the field map from `C-090` or `C-089` when a property is missing, mistyped or outside its declared range. `VALIDATION_FAILED` with `cause:"ACCESS_LOG_LIMIT_OUT_OF_BAND"` and `fields:{"limit":"OUT_OF_BAND"}` when `limit` is outside 1–50, and with `cause:"USER_ID_INVALID"` and `fields:{"userId":"REQUIRED"}` or `"PATTERN_MISMATCH"` when `userId` is absent or not in the `C-001` form. `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_AUDIT_REASON"` or `cause:"PERSONAL_DATA_IN_EVENT"` when a property carries a name, telephone number, ward description or free text; the record is rejected, not redacted. `FORBIDDEN_ROLE` with `cause:"COMPONENT_NOT_PERMITTED"` when the authenticated component is not on the analytics emitter list. `SERVICE_DEGRADED` with `cause:"AUDIT_APPEND_FAILED"`, `cause:"ANALYTICS_STORE_UNAVAILABLE"` or `cause:"ACCESS_LOG_UNAVAILABLE"`; a failed audit append fails the originating write, because an unaudited state change is not permitted, while a failed emit is buffered and retried by its caller and never fails the write that produced it.
 
+**Authority:** Appends audit events and emits product events. The audit log is append-only: no update and no delete operation exists on this boundary, so `audit.append` is the only verb that writes it. Analytics events carry a pseudonymous `user_id` and never a name, telephone number, ward description or free text. The external reviewer may read the access log but never event content. The caller is the authenticated service credential and never a component named inside `args`; the permitted emitter list is operator configuration, not a value a caller may assert.
+
+**Spec anchors:** NFR-028, NFR-040, `analytics.md` Analytics Data Governance, `operations.md` Admin & Governance
+
 ---
 
 ## Domain 5 — Inference Gateway RPC
 
-### C-078: Inference Gateway invocation envelope
+### C-078: Internal RPC inference.invoke
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `inference.invoke`
-
-**Spec anchors:** NFR-012, NFR-013, NFR-014, NFR-015, NFR-045, NFR-050, NFR-051, NFR-052, NFR-053, `architecture.md` Inference Gateway
-
-**Authority:** The only component permitted to call a model provider. Strips identifiers before anything leaves the platform, enforces the pinned version, timeout and cost ceiling per capability, and returns nothing on timeout or refusal so the caller falls back. No call originates from a page read. It cannot publish, decide, hold or remove anything.
 
 **Request:**
 ```json
@@ -3981,19 +3822,17 @@ The gateway rewrites `modelVersion`, `timeoutMs` and `costCeilingMicrosPerThousa
 
 **Errors:** `CAPABILITY_UNAVAILABLE` with `cause:"CAPABILITY_DISABLED"` or `cause:"PROVIDER_UNAVAILABLE"`, and `result:null`. `POLICY_VIOLATION` with `cause:"IDENTIFIER_PRESENT"` and `fields` naming the offending payload paths; the call is not dispatched and an audit event is appended. `VALIDATION_FAILED` for an unknown capability, a payload that is not an object, or a missing `correlationId`. `RATE_LIMITED` when the capability's spend ceiling for the current window is reached, with `retryAfterSeconds`. `SERVICE_DEGRADED` when the gateway itself is unreachable; the caller's deterministic path runs.
 
+**Authority:** The only component permitted to call a model provider. Strips identifiers before anything leaves the platform, enforces the pinned version, timeout and cost ceiling per capability, and returns nothing on timeout or refusal so the caller falls back. No call originates from a page read. It cannot publish, decide, hold or remove anything.
+
+**Spec anchors:** NFR-012, NFR-013, NFR-014, NFR-015, NFR-045, NFR-050, NFR-051, NFR-052, NFR-053, `architecture.md` Inference Gateway
+
 ---
 
-### C-079: `similar_submission` capability
+### C-079: Internal RPC inference.invoke with capability similar_submission
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `inference.invoke` with `capability:"similar_submission"`
-
-**Spec anchors:** FEAT-003, NFR-050, NFR-012, EVT-011, EVT-038, EVT-039, EVT-040, EVT-041, `screens/06-submission-form.md`
-
-**Authority:** Ranks existing published submissions in the same ward against a draft. Returns at most three. Never merges, hides, blocks or edits a submission.
 
 **Request:**
 ```json
@@ -4032,19 +3871,17 @@ The gateway rewrites `modelVersion`, `timeoutMs` and `costCeilingMicrosPerThousa
 
 **Errors:** `CAPABILITY_UNAVAILABLE` with `cause:"CAPABILITY_DISABLED"` or `cause:"TIMEOUT"`, `result:null`, and the caller uses exact and near-string matching. `POLICY_VIOLATION` with `cause:"IDENTIFIER_PRESENT"`. `VALIDATION_FAILED` when `draftBody` is missing or `candidateLimit` exceeds 3. `RATE_LIMITED` at the spend ceiling.
 
+**Authority:** Ranks existing published submissions in the same ward against a draft. Returns at most three. Never merges, hides, blocks or edits a submission.
+
+**Spec anchors:** FEAT-003, NFR-050, NFR-012, EVT-011, EVT-038, EVT-039, EVT-040, EVT-041, `screens/06-submission-form.md`
+
 ---
 
-### C-080: `ward_candidate` capability
+### C-080: Internal RPC inference.invoke with capability ward_candidate
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `inference.invoke` with `capability:"ward_candidate"`
-
-**Spec anchors:** FEAT-002, NFR-051, NFR-014, EVT-006, EVT-038, EVT-039, EVT-041, `screens/05-ward-confirmation.md`
-
-**Authority:** Returns up to three candidate wards with a confidence ordering. Never assigns a ward; an unconfirmed candidate changes nothing.
 
 **Request:**
 ```json
@@ -4081,19 +3918,17 @@ The gateway rewrites `modelVersion`, `timeoutMs` and `costCeilingMicrosPerThousa
 
 **Errors:** `CAPABILITY_UNAVAILABLE` with `result:null`; the caller falls back to alias and exact matching and then to the review queue. `POLICY_VIOLATION` with `cause:"IDENTIFIER_PRESENT"`; a description containing a telephone-number pattern is refused. `VALIDATION_FAILED` when `description` is missing or exceeds 500 characters. `RATE_LIMITED`.
 
+**Authority:** Returns up to three candidate wards with a confidence ordering. Never assigns a ward; an unconfirmed candidate changes nothing.
+
+**Spec anchors:** FEAT-002, NFR-051, NFR-014, EVT-006, EVT-038, EVT-039, EVT-041, `screens/05-ward-confirmation.md`
+
 ---
 
-### C-081: `moderation_routing` capability
+### C-081: Internal RPC inference.invoke with capability moderation_routing
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `inference.invoke` with `capability:"moderation_routing"`
-
-**Spec anchors:** FEAT-011, NFR-052, NFR-015, EVT-020, EVT-022, EVT-038, EVT-041, `screens/17-moderation-log.md`
-
-**Authority:** Returns exactly one advisory label from `ordinary`, `abuse_or_threat`, `named_allegation`, `spam`. The label orders the moderator's queue. It never removes, holds, publishes or changes a comment's status, and criticism of the candidate is never a label it may produce.
 
 **Request:**
 ```json
@@ -4124,19 +3959,17 @@ A response whose `routingFlag` is anything other than the four enum values is di
 
 **Errors:** `CAPABILITY_UNAVAILABLE` with `result:null`; the queue falls back to chronological order with no flag. `POLICY_VIOLATION` with `cause:"IDENTIFIER_PRESENT"`. `VALIDATION_FAILED` when `commentBody` is missing or empty. `RATE_LIMITED`.
 
+**Authority:** Returns exactly one advisory label from `ordinary`, `abuse_or_threat`, `named_allegation`, `spam`. The label orders the moderator's queue. It never removes, holds, publishes or changes a comment's status, and criticism of the candidate is never a label it may produce.
+
+**Spec anchors:** FEAT-011, NFR-052, NFR-015, EVT-020, EVT-022, EVT-038, EVT-041, `screens/17-moderation-log.md`
+
 ---
 
-### C-082: `budget_line_extraction` capability
+### C-082: Internal RPC inference.invoke with capability budget_line_extraction
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `inference.invoke` with `capability:"budget_line_extraction"`
-
-**Spec anchors:** FEAT-009, NFR-053, NFR-013, EVT-029, EVT-030, EVT-038, EVT-041, `screens/20-report-card-workbench.md`
-
-**Authority:** Extracts candidate appropriation lines for a commitment. Returns candidates with a confidence score; nothing is published until a named staff member confirms it in `C-048`.
 
 **Request:**
 ```json
@@ -4173,21 +4006,21 @@ A response whose `routingFlag` is anything other than the four enum values is di
 
 **Errors:** `CAPABILITY_UNAVAILABLE` with `result:null`; the workbench switches to manual reconciliation and every commitment shows as unmatched. `POLICY_VIOLATION` with `cause:"IDENTIFIER_PRESENT"`; an owner name in the payload is refused rather than silently used. `VALIDATION_FAILED` when `commitmentText` or `appropriationExcerpt` is missing. `RATE_LIMITED`.
 
+**Authority:** Extracts candidate appropriation lines for a commitment. Returns candidates with a confidence score; nothing is published until a named staff member confirms it in `C-048`.
+
+**Spec anchors:** FEAT-009, NFR-053, NFR-013, EVT-029, EVT-030, EVT-038, EVT-041, `screens/20-report-card-workbench.md`
+
 ---
 
 ## Domain 6 — Background Worker Jobs
 
-### C-083: Twenty-one-day overdue check job
+### C-083: Scheduled job overdue-check
+
+Runs daily at 06:00 Africa/Lagos.
 
 **Status:** Frozen
 
 **Auth:** Worker secret
-
-**Surface:** Scheduled job `overdue-check`, daily at 06:00 Africa/Lagos
-
-**Spec anchors:** FEAT-007, FEAT-008, EVT-027, `screens/09-public-ledger.md`
-
-**Authority:** Finds every in-state submission with `status:"awaiting_decision"` whose `submittedAt` is more than twenty-one days before the run, emits `submission_overdue` once per submission per day, and invalidates the ledger and register cache so the entries appear without anyone adding them. Never publishes a decision and never edits a submission.
 
 **Request:**
 ```json
@@ -4215,19 +4048,19 @@ A response whose `routingFlag` is anything other than the four enum values is di
 
 **Errors:** `CONFLICT_ALREADY_DECIDED` with `cause:"RUN_KEY_ALREADY_COMPLETED"`, which returns the prior result unchanged. `SERVICE_DEGRADED` with `cause:"PRIMARY_STORE_UNAVAILABLE"`; the run is retried on the next scheduled tick and no partial invalidation is applied. `VALIDATION_FAILED` for a missing `runKey` or `asOf`.
 
+**Authority:** Finds every in-state submission with `status:"awaiting_decision"` whose `submittedAt` is more than twenty-one days before the run, emits `submission_overdue` once per submission per day, and invalidates the ledger and register cache so the entries appear without anyone adding them. Never publishes a decision and never edits a submission.
+
+**Spec anchors:** FEAT-007, FEAT-008, EVT-027, `screens/09-public-ledger.md`
+
 ---
 
-### C-084: Quarterly report card generation job
+### C-084: Scheduled job report-card-generation
+
+Runs at 05:00 Africa/Lagos on the first day after a quarter closes.
 
 **Status:** Frozen
 
 **Auth:** Worker secret
-
-**Surface:** Scheduled job `report-card-generation`, at 05:00 Africa/Lagos on the first day after a quarter closes
-
-**Spec anchors:** FEAT-009, NFR-013, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
-
-**Authority:** Computes the quarter's figures and ward and pillar snapshots and stages them for the workbench. Does not publish: publication is `C-061`. Applies suppression below five in a ward-pillar cell and sets `suppressionApplied`.
 
 **Request:**
 ```json
@@ -4250,19 +4083,19 @@ A response whose `routingFlag` is anything other than the four enum values is di
 
 **Errors:** `CONFLICT_ALREADY_DECIDED` with `cause:"QUARTER_ALREADY_STAGED"`; the run returns the staged result rather than recomputing. `POLICY_VIOLATION` with `cause:"QUARTER_NOT_CLOSED"`. `SERVICE_DEGRADED` with `cause:"REPORTING_SERVICE_UNAVAILABLE"`; the previous card stays readable and the job retries. `VALIDATION_FAILED` for a malformed quarter.
 
+**Authority:** Computes the quarter's figures and ward and pillar snapshots and stages them for the workbench. Does not publish: publication is `C-061`. Applies suppression below five in a ward-pillar cell and sets `suppressionApplied`.
+
+**Spec anchors:** FEAT-009, NFR-013, `screens/20-report-card-workbench.md`, `screens/11-quarterly-report-card.md`
+
 ---
 
-### C-085: Backing anomaly review job
+### C-085: Scheduled job backing-anomaly-review
+
+Runs hourly at :15.
 
 **Status:** Frozen
 
 **Auth:** Worker secret
-
-**Surface:** Scheduled job `backing-anomaly-review`, hourly at :15
-
-**Spec anchors:** FEAT-005, NFR-027, EVT-017, `screens/07-submission-detail.md`
-
-**Authority:** Detects concentrated backing and voids individual backings when the pattern is confirmed. Holds the published count as `under_review` while a case is open. Never rejects the members and never removes a submission. The concentrated-backing rule: more than fifty backings from accounts created in the last seven days on one submission in one day holds the count pending review; sudden concentrated backing from one ward marks the submission for anomaly review.
 
 **Request:**
 ```json
@@ -4286,19 +4119,19 @@ A voided backing sets `Backing.state:"voided"`, emits `backing_voided` with a `r
 
 **Errors:** `CONFLICT_ALREADY_DECIDED` with `cause:"WINDOW_ALREADY_PROCESSED"`. `SERVICE_DEGRADED` with `cause:"SUBMISSION_STORE_UNAVAILABLE"`; the window is retried and no count is released. `VALIDATION_FAILED` for a missing window or run key.
 
+**Authority:** Detects concentrated backing and voids individual backings when the pattern is confirmed. Holds the published count as `under_review` while a case is open. Never rejects the members and never removes a submission. The concentrated-backing rule: more than fifty backings from accounts created in the last seven days on one submission in one day holds the count pending review; sudden concentrated backing from one ward marks the submission for anomaly review.
+
+**Spec anchors:** FEAT-005, NFR-027, EVT-017, `screens/07-submission-detail.md`
+
 ---
 
-### C-086: Cache pre-warming job
+### C-086: Scheduled job cache-prewarm
+
+Runs every ten minutes.
 
 **Status:** Frozen
 
 **Auth:** Worker secret
-
-**Surface:** Scheduled job `cache-prewarm`, every ten minutes
-
-**Spec anchors:** NFR-001, NFR-002, NFR-003, NFR-010, `architecture.md` Reporting Service
-
-**Authority:** Renders and caches the public record pages most likely to be read, so a resident reads a commitment without waiting on an application bundle and the record stays readable during degradation. Never writes public content and never changes a figure; it only re-renders what the reporting boundary already produces.
 
 **Request:**
 ```json
@@ -4320,19 +4153,19 @@ A voided backing sets `Backing.state:"voided"`, emits `backing_voided` with a `r
 
 **Errors:** `SERVICE_DEGRADED` with `cause:"PRIMARY_STORE_UNAVAILABLE"`; the job leaves the existing cache untouched so the last good pages keep serving, and reports `pagesSkipped`. `POLICY_VIOLATION` when a target would render a suppressed figure unsuppressed; that target is skipped and reported. `VALIDATION_FAILED` for an unknown target.
 
+**Authority:** Renders and caches the public record pages most likely to be read, so a resident reads a commitment without waiting on an application bundle and the record stays readable during degradation. Never writes public content and never changes a figure; it only re-renders what the reporting boundary already produces.
+
+**Spec anchors:** NFR-001, NFR-002, NFR-003, NFR-010, `architecture.md` Reporting Service
+
 ---
 
-### C-087: Backup verification job
+### C-087: Scheduled job backup-verify
+
+Runs daily at 03:30 Africa/Lagos, with a quarterly restore rehearsal.
 
 **Status:** Frozen
 
 **Auth:** Worker secret
-
-**Surface:** Scheduled job `backup-verify`, daily at 03:30 Africa/Lagos, with a quarterly restore rehearsal
-
-**Spec anchors:** NFR-010, NFR-011, `architecture.md` Backup & Recovery
-
-**Authority:** Verifies that a backup exists within the fifteen-minute recovery point, that its retention is thirty-five days, and that a restore reconciles commitment counts before and after. Never restores over production.
 
 **Request:**
 ```json
@@ -4357,19 +4190,19 @@ A voided backing sets `Backing.state:"voided"`, emits `backing_voided` with a `r
 
 **Errors:** `SERVICE_DEGRADED` with `cause:"BACKUP_MISSING"` or `cause:"RECONCILIATION_MISMATCH"`; the job raises a SEV-2 alert and reports the differing counts. `CONFLICT_ALREADY_DECIDED` with `cause:"RUN_KEY_ALREADY_COMPLETED"`. `LEGAL_HOLD` when a rehearsal would touch a store under a preservation instruction; the rehearsal is skipped and reported.
 
+**Authority:** Verifies that a backup exists within the fifteen-minute recovery point, that its retention is thirty-five days, and that a restore reconciles commitment counts before and after. Never restores over production.
+
+**Spec anchors:** NFR-010, NFR-011, `architecture.md` Backup & Recovery
+
 ---
 
-### C-088: Handover and archive job
+### C-088: Scheduled job handover-archive
+
+A single run at the fixed transfer date 2027-02-06T00:00:00Z, retried until it succeeds.
 
 **Status:** Frozen
 
 **Auth:** Worker secret
-
-**Surface:** Single scheduled job `handover-archive`, run once at the fixed transfer date 2027-02-06T00:00:00Z, retried until it succeeds
-
-**Spec anchors:** FEAT-013, FEAT-012, NFR-011, `release.md` Go-Live Checklist
-
-**Authority:** Transfers the register and ledger to the named custodian, or, when no custodian is in place, makes the record a read-only archive. Removes direct identifiers. Excludes the personal data of a member who withheld `record_transfer` consent while keeping their submissions anonymised. On partial failure the record stays read-only at its original address, the failure is published, and the job retries. Never improvises a custodian.
 
 **Request:**
 ```json
@@ -4397,21 +4230,19 @@ The job writes the handover snapshot to object storage, publishes the public not
 
 **Errors:** `POLICY_VIOLATION` with `cause:"CUSTODIAN_TERMS_UNPUBLISHED"` or `cause:"NO_CUSTODIAN_AND_NO_ARCHIVE_DECISION"`; the job does not proceed. `CONFLICT_ALREADY_DECIDED` with `cause:"TRANSFER_ALREADY_COMPLETED"`, returning the completed result. `SERVICE_DEGRADED` with `cause:"TRANSFER_PARTIAL_FAILURE"`; the record is left read-only and the run is retried with the same `runKey`. `LEGAL_HOLD` when a preservation instruction covers a data class; the job proceeds with the classes not held and reports the held ones.
 
+**Authority:** Transfers the register and ledger to the named custodian, or, when no custodian is in place, makes the record a read-only archive. Removes direct identifiers. Excludes the personal data of a member who withheld `record_transfer` consent while keeping their submissions anonymised. On partial failure the record stays read-only at its original address, the failure is published, and the job retries. Never improvises a custodian.
+
+**Spec anchors:** FEAT-013, FEAT-012, NFR-011, `release.md` Go-Live Checklist
+
 ---
 
 ## Domain 7 — Event Envelopes
 
-### C-089: Analytics event envelope
+### C-089: Internal RPC analytics.emit
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `analytics.emit`
-
-**Spec anchors:** EVT-001–EVT-048, `analytics.md`, NFR-040, NFR-045
-
-**Authority:** Carries product events to the analytics platform. No event carries a name, a telephone number, a ward description or any free text. `user_id` is pseudonymous and absent before registration. No optional analytics exists, so no event is consent-gated, and the privacy notice says so in those words. Raw events are retained 26 months and then aggregated; a deletion request replaces `user_id` with a non-reversible token so historical counts survive.
 
 **Request:**
 ```json
@@ -4443,19 +4274,17 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
 
 **Errors:** `VALIDATION_FAILED` for a missing common property, an unknown `event_name`, or a key property outside the taxonomy (`fields` names each). `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_EVENT"` when a property carries a name, telephone number, ward description, submission text, comment text or extracted budget line; the event is rejected, not redacted. `SERVICE_DEGRADED` when the analytics platform is unreachable: the event is buffered and retried, and the originating write is not failed, because analytics is a low-criticality path.
 
+**Authority:** Carries product events to the analytics platform. No event carries a name, a telephone number, a ward description or any free text. `user_id` is pseudonymous and absent before registration. No optional analytics exists, so no event is consent-gated, and the privacy notice says so in those words. Raw events are retained 26 months and then aggregated; a deletion request replaces `user_id` with a non-reversible token so historical counts survive.
+
+**Spec anchors:** EVT-001–EVT-048, `analytics.md`, NFR-040, NFR-045
+
 ---
 
-### C-090: Audit event envelope
+### C-090: Internal RPC audit.append
 
 **Status:** Frozen
 
 **Auth:** Internal only
-
-**Surface:** Internal RPC `audit.append`
-
-**Spec anchors:** NFR-028, `schema.md` AuditEvent, `operations.md` Admin & Governance, `analytics.md` Deletion propagation
-
-**Authority:** Records every state change with actor, target, action, time and reason, in an append-only store. Retention is 24 months. The external reviewer and the operator may read it; no component may update or delete an entry. A deletion request is not complete until the analytics store and this log both confirm. A refused member-data read is recorded as a refusal.
 
 **Request:**
 ```json
@@ -4488,21 +4317,21 @@ Common properties on every event are exactly `event_id`, `occurred_at`, `user_id
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `id`, `actorId`, `actorRole`, `action`, `entityType`, `entityId`, `occurredAt` or `correlationId` when missing or malformed, and for any key the envelope does not declare (`UNKNOWN_FIELD`). `POLICY_VIOLATION` with `cause:"PERSONAL_DATA_IN_AUDIT_REASON"` when `reason` reproduces a name, telephone number or the text of a held item; the append is refused so the log cannot become a second copy of the data it protects. There is no update and no delete operation: a caller that names one is refused at the boundary with `VALIDATION_FAILED` and `cause:"OPERATION_UNKNOWN"` (`C-077`), because no second verb exists to serve it. `SERVICE_DEGRADED`; a failed append fails the originating state change, and the change is not committed.
 
+**Authority:** Records every state change with actor, target, action, time and reason, in an append-only store. Retention is 24 months. The external reviewer and the operator may read it; no component may update or delete an entry. A deletion request is not complete until the analytics store and this log both confirm. A refused member-data read is recorded as a refusal.
+
+**Spec anchors:** NFR-028, `schema.md` AuditEvent, `operations.md` Admin & Governance, `analytics.md` Deletion propagation
+
 ---
 
 ## Domain 8 — Operational Probes
 
-### C-091: Operational health probes
+### C-091: GET /healthz, GET /readyz
+
+Both paths answer on the web deployable, and the worker answers the same two paths on its own listener.
 
 **Status:** Frozen
 
 **Auth:** Monitor only
-
-**Surface:** Route handlers `GET /healthz` and `GET /readyz` on the web deployable, and the same two paths on the worker's own listener
-
-**Spec anchors:** NFR-010, NFR-011, `operations.md` Incident & Escalation, `architecture.md` Logging & Monitoring, `nfr.md` Availability & Reliability
-
-**Authority:** Reports whether the process is alive and whether it can serve traffic. The probes answer for the process only: they read no record, write nothing, create no session, take no cache entry and change no state. They are the origin of no audit event and no analytics event, because neither a liveness check nor a readiness check is a state change. The reverse proxy, not the application, is the access boundary: both paths are admitted only from the uptime monitor's address, and the application itself requires no credential. Recorded here because the contract set predates the probes; ADR-001 platform decision 9 establishes them.
 
 **Request:**
 ```json
@@ -4536,21 +4365,19 @@ Both take no query parameter, no request body, no cookie and no header. A reques
 
 **Errors:** no `C-001` error envelope is used on either path. `/readyz` answers `503` with `{"status":"not_ready"}` and `/healthz` answers nothing when it cannot answer. A caller outside the monitor allowlist is refused at the reverse proxy before the request reaches the application; the deployment requirement is that both paths are reachable only from the monitor, and a test exercises that refusal. A `405` on a non-`GET` method is the only application-level refusal either path produces.
 
+**Authority:** Reports whether the process is alive and whether it can serve traffic. The probes answer for the process only: they read no record, write nothing, create no session, take no cache entry and change no state. They are the origin of no audit event and no analytics event, because neither a liveness check nor a readiness check is a state change. The reverse proxy, not the application, is the access boundary: both paths are admitted only from the uptime monitor's address, and the application itself requires no credential. Recorded here because the contract set predates the probes; ADR-001 platform decision 9 establishes them.
+
+**Spec anchors:** NFR-010, NFR-011, `operations.md` Incident & Escalation, `architecture.md` Logging & Monitoring, `nfr.md` Availability & Reliability
+
 ---
 
 ## Domain 9 — Staff Credential Recovery
 
-### C-093: Staff credential and second-factor reset
+### C-093: Action resetStaffCredential
 
 **Status:** Frozen
 
 **Auth:** Staff session (operator, second factor satisfied)
-
-**Surface:** Server action `resetStaffCredential` on `/admin`
-
-**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
-
-**Authority:** Resets one other staff user's credential: replaces the password, clears the enrolled second factor and its recovery codes, clears the lockout, and ends that user's sessions so they must enrol again before returning to work. It changes no role, no external flag, no authorised ward and no active state, and it reactivates nobody. It reads no member record and returns no part of the credential: not the password it accepted, not the TOTP secret, not a recovery code. It appends one AuditEvent (`C-090`) before it answers, carrying the operator as actor, the target staff user as the entity, the time and the operator's reason. A refused reset appends `staff.credential_reset_refused` with its refusal cause as the reason, so no attempt is silently dropped.
 
 **Request:**
 ```json
@@ -4595,3 +4422,6 @@ The write replaces `passwordHash` and sets `passwordChangedAt`, clears `totpSecr
 
 **Errors:** `VALIDATION_FAILED` with `fields` for `staffUserId` (`REQUIRED`, `PATTERN_MISMATCH`), `newPassword` (`REQUIRED`, `TOO_SHORT` below 12, `TOO_LONG` above 128, `ALREADY_SET` when it matches the password being replaced), `reason` (`REQUIRED`, `TOO_LONG` above 500), and a missing `Idempotency-Key` as `C-001` states. `UNAUTHENTICATED` with `cause:"STAFF_SESSION_REQUIRED"` when there is no session or it has expired, and with `cause:"SECOND_FACTOR_REQUIRED"` when the operator's session has not satisfied its factor. `FORBIDDEN_ROLE` with `cause:"OPERATOR_REQUIRED"` for any other staff role, and with `cause:"MEMBER_SESSION_PRESENT"` when a `C-008` member session calls it. `POLICY_VIOLATION` with `cause:"SELF_RESET_REQUIRES_SECOND_OPERATOR"` for a self-targeted reset. `NOT_FOUND` when the staff user or their credential does not exist. `RATE_LIMITED` per operator account with `retryAfterSeconds`; the cap is operator configuration (`NFR-027`). `SERVICE_DEGRADED` with `cause:"CREDENTIAL_STORE_UNAVAILABLE"`; a failed write or a failed audit append leaves the credential, the lock and the sessions exactly as they were.
 
+**Authority:** Resets one other staff user's credential: replaces the password, clears the enrolled second factor and its recovery codes, clears the lockout, and ends that user's sessions so they must enrol again before returning to work. It changes no role, no external flag, no authorised ward and no active state, and it reactivates nobody. It reads no member record and returns no part of the credential: not the password it accepted, not the TOTP secret, not a recovery code. It appends one AuditEvent (`C-090`) before it answers, carrying the operator as actor, the target staff user as the entity, the time and the operator's reason. A refused reset appends `staff.credential_reset_refused` with its refusal cause as the reason, so no attempt is silently dropped.
+
+**Spec anchors:** NFR-020, NFR-021, NFR-026, NFR-028, `operations.md` Admin & Governance, `schema.md` StaffUser and StaffCredential
