@@ -99,6 +99,8 @@ Changing a stack choice is a decision: record it in `.decisions/` and update thi
 ├── assets/                       # visual asset ledger and generated files
 │   ├── AGENTS.md                 # asset area manual
 │   └── ASSETS.md                 # slot ledger and prompt families
+├── infra/                        # local environment contract for the Compose stack
+│   └── local/                    # validated environment and .env.example renderer
 ├── apps/
 │   └── web/                      # Next.js application: public record + /admin
 ├── packages/
@@ -107,6 +109,10 @@ Changing a stack choice is a decision: record it in `.decisions/` and update thi
 │   ├── ui/                       # design tokens, primitives, record components
 │   ├── inference/                # inference gateway and evaluation harness
 │   └── platform/                 # config, SMS, object storage, Redis, clock, IDs
+├── scripts/                      # CI, local-service and boot-verification tooling
+│   ├── ci/                       # pipeline probes, export, audit, SBOM, verdict
+│   ├── dev/                      # environment and Compose stack commands
+│   └── verify/                   # built application and worker boot check
 └── services/
     └── worker/                   # scheduled obligations
 ```
@@ -129,6 +135,8 @@ nearest `AGENTS.md` at or above the issue's `Own` paths. List them with `git ls-
 | `packages/platform` | `packages/platform/AGENTS.md` | Configuration, SMS, object storage, Redis, clock and identifier adapters |
 | `services/worker` | `services/worker/AGENTS.md` | Scheduled jobs: overdue check, report cards, anomaly review, cache warm, backup verify, handover |
 | `assets` | `assets/AGENTS.md` | Asset slots and generated visual files |
+| `infra` | `infra/AGENTS.md` | Local environment contract: one variable list from `packages/platform`, placeholder-only `.env.example`, no credential in the repository |
+| `scripts` | `scripts/AGENTS.md` | CI, local-service and boot-verification tooling: Node ESM, deterministic output, explicit exit codes, no product imports |
 | `docs` | `docs/AGENTS.md` | Specification work, in the documentation repository |
 
 Code ownership is not enforced by `CODEOWNERS`; the issue's `Own` paths and the nearest `AGENTS.md` are
